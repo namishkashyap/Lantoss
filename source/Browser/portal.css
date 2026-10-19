@@ -1,0 +1,104 @@
+/* Lantoss browser palette. Keep these tokens aligned with Core/Appearance.cs. */
+:root{color-scheme:light;--bg:#f3f7f5;--surface:#fff;--text:#142e2a;--muted:#536d66;--border:#cfddd7;--primary:#0a6b58;--mint:#126b4a;--sidebar:#eaf1ee;--soft:#ddf1e9;--accent:#08745d;--on-accent:#fff;--danger:#ad343b;--danger-soft:#fce8e7}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
+header{max-width:1032px;margin:auto;padding:24px 28px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font-size:22px;font-weight:750;letter-spacing:-.6px}
+.logo{display:grid;place-items:center;background:linear-gradient(135deg,#08745d,#91e5b4);color:white;border-radius:12px;width:42px;height:42px;font-size:35px;line-height:1}
+.pill{font-size:12px;background:var(--soft);color:var(--primary);padding:6px 11px;border-radius:20px}
+main{max-width:880px;margin:28px auto 60px;padding:0 28px}
+.eyebrow{font-size:11px;letter-spacing:2px;font-weight:700;color:var(--primary);margin:0 0 13px}
+h1{font-size:clamp(34px,6vw,52px);line-height:1.12;letter-spacing:-1.8px;margin:0 0 18px}
+.intro{font-size:16px;color:var(--muted);max-width:530px;margin:0 0 26px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:26px;margin:18px 0;box-shadow:0 5px 22px #00000004}
+h2{font-size:18px;letter-spacing:-.4px;margin:0 0 5px}
+p{color:var(--muted)}
+.section-title{display:flex;align-items:flex-start;gap:13px;margin-bottom:22px}
+.section-title p{margin:0;font-size:13px}
+.symbol{display:inline-grid;place-items:center;flex-shrink:0;width:40px;height:40px;border-radius:12px;color:var(--primary);background:var(--soft);font-size:25px;font-weight:500}
+.mint{color:var(--mint);background:var(--soft)}
+.picker{display:flex;flex-direction:column;align-items:center;text-align:center;border:1.5px dashed var(--primary);background:var(--bg);padding:25px 12px;gap:6px;border-radius:13px;cursor:pointer}
+.picker-icon{font-size:28px;color:var(--primary)}
+.picker span:last-child{font-size:12px;color:var(--muted)}
+.file-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.file-input:focus-visible+.selection,.picker:focus-within{outline:3px solid var(--primary)}
+.selection{list-style:none;padding:0;margin:15px 0}
+.selection li{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;overflow-wrap:anywhere}
+.selection small{color:var(--muted);float:right;margin-left:12px}
+.actions{display:flex;gap:10px;align-items:center}
+button,.download{font:inherit;font-size:14px;font-weight:600;border:0;border-radius:9px;padding:12px 17px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:20px;background:var(--accent);color:var(--on-accent);text-decoration:none}
+button:disabled{opacity:.45;cursor:default}
+button:hover:not(:disabled),.download:hover{filter:brightness(.94)}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+.secondary,.icon-button{background:var(--sidebar);color:var(--text)}
+.icon-button{margin-left:auto;min-width:38px;padding:7px;font-size:21px}
+.connected{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mint);margin-top:26px}
+.dot{width:7px;height:7px;background:var(--mint);border-radius:50%}
+.downloads{display:grid;gap:10px}
+.file-row{display:flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--border);padding:13px;border-radius:12px}
+.file-name{font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.file-meta{font-size:11px;color:var(--muted)}
+.file-row .download{margin-left:auto;font-size:12px;padding:9px 12px;flex-shrink:0}
+.empty{padding:24px 15px;text-align:center;background:var(--bg);border-radius:12px;font-size:13px;color:var(--muted)}
+#notice:empty{display:none}
+#notice{padding:12px 15px;border-radius:10px;background:var(--soft);font-size:13px;margin-bottom:18px}
+#notice.error{color:var(--danger);background:var(--danger-soft)}
+#login-form{display:grid;gap:10px;margin-top:20px}
+label{font-size:13px;font-weight:600}
+input:not([type=file]){font:inherit;font-size:20px;letter-spacing:2px;padding:12px;border:1px solid var(--border);border-radius:8px;width:100%;color:var(--text);background:var(--surface)}
+#transfer-label{font-size:12px;margin:17px 0 6px}
+progress{width:100%;height:8px;accent-color:var(--primary)}
+footer{font-size:11px;line-height:1.6;color:var(--muted);margin-top:26px;padding:0 4px}
+footer strong{font-weight:600;color:var(--text)}
+footer p{margin:5px 0}
+[hidden]{display:none!important}
+@media(min-width:800px){#sharing{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+#sharing .connected{grid-column:1/-1;margin:0}
+.card{margin:0}
+.receive-card{align-self:start}
+#login{max-width:480px;margin:25px 0}
+.intro{margin-bottom:32px}
+}
+@media(max-width:480px){header{padding:18px 20px}
+main{padding:0 20px;margin-top:24px}
+.card{padding:21px}
+.section-title p{font-size:12px}
+.file-row{flex-wrap:wrap}
+.file-row .download{margin-left:0;width:100%}
+h1{letter-spacing:-1.2px}
+}
+
+.spaces-card,.activity-card{grid-column:1/-1}
+.space-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.space-card{display:flex;flex-direction:column;align-items:flex-start;gap:6px;color:var(--text);background:var(--bg);border:1px solid var(--border);padding:15px;text-align:left}
+.space-card span{font-size:11px;color:var(--muted);font-weight:400}
+.space-navigation{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:20px 0 12px}
+.space-navigation strong{font-size:13px;overflow-wrap:anywhere}
+.space-navigation button{font-size:11px;padding:8px 10px}
+.transfer-row{padding:14px 0;border-bottom:1px solid var(--border)}
+.transfer-row:first-child{padding-top:0}
+.transfer-row:last-child{border-bottom:0}
+.transfer-row strong{font-size:13px;overflow-wrap:anywhere}
+.transfer-row p{margin:6px 0;font-size:12px}
+.speed{color:var(--primary);font-size:12px;font-weight:600}
+@media(min-width:800px){.spaces-card,.activity-card{grid-column:1/-1}
+}
+
+
+/* Shared semantic tokens also cover code entry, file lists, empty states and transfer feedback. */
+:root[data-theme=dark]{color-scheme:dark;--bg:#101b19;--surface:#192824;--text:#ecf6f0;--muted:#acc3b8;--border:#344b42;--primary:#72ddb2;--mint:#73deb2;--sidebar:#12211d;--soft:#203f33;--accent:#72ddb2;--on-accent:#10251d;--danger:#ffb4ab;--danger-soft:#482a2a;}
+
+/* Follow the device before JavaScript loads, while an explicit Light choice always wins. */
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#101b19;--surface:#192824;--text:#ecf6f0;--muted:#acc3b8;--border:#344b42;--primary:#72ddb2;--mint:#73deb2;--sidebar:#12211d;--soft:#203f33;--accent:#72ddb2;--on-accent:#10251d;--danger:#ffb4ab;--danger-soft:#482a2a;}
+}
+
+.header-actions{display:flex;align-items:center;gap:14px}
+.appearance{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px}
+.appearance select{padding:8px;border:1px solid var(--border);border-radius:8px;font:inherit;color:var(--text);background:var(--surface)}
+select:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+
+@media(max-width:480px){header{flex-wrap:wrap;gap:12px}
+.header-actions{width:100%;justify-content:space-between}
+}
+

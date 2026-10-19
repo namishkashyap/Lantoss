@@ -1,0 +1,30 @@
+LANTOSS 1.6 - LOCAL WI-FI SHARING
+
+FlowShare is now Lantoss.
+
+1. Close the older FlowShare/Lantoss app, including its tray window.
+2. Extract the ZIP and run app\Lantoss.exe on each Windows PC.
+3. Use the same home Wi-Fi. Discovery and direct connections are automatic.
+4. If Windows asks, approve administrator access for the app's scoped Private-
+   network firewall rules. Manual file transfers still ask the receiver first.
+
+APPEARANCE: choose System, Light or Dark near the top of the sidebar. Changes
+save immediately. System follows Windows automatically. The phone/browser
+page has its own selector and follows that device's system preference.
+
+PHONE: open Phone & browser and scan the QR. No phone app is needed. Use
+Open in browser to transfer from a browser on this PC. Browser sharing uses
+local HTTP; use your trusted home Wi-Fi. Optional codes are in Settings.
+
+SHARED FOLDERS: open Shared Spaces to share local folders or browse another
+connected PC inside the app. Enable Read & upload for approved remote uploads.
+To sync, link a remote space to a local folder once and approve on the host.
+Keep both apps open. Added/changed files sync; deletions do not propagate.
+Conflicts and replaced versions are retained. Read README.md before linking.
+
+UPGRADES: existing connections, receive folders, spaces, history and sync links
+are reused. Some internal protocol/backup names retain FlowShare compatibility.
+
+DEVELOPERS: source\ contains the complete code with explanatory comments.
+Read DEVELOPER_GUIDE.md for architecture, build steps and compatibility notes.
+README.md explains usage; VERIFICATION.md records the actual checks.

@@ -1,0 +1,142 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+
+namespace Lantoss.Core;
+
+public sealed class SyncScanner
+{
+    private sealed record Cached(long Length, DateTime Modified, DateTime Checked, string Hash);
+    private readonly ConcurrentDictionary<string, Cached> cache = new(StringComparer.OrdinalIgnoreCase);
+    public async Task<Manifest> ScanAsync(string root, CancellationToken token)
+    {
+        FileCatalog.CheckSafeDirectory(root);
+        if (!Directory.Exists(root))
+            throw new IOException("The sync folder is unavailable. Restore its drive/folder; it will not be recreated automatically.");
+        List<ManifestEntry> entries = [];
+        await Walk(root, "");
+        return new()
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Entries = entries
+        };
+        async Task Walk(string folder, string relative)
+        {
+            foreach (string path in Directory.EnumerateFileSystemEntries(folder).Order(StringComparer.OrdinalIgnoreCase))
+            {
+                token.ThrowIfCancellationRequested();
+                string name = Path.GetFileName(path);
+                if (name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                FileCatalog.ValidateSegment(name);
+                FileCatalog.CheckSafePath(path);
+                if (entries.Count >= FileCatalog.MaxEntries)
+                    throw new IOException("A sync folder supports up to 10,000 files and folders.");
+                string child = relative.Length == 0 ? name : relative + "/" + name;
+                if (Directory.Exists(path))
+                {
+                    entries.Add(new()
+                    {
+                        RelativePath = child,
+                        Directory = true
+                    });
+                    await Walk(path, child);
+                }
+                else
+                {
+                    FileInfo info = new(path);
+                    long size = info.Length;
+                    DateTime modified = info.LastWriteTimeUtc;
+                    if (size > FileCatalog.MaxFileBytes)
+                        throw new IOException("A sync file exceeds the 1 TiB safety ceiling.");
+                    if (!cache.TryGetValue(path, out Cached? saved) || saved.Length != size || saved.Modified != modified || DateTime.UtcNow - saved.Checked > TimeSpan.FromMinutes(1))
+                    {
+                        string hash = await SyncFiles.HashAsync(path, token);
+                        info.Refresh();
+                        if (info.Length != size || info.LastWriteTimeUtc != modified)
+                            throw new IOException("A file is still being edited. Sync will retry.");
+                        saved = new(size, modified, DateTime.UtcNow, hash);
+                        if (cache.Count >= 20000)
+                            cache.Clear();
+                        cache[path] = saved;
+                    }
+                    entries.Add(new()
+                    {
+                        RelativePath = child,
+                        Size = size,
+                        Sha256 = saved.Hash,
+                        SourcePath = path,
+                        SourceModifiedUtc = modified
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Performs guarded sync filesystem changes. Atomic replacement retains prior contents in the excluded version directory, so interrupted writes do not destroy the original.
+/// </summary>
+public static class SyncFiles
+{
+    public static async Task<string> HashAsync(string file, CancellationToken token)
+    {
+        FileCatalog.CheckSafePath(file);
+        if (!File.Exists(file))
+            return "";
+        await using FileStream stream = new(file, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        return Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
+    }
+    public static void ValidateSnapshot(Manifest snapshot)
+    {
+        if (snapshot.Entries is null || snapshot.Entries.Count > FileCatalog.MaxEntries)
+            throw new IOException("The remote folder is too large.");
+        if (snapshot.Entries.Count == 0)
+            return;
+        FileCatalog.ValidateManifest(snapshot);
+    }
+    public static string PathIn(string root, string relative)
+    {
+        string path = FileCatalog.Within(root, relative);
+        FileCatalog.CheckSafePath(path);
+        return path;
+    }
+    public static void MakeDirectory(string root, string relative)
+    {
+        FileCatalog.CheckSafeDirectory(root);
+        if (!Directory.Exists(root))
+            throw new IOException("The sync root is unavailable.");
+        string path = PathIn(root, relative);
+        FileCatalog.CheckSafeDirectory(path);
+        Directory.CreateDirectory(path);
+    }
+    // Existing copies are retained by File.Replace so an edit is recoverable.
+    public static async Task CommitAsync(string temporary, string root, string relative, string expectedHash, CancellationToken token)
+    {
+        string target = PathIn(root, relative);
+        if (!string.Equals(await HashAsync(target, token), expectedHash, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("The destination changed during sync. No replacement was made; retrying.");
+        token.ThrowIfCancellationRequested();
+        FileCatalog.CheckSafePath(target);
+        if (File.Exists(target))
+        {
+            // Keep the historical directory name so existing backups stay excluded on mixed-version PCs.
+            string versions = Path.Combine(root, ".flowshare-versions", Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(relative.ToUpperInvariant())))[..24]);
+            FileCatalog.CheckSafeDirectory(versions);
+            Directory.CreateDirectory(versions);
+            File.Replace(temporary, target, Path.Combine(versions, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N") + ".bak"));
+        }
+        else
+            File.Move(temporary, target, false);
+    }
+    public static string ConflictPath(string relative, string remoteHash)
+    {
+        string folder = relative.Contains('/') ? relative[..relative.LastIndexOf('/')] + "/" : "";
+        string name = Path.GetFileNameWithoutExtension(relative);
+        string extension = Path.GetExtension(relative);
+        if (extension.Length > 40)
+            extension = extension[..40];
+        string suffix = " (conflict " + remoteHash[..12].ToLowerInvariant() + ")";
+        int budget = Math.Max(1, 180 - suffix.Length - extension.Length);
+        return folder + name[..Math.Min(name.Length, budget)] + suffix + extension;
+    }
+}

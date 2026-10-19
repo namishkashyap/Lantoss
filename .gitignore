@@ -1,0 +1,33 @@
+# Build outputs, generated app and local SDK/package caches
+/app/
+/work/
+/artifacts/
+**/bin/
+**/obj/
+**/node_modules/
+*.zip
+*.nupkg
+
+# IDE and operating system files
+.vs/
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# Runtime metadata and device identity must remain local
+metadata.json*
+sync-state.json*
+firewall-setup-state.json*
+startup-error.txt
+*.pfx
+*.p12
+*.key
+*.pem
+.env
+.env.*
+
+# Transfer staging and previous file versions
+.flowshare-*/
+.flowshare-*.part

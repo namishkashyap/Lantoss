@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup><Compile Include="../Networking/*.cs" Link="Networking/%(Filename)%(Extension)" /></ItemGroup>
+  <ItemGroup><PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" /></ItemGroup>
+  <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../Browser/*" LogicalName="Lantoss.Browser.%(Filename)%(Extension)" /></ItemGroup>
+</Project>

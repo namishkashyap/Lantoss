@@ -1,0 +1,176 @@
+2026-10-20 - Lantoss 1.6: rename, appearance and developer documentation
+
+Renamed the executable/projects/resources, window/tray/dialogs, browser and
+history export. Preserve existing stores and legacy protocol/backup identifiers.
+Introduced the teal/mint Light and Dark palettes, dynamic action foregrounds,
+themed checkboxes and a sidebar System/Light/Dark selector that saves immediately.
+The responsive phone page supports its own saved appearance and live System mode.
+Added architecture/invariant comments and DEVELOPER_GUIDE.md with a source map.
+Added appearance contrast/persistence, upgrade and browser appearance regressions.
+
+Earlier versions below were published under the FlowShare name.
+
+2026-10-19 — FlowShare 1.5: automatic Private firewall setup and PC selector fix
+
+Request: explicitly authorize automatic Private-network firewall configuration
+and fix Shared Spaces showing the Peer record instead of the PC's name.
+
+Changes: automatic app-specific inbound firewall setup through Windows UAC;
+Private profile/local IPv4 subnet/actual native-browser ports plus UDP discovery;
+stable rule updates, prior local app-denial repair preserving Public/Domain
+blocks, self-verification, deferred retry after cancellation, and settings opt-out.
+No global firewall, router, network-category, other-app, or managed-policy changes.
+
+The custom ComboBox now forwards its display-template selector/string format.
+Shared Spaces uses an explicit name/ellipsis template and compact 40px selector;
+Peer.ToString returns Name as a fallback. Send's populated selector is checked too.
+The UDP test fixture uses an isolated port rather than competing with a running app.
+
+Validation: 176 C# checks passed, one symbolic-link fixture skipped; eight native
+populated UI regressions and six browser state checks passed; syntax/format/build,
+embedded browser preview, and package hashes checked. Firewall scripts were tested
+with mocked cmdlets; real Windows administrator approval and rule application
+still occur when the user runs this version. See VERIFICATION.md.
+
+2026-10-19 — FlowShare 1.4: native shared folders and automatic two-way sync
+
+Request: sync new/changed files between PCs automatically, improve failed
+discovery/transfers, and browse another PC's shared folders inside the app.
+
+Changes: native TLS space browsing, verified downloads and batch-approved
+uploads; automatic two-way sync with persisted links and one-time host grants;
+initial merges, empty folders, checksum revision guards, conflict copies on both
+PCs, previous-version backups, offline retries and app-restart recovery;
+pause/remove/revoke controls and unpair cleanup. Deletions do not propagate.
+Discovery now uses mDNS plus UDP 48587 LAN broadcast; direct pairing is automatic
+with an opt-out and code/block policy checks. Remembered peers are probed, stale
+addresses can fall back without changing key pins, and adapters recover on change.
+A native connection diagnostic screen opens Windows settings and copies a report.
+
+Technical: paired native space RPCs, per-chunk authorization, confined paths,
+three outgoing space connection slots, streamed SHA-256 verification, atomic
+keep-both/manual saves and revision-checked sync replacement with version backups;
+separate bounded atomic sync-state.json. No firewall/router modification or
+privilege helper is included. Physical router behavior cannot be guaranteed.
+
+Validation: 166 C# checks and six browser DOM-state checks passed; one privileged
+symbolic-link fixture skipped. Strict compilation, formatting, native previews,
+loopback browser diagnostics, and archive hashes are recorded in VERIFICATION.md.
+Both PCs need 1.4 for native folder
+browsing and sync. The older browser remains available for phones over local HTTP.
+
+2026-10-19 — FlowShare 1.3: Shared Spaces and live transfer speed
+
+Request: display transfer speed, make Shared Spaces functional, and provide an
+easy button to open browser file transfer.
+
+Changes: top-bar Open in browser button; persistent explicitly selected folder
+spaces, read-only by default; browser folder navigation/downloads; optional
+Read & upload permission with host approval and pinned folder destinations;
+stop/remove/permission-change revocation without deleting local files. Spaces
+have browser/open-folder controls and real availability/host-drive free space.
+Browser uploads/downloads show measured byte progress, speed, ETA, and terminal
+average; native phone/space pages show aggregate active speed. Native Transfers
+continues to show measured speed/ETA. Direct/no-code defaults remain available.
+
+Affected files: Core models/metadata/SpaceCatalog; Networking BrowserPortal and
+BrowserSpaces; browser HTML/CSS/JS; UI SharedSpacesPage, AppShell, Shell, dialogs,
+PhoneBrowserPage, SettingsPage and project version; tests; delivery guides.
+
+Checks: 128 C# integration checks passed, one symbolic-link fixture skipped;
+6 browser DOM state checks and JavaScript syntax passed. Speed checks use paced
+real loopback streams and exact byte totals, not invented Wi-Fi rates. Physical
+phone/PC/router, key-store startup, and browser visual checks remain external.
+See VERIFICATION.md for build, preview, and package checks.
+
+2026-10-19 — FlowShare 1.2: direct access and phone/browser sharing
+
+Request: remove all default connection codes/comparison prompts, offer optional
+code protection, and support phone browsers for sharing content.
+
+Changes: default direct PC connection with saved-key trust; optional expiring
+access code; a Phone & browser screen with a local link and QR; selected PC-file
+downloads; batch-approved phone uploads with progress/cancel, atomic keep-both
+saves, and separate browser history. Browser sessions are reset when protection
+changes. Home/Send include phone sharing actions. Settings and guides explain
+actual HTTP transport, access scope, native trust, and physical-test limits.
+
+Affected files: Core models/project, Networking/BrowserPortal.cs, TransferEngine,
+Wire and discovery; Browser HTML/CSS/JS; UI PhoneBrowserPage, dialogs/settings,
+home/send/devices/transfers/app shell/program/project; tests; guides/licensing.
+
+Technical: ASP.NET Core 10 Kestrel with private-address binding, bounded streams,
+session/CSRF/Host/Origin checks, no directory routes or internet exposure;
+QRCoder 1.8.1; native TLS stays mandatory while direct first-contact trust is
+labelled saved key. Browser HTTP is explicitly not claimed encrypted.
+
+Checks: 112 C# checks passed, one symbolic-link fixture skipped; 4 JavaScript
+input/state checks and syntax check passed. Release formatting/build/export and
+archive checks are recorded in VERIFICATION.md. Physical phones/two-PC Wi-Fi,
+normal Windows key-store startup, notifications, and security audit still need
+external validation. The browser preview tool could not reach the temporary
+test page, so a rendered mobile-browser visual check is not claimed.
+
+2026-10-19 — FlowShare 1.1: simpler PC connection
+
+Request: remove the routine password/server-link entry from connecting PCs.
+
+Changes: opening the app starts nearby discovery/receiving by default; choose a
+nearby PC and click Connect, then compare/approve on both screens without typing.
+Approved public keys are remembered and probed on startup. Manual address/code
+entry is a secondary fallback. Automatic startup has a persisted opt-out.
+Devices hides address/key details behind an expander and explains older clients.
+
+Affected files: Core/Models.cs, Networking/TransferEngine.cs and MdnsDiscovery.cs,
+UI/Dialogs.cs, AppShell.cs, DeviceAndHistoryPages.cs, HomeAndSendPages.cs,
+SettingsPage.cs, Shell.xaml, FlowShare.Windows.csproj, tests/Program.cs, guides.
+
+Technical: optional discovery capability and pair-nearby protocol request;
+pin the discovered key for TLS and require matching-key comparison approvals.
+Hidden/blocked PCs reject nearby requests. Global/per-IP prompt limits and the
+existing pending-request timeout remain enforced. File approval is mandatory.
+
+Checks: 72 passed, one symbolic-link fixture skipped; formatting, strict build,
+published screen exports, and package integrity checked. Detailed results and
+remaining native startup/two-PC validation are recorded in VERIFICATION.md.
+Both PCs need 1.1 for connection without typing. Discovery can still be blocked
+by Windows Firewall, guest isolation, or a VPN; manual fallback remains available.
+
+2026-10-19 — FlowShare 1.0 for Windows (development release)
+
+Request: apply the supplied FlowShare design/feature brief to the existing app;
+retain Windows as the target, as confirmed by the user.
+
+Changes: reference-inspired WPF shell with separate Home, Send, Transfers,
+Devices, History, and Settings screens; functional native file/folder selection;
+mDNS/manual pairing; mutual-key TLS transport and receiver approvals; streamed
+folder transfers; checksums and atomic finalization; cancellation/retry;
+duplicate policies; local history/settings; themes and notifications.
+Shared Spaces and Sync are explicitly gated. Browser guests, QR, remote/cloud
+sharing, resumable chunks, and team features are not claimed implemented.
+
+Affected files: source/Core/*, source/Networking/*, source/UI/*,
+source/tests/*, source/build.ps1, source/NuGet.Config, source/.editorconfig,
+README.md, DEVELOPMENT_NOTES.md, ROADMAP.md, VERIFICATION.md, licensing files.
+
+Technical: retained C#/WPF, upgraded to .NET 10; separate typed engine;
+BouncyCastle.Cryptography 2.7.0 TLS 1.2/ECDHE-RSA/AES-GCM with pinned public
+keys; per-user Windows certificate identity; bounded wire/filesystem resources;
+background atomic JSON metadata; native Windows x64 self-contained package.
+Slow-storage timeouts and blocking history persistence found during development
+were addressed before the successful final 10 GiB run.
+
+Checks: 63-check volume run passed, including 1,000 files and an independently
+verified 10 GiB transfer; final non-volume suite passed 59 checks. One
+symbolic-link fixture skipped for missing Windows privilege. Formatter,
+strict build, published UI renders, and final package
+checks are recorded in VERIFICATION.md. Physical two-PC, installed-key-store,
+router/multicast, native notification, and independent security checks remain.
+
+2026-10-18 — Hearth 1.0.1 (predecessor, kept separate)
+
+Fixed the browser page's automatic eight-second check clearing the access-code
+input. Added nine regression checks for input retention, stale responses,
+successful/failed sign-in, expiry, and logout. The original Hearth packages
+remain available; their browser protocol is not FlowShare's encrypted native
+protocol.
