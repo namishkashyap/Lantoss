@@ -18,7 +18,7 @@ if (-not $SkipPublish) {
     & (Join-Path $lantossRelease 'source\build.ps1') -Mode Publish -DotnetPath $DotnetPath -BuildRoot $lantossBuild
     if ($LASTEXITCODE) { throw 'App publication failed.' }
 }
-if ((Get-Item (Join-Path $lantossRelease 'app\Lantoss.exe')).VersionInfo.FileVersion -ne '1.9.0.0') { throw 'Publish Lantoss 1.9 first.' }
+if ((Get-Item (Join-Path $lantossRelease 'app\Lantoss.exe')).VersionInfo.FileVersion -ne '2.0.0.0') { throw 'Publish Lantoss 2.0 first.' }
 foreach ($lantossPayload in @('LantossExplorer.dll','Lantoss.Explorer.msix','RegisterPackage.ps1','Assets\Logo.png','Assets\SmallLogo.png')) {
     if (-not (Test-Path -LiteralPath (Join-Path $lantossRelease ('app\'+$lantossPayload)))) { throw ('Build the Explorer integration first: '+$lantossPayload) }
 }
@@ -41,7 +41,7 @@ foreach ($lantossPackage in $lantossPackages) {
 }
 $lantossWix = Join-Path $lantossTools 'wix\tools\net6.0\any\wix.dll'
 $lantossUI = Join-Path $lantossTools 'wixtoolset.ui.wixext\wixext4\WixToolset.UI.wixext.dll'
-$lantossMsi = Join-Path $lantossRelease 'Lantoss-Setup-1.9.0-x64.msi'
+$lantossMsi = Join-Path $lantossRelease 'Lantoss-Setup-2.0.0-x64.msi'
 & $DotnetPath $lantossWix build (Join-Path $PSScriptRoot 'Lantoss.wxs') -arch x64 -ext $lantossUI -d ('ReleaseDir='+$lantossRelease) -out $lantossMsi -intermediatefolder (Join-Path $lantossBuild 'installer-objects') -pdbtype none -wx
 if ($LASTEXITCODE) { throw 'MSI compilation or validation failed.' }
 Get-FileHash -LiteralPath $lantossMsi -Algorithm SHA256
