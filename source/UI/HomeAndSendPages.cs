@@ -107,9 +107,10 @@ internal sealed class HomePage : IPage
                 else
                     app.Dialogs.Pair(peer);
             }, icon: peer.Paired ? "send" : "pair");
-            devices.Children.Add(C.Space(C.Card(Row(C.Stack(C.Space(C.Text(peer.Name, 15, bold: true), 5),
-                C.Text(peer.Online ? "On your network" : "Offline · open Lantoss on this PC", 12, peer.Online ? "Success" : "Muted")), action), 16), 8));
+            devices.Children.Add(C.Space(C.Card(Row(C.Person(peer.Name, null, peer.Online ? "On your network" : "Offline · open Lantoss on this PC", 40, peer.Online ? "Success" : "Muted"), action), 16), 8));
         }
+        foreach (BrowserDevice browser in app.Engine.Browser.Devices.Where(b => b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(3))
+            devices.Children.Add(C.Space(C.Card(Row(C.Person(browser.Label, browser.Picture, "Connected through the web · " + browser.Address, 40, "Success"), C.Button("Share with browser", () => app.Navigate("Phone & browser"), icon: "devices")), 16), 8));
         double speed = app.Engine.Transfers.Records.Where(r => !r.Terminal).Sum(r => r.BytesPerSecond);
         status.Text = speed > 0 ? $"{speed / 1048576:0.0} MB/s transferring" : "";
         status.Visibility = speed > 0 ? Visibility.Visible : Visibility.Collapsed;

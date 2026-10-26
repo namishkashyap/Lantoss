@@ -291,11 +291,11 @@ public sealed partial class TransferEngine : IDisposable
     }
     public async Task<Peer> PairAsync(string endpoint, string code, Func<PairRequest, CancellationToken, Task<bool>> compare, CancellationToken token = default)
         => await PairCoreAsync(endpoint, code, null, compare, token, false);
-    public async Task<Peer> ConnectDirectAsync(Peer peer, string code = "", CancellationToken token = default)
+    public async Task<Peer> ConnectDirectAsync(Peer peer, string code = "", CancellationToken token = default, Func<PairRequest, CancellationToken, Task<bool>>? compare = null)
     {
         if (!peer.SupportsDirectConnect)
             throw new ProtocolException("Update Lantoss on both PCs for direct connection.");
-        return await PairCoreAsync(peer.Endpoint, code, peer.Fingerprint, (_, _) => Task.FromResult(true), token, true);
+        return await PairCoreAsync(peer.Endpoint, code, peer.Fingerprint, compare ?? ((_, _) => Task.FromResult(false)), token, true);
     }
     public async Task<Peer> PairNearbyAsync(Peer peer, Func<PairRequest, CancellationToken, Task<bool>> compare, CancellationToken token = default)
     {
@@ -334,7 +334,7 @@ public sealed partial class TransferEngine : IDisposable
         string name = MetadataStore.ValidateName(challenge.Name);
         if (direct && !challenge.Direct)
             throw new ProtocolException("Update Lantoss on both PCs for direct connection.");
-        bool accepted = direct || await compare(new(name, channel.Fingerprint, comparison, false), timeout.Token);
+        bool accepted = direct && !challenge.Confirm || await compare(new(name, channel.Fingerprint, comparison, false), timeout.Token);
         await Wire.WriteAsync(channel.Stream, new()
         {
             Kind = "pair-decision",
@@ -352,7 +352,7 @@ public sealed partial class TransferEngine : IDisposable
             Port = port,
             SupportsQuickPair = expectedKey != null,
             SupportsDirectConnect = direct,
-            KeyVerified = !direct,
+            KeyVerified = !direct || challenge.Confirm,
             Paired = true
         };
         store.UpsertPeer(peer);
@@ -442,7 +442,8 @@ public sealed partial class TransferEngine : IDisposable
                 throw new ProtocolException("The recipient cannot show an approval dialog.");
             using CancellationTokenSource approvalTimeout = CancellationTokenSource.CreateLinkedTokenSource(work.Token);
             approvalTimeout.CancelAfter(TimeSpan.FromMinutes(2));
-            ReceiveDecision decision = await ApproveReceive(new(peer.Name, fingerprint, manifest, preferences.ReceiveFolder, FileCatalog.FreeSpace(preferences.ReceiveFolder), peer.KeyVerified), approvalTimeout.Token);
+            string inbox = preferences.SenderFolders ? Profiles.SenderFolder(preferences.ReceiveFolder, peer.Name) : preferences.ReceiveFolder;
+            ReceiveDecision decision = await ApproveReceive(new(peer.Name, fingerprint, manifest, inbox, FileCatalog.FreeSpace(inbox), peer.KeyVerified, Address: peer.Address), approvalTimeout.Token);
             if (!decision.Accepted)
             {
                 job.State(TransferState.Declined, "Declined by the recipient.");
@@ -559,20 +560,23 @@ public sealed partial class TransferEngine : IDisposable
                 throw new ProtocolException("This PC requires an access code. Update both apps or use Manual connection.");
             if (!direct && !nearbyPair && !PairingCode.Consume(hello.Code))
                 throw new ProtocolException("That pairing code is incorrect, expired, or already used. Read the current code on the receiving PC.");
-            if (!direct && ApprovePair == null)
+            // A relayed access code must not bind silently: code-protected direct pairing is confirmed on both screens.
+            bool confirm = direct && store.Preferences.RequireConnectionCode;
+            if ((!direct || confirm) && ApprovePair == null)
                 throw new ProtocolException("The receiving PC cannot show a pairing dialog.");
             pairingTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             pairingTimeout.CancelAfter(TimeSpan.FromMinutes(2));
             CancellationTokenSource timeout = pairingTimeout;
             string comparison = Identity.Comparison(Fingerprint, fingerprint, hello.Nonce);
-            Task<bool> localDecision = direct ? Task.FromResult(true) : ApprovePair!(new(name, fingerprint, comparison, true), timeout.Token);
+            Task<bool> localDecision = direct && !confirm ? Task.FromResult(true) : ApprovePair!(new(name, fingerprint, comparison, true), timeout.Token);
             await Wire.WriteAsync(ssl, new()
             {
                 Kind = "pair-challenge",
                 Name = store.Preferences.DeviceName,
                 Fingerprint = Fingerprint,
                 Comparison = comparison,
-                Direct = direct
+                Direct = direct,
+                Confirm = confirm
             }, timeout.Token);
             WireMessage decision = await Wire.ReadAsync(ssl, timeout.Token, 120);
             Wire.Require(decision, "pair-decision");
@@ -590,7 +594,7 @@ public sealed partial class TransferEngine : IDisposable
                     Paired = true,
                     SupportsQuickPair = nearbyPair,
                     SupportsDirectConnect = direct,
-                    KeyVerified = !direct
+                    KeyVerified = !direct || confirm
                 });
                 lock (gate)
                     attempts.Remove(remote);

@@ -37,7 +37,9 @@ public sealed class PrivateFirewallPlan
         RulePrefix = "Lantoss-Private-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Program.ToUpperInvariant())))[..16];
         Signature = RulePrefix + ":v1:" + string.Join(',', TcpPorts);
     }
-    private string Header => "$ErrorActionPreference='Stop';\n$flowProgram='" + Program.Replace("'", "''") + "';\n$flowPrefix='" + RulePrefix + "';\n$flowTcp=@(" + string.Join(',', TcpPorts.Select(port => "'" + port + "'")) + ");\n";
+    private string Header => "$ErrorActionPreference='Stop';\n$flowProgram='" + Quote(Program) + "';\n$flowPrefix='" + RulePrefix + "';\n$flowTcp=@(" + string.Join(',', TcpPorts.Select(port => "'" + port + "'")) + ");\n";
+    // PowerShell also treats U+2018-U+201B as single quotes; double every quote form so a folder name cannot end the literal.
+    private static string Quote(string value) => System.Text.RegularExpressions.Regex.Replace(value, "['\u2018\u2019\u201A\u201B]", match => match.Value + match.Value);
     private const string Functions = """
         function Get-FlowBlocks([string]$store) {
           @(Get-NetFirewallApplicationFilter -PolicyStore $store | Where-Object { $_.Program -eq $flowProgram } | Get-NetFirewallRule | Where-Object {

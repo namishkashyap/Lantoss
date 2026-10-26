@@ -20,7 +20,7 @@ internal sealed class DevicesPage : IPage
         pair.Margin = new(10, 0, 0, 0);
         Button diagnostics = C.Button("Connection diagnostics", () => NetworkDiagnostics.Show(app));
         diagnostics.Margin = new(10, 0, 0, 0);
-        View = C.Stack(C.Space(C.Text("Your PCs, connected automatically.", 24, bold: true), 9), C.Space(C.Text("Open Lantoss 1.9 on both PCs. Discovery uses mDNS and LAN broadcast, and direct connections are automatic unless code protection is enabled.", 13, "Muted"), 22), C.Space(C.Inline(scan, pair, diagnostics), 18), C.Space(status, 22), list,
+        View = C.Stack(C.Space(C.Text("Your PCs, connected automatically.", 24, bold: true), 9), C.Space(C.Text("Open Lantoss on both PCs. Discovery uses mDNS and LAN broadcast, and direct connections are automatic unless code protection is enabled.", 13, "Muted"), 22), C.Space(C.Inline(scan, pair, diagnostics), 18), C.Space(status, 22), list,
             C.Space(C.Note("Using your phone?", "Open Phone & browser in the sidebar and scan its QR code. Phones use the browser page; NAS agents and internet sharing remain unavailable.", "devices"), 0, 20));
     }
     public void Refresh()
@@ -59,7 +59,7 @@ internal sealed class DevicesPage : IPage
             }
             if (peer.Blocked)
                 actions.Children.Add(C.Small("Unblock", () => { app.Store.ForgetPeer(peer.Fingerprint, false); Refresh(); }));
-            TextBlock name = C.Text(peer.Name, 16, bold: true);
+            DockPanel name = C.Person(peer.Name, null, peer.Online ? "Online · " + peer.Address : "Offline", 44, peer.Online ? "Success" : "Muted");
             Expander connectionDetails = new()
             {
                 Header = "Connection details",
@@ -68,7 +68,21 @@ internal sealed class DevicesPage : IPage
             };
             connectionDetails.SetResourceReference(Control.ForegroundProperty, "Muted");
             string availability = peer.Online ? peer.Paired ? "Ready to send · remembered PC" : peer.RequiresCode ? "Ready to connect · access code required" : peer.SupportsDirectConnect ? "Ready to connect · no code needed" : peer.SupportsQuickPair ? "Ready to connect · comparison approval" : "Update both PCs for connection without typing, or use manual connection." : "Offline or not yet checked. Open Lantoss on that PC.";
-            StackPanel details = C.Stack(C.Space(name, 8), C.Space(C.Badge(peer.TrustLabel, peer.Paired ? "Success" : "Muted", peer.Paired ? "SuccessSoft" : "Background"), 10), C.Space(C.Text(availability, 12, "Muted"), 16), actions, connectionDetails);
+            Border trust = C.Badge(peer.TrustLabel, peer.Paired ? "Success" : "Muted", peer.Paired ? "SuccessSoft" : "Background");
+            trust.HorizontalAlignment = HorizontalAlignment.Left;
+            StackPanel details = C.Stack(C.Space(name, 12), C.Space(trust, 10), C.Space(C.Text(availability, 12, "Muted"), 16), actions, connectionDetails);
+            list.Children.Add(C.Space(C.Card(details), 14));
+        }
+        BrowserDevice[] browsers = app.Engine.Browser.Devices.Where(b => b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || b.Address.Contains(app.Search, StringComparison.Ordinal)).ToArray();
+        list.Children.Add(C.Space(C.Heading("Connected through the web", C.Badge(browsers.Length + " active", browsers.Length > 0 ? "Success" : "Muted", browsers.Length > 0 ? "SuccessSoft" : "Background")), 12, 14));
+        if (browsers.Length == 0)
+            list.Children.Add(C.Space(C.Text("No phone or browser is connected. Open Phone & browser to share the page link or QR code.", 12, "Muted"), 14));
+        foreach (BrowserDevice browser in browsers)
+        {
+            Button disconnect = C.Small("Disconnect", () => { if (MessageBox.Show(app.Window, "Disconnect " + browser.Label + "? Its pending uploads stop and the page must connect again.", "Disconnect browser", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Disconnect(browser.Handle); });
+            string seen = DateTime.UtcNow - browser.LastSeenUtc < TimeSpan.FromMinutes(1) ? "active now" : "active " + browser.LastSeenUtc.ToLocalTime().ToString("HH:mm");
+            StackPanel details = C.Stack(C.Space(C.Person(browser.Label, browser.Picture, browser.Address + " · connected " + browser.ConnectedUtc.ToLocalTime().ToString("HH:mm") + " · " + seen, 44), 12),
+                C.Space(C.Text(browser.Name.Length > 0 ? "Name and picture are chosen on that device." : "This browser has not set a name yet.", 11, "Muted"), 12), disconnect);
             list.Children.Add(C.Space(C.Card(details), 14));
         }
     }
@@ -131,7 +145,7 @@ internal sealed class HistoryPage : IPage
     public static Border Summary(TransferRecord record)
     {
         Border badge = C.Badge(record.StatusText, record.State == TransferState.Completed ? "Success" : record.State == TransferState.Failed ? "Danger" : "Primary", record.State == TransferState.Completed ? "SuccessSoft" : record.State == TransferState.Failed ? "DangerSoft" : "PrimarySoft");
-        StackPanel info = C.Stack(C.Heading(record.Title, badge, 13), C.Text($"{record.Direction} · {record.PeerName} · {record.SizeText} · {record.CreatedUtc.ToLocalTime():dd MMM, HH:mm}", 11, "Muted"));
+        StackPanel info = C.Stack(C.Heading(record.Title, badge, 13), C.Text($"{(record.Direction == "Received" ? "From" : "To")} {record.PeerName}{(record.PeerAddress.Length > 0 ? " · " + record.PeerAddress : "")} · {record.SizeText} · {record.CreatedUtc.ToLocalTime():dd MMM, HH:mm}", 11, "Muted"));
         return C.Card(info, 17);
     }
     private void Clear()

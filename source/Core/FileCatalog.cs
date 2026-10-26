@@ -160,6 +160,10 @@ public static class FileCatalog
         string result = Path.GetFullPath(Path.Combine(prefix, relative.Replace('/', Path.DirectorySeparatorChar)));
         if (!result.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || result.Length > 32000)
             throw new InvalidDataException("A received path would leave the chosen folder.");
+        // GetFullPath expands 8.3 short names (FLOWSH~1), so validate the expanded segments as well.
+        if (result.Length > prefix.Length)
+            foreach (string segment in result[prefix.Length..].Split(Path.DirectorySeparatorChar))
+                ValidateSegment(segment);
         return result;
     }
     public static string Unique(string path, ISet<string>? reserved = null)

@@ -77,7 +77,7 @@ internal sealed class Dialogs(AppShell app)
             feedback.Text = "Connecting…";
             try
             {
-                Peer result = peer.SupportsDirectConnect ? await app.Engine.ConnectDirectAsync(peer, accessCode.Text, work.Token) : await app.Engine.PairNearbyAsync(peer, CompareAsync, work.Token);
+                Peer result = peer.SupportsDirectConnect ? await app.Engine.ConnectDirectAsync(peer, accessCode.Text, work.Token, CompareAsync) : await app.Engine.PairNearbyAsync(peer, CompareAsync, work.Token);
                 window.Close();
                 app.Navigate("Devices");
                 app.Tell("Connected to " + result.Name + ". Remembered for next time; choose Send when you are ready.");
@@ -234,7 +234,8 @@ internal sealed class Dialogs(AppShell app)
                     names.Children.Add(C.Text("+ " + (request.Manifest.Entries.Count - 8) + " more items", 11, "Muted"));
                 Button decline = C.Button("Decline", window.Close);
                 accept.Margin = new(10, 0, 0, 0);
-                StackPanel body = C.Stack(C.Space(C.Text(request.PeerName + " wants to send files", 23, bold: true), 10),
+                string sender = (request.Browser ? "Web browser" : "Windows PC") + (request.Address.Length > 0 ? " · " + request.Address : "") + " · asked at " + DateTime.Now.ToString("HH:mm");
+                StackPanel body = C.Stack(C.Space(C.Text("Incoming files", 23, bold: true), 14), C.Space(C.Card(C.Person(request.PeerName, request.Picture, sender, 48), 16), 14),
                     C.Space(C.Text($"{request.Manifest.FileCount} files · {request.Manifest.FolderCount} folders · {Format.Bytes(request.Manifest.TotalBytes)}", 13, "Muted"), 18), C.Space(C.Card(names), 18),
                     C.Space(C.Badge(request.Browser ? "Phone/browser · local HTTP" : request.KeyVerified ? "Paired device · public key verified" : "Connected PC · saved public key", "Success", "SuccessSoft"), 16), C.Space(C.Text("SAVE TO", 10, "Muted", true), 7), C.Space(location, 10), C.Space(choose, 10), C.Space(free, 18), C.Text("IF FILES ALREADY EXIST", 10, "Muted", true), duplicates,
                     C.Space(C.Text(request.FixedFolder ? "Files are saved into this shared folder and become visible to its connected devices. Existing files are kept. Browser transfers use HTTP; native PC transfers use TLS." : request.Browser ? "Browser uploads keep both copies. Files are saved atomically and never opened or shared automatically. Local HTTP is not encrypted." : "Files are checksum-verified before saving. Received files are never opened or shared automatically.", 11, "Muted"), 20), C.Inline(decline, accept));

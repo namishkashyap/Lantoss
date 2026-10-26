@@ -29,6 +29,10 @@ public sealed record WireMessage
     {
         get; init;
     }
+    public bool Confirm
+    {
+        get; init;
+    }
     public string Error { get; init; } = "";
     public Manifest? Manifest
     {

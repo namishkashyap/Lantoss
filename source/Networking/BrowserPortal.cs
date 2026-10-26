@@ -21,6 +21,12 @@ public sealed record BrowserUploadFile(string Name, long Size);
 public sealed record BrowserUploadRequest(List<BrowserUploadFile> Files, string SpaceId = "", string Folder = "");
 public sealed record BrowserLogin(string Code);
 public sealed record BrowserNote(string Content);
+public sealed record BrowserProfile(string? Name, string? Picture);
+/// <summary>A connected browser as shown in the PC's device list. Name and picture are chosen by the visitor and are not authenticated.</summary>
+public sealed record BrowserDevice(string Handle, string Name, string Device, string Address, DateTime ConnectedUtc, DateTime LastSeenUtc, byte[]? Picture)
+{
+    public string Label => Name.Length > 0 ? Name + " (" + Device + ")" : Device;
+}
 
 // LAN-only HTTP portal. This is deliberately separate from the native TLS protocol.
 public sealed partial class BrowserPortal : IDisposable
@@ -46,7 +52,23 @@ public sealed partial class BrowserPortal : IDisposable
     private readonly string deviceKey;
     private LocalNameService? localNames;
     private int generation;
-    private sealed record Session(string Id, string Csrf, string Address, DateTime CreatedUtc, int Generation);
+    private sealed class Session(string id, string csrf, string address, DateTime createdUtc, int generation, string device)
+    {
+        public string Id { get; } = id;
+        public string Csrf { get; } = csrf;
+        public string Address { get; } = address;
+        public DateTime CreatedUtc { get; } = createdUtc;
+        public int Generation { get; } = generation;
+        public string Device { get; } = device;
+        public string Handle { get; } = RandomToken()[..16];
+        public string Name { get; set; } = "";
+        public byte[]? Picture
+        {
+            get; set;
+        }
+        public DateTime LastSeenUtc { get; set; } = createdUtc;
+        public string Label => Name.Length > 0 ? Name + " (" + Device + ")" : Device;
+    }
     private sealed class Offer(string id, string session, string folder, Manifest manifest, TransferJob job, string spaceId = "", string spaceRoot = "")
     {
         public string Id { get; } = id;
@@ -279,23 +301,63 @@ public sealed partial class BrowserPortal : IDisposable
         lock (gate)
         {
             if (key != null && sessions.TryGetValue(key, out Session? found) && found.Generation == generation && found.Address == context.Connection.RemoteIpAddress?.ToString() && DateTime.UtcNow - found.CreatedUtc < TimeSpan.FromHours(12))
+            {
+                found.LastSeenUtc = DateTime.UtcNow;
                 return found;
+            }
         }
         return null;
     }
     private Session CreateSession(HttpContext context)
     {
+        Session session;
         lock (gate)
         {
             foreach (string old in sessions.Where(s => DateTime.UtcNow - s.Value.CreatedUtc >= TimeSpan.FromHours(12)).Select(s => s.Key).ToArray())
                 sessions.Remove(old);
+            string address = context.Connection.RemoteIpAddress!.ToString();
+            // One address cannot fill the table and lock out other phones: it replaces its own oldest session instead.
+            Session[] own = sessions.Values.Where(s => s.Address == address).OrderBy(s => s.LastSeenUtc).ToArray();
+            if (own.Length >= 4)
+                sessions.Remove(own[0].Id);
             if (sessions.Count >= 64)
                 throw new IOException("Too many browsers are connected. Reset browser connections in Lantoss.");
-            Session session = new(RandomToken(), RandomToken(), context.Connection.RemoteIpAddress!.ToString(), DateTime.UtcNow, generation);
+            session = new(RandomToken(), RandomToken(), address, DateTime.UtcNow, generation, Profiles.DeviceLabel(context.Request.Headers.UserAgent.ToString()));
             sessions[session.Id] = session;
             context.Response.Cookies.Append("LantossSession", session.Id, new CookieOptions { HttpOnly = true, SameSite = SameSiteMode.Strict, Path = "/", MaxAge = TimeSpan.FromHours(12), IsEssential = true });
-            return session;
         }
+        Changed?.Invoke();
+        return session;
+    }
+    public BrowserDevice[] Devices
+    {
+        get
+        {
+            lock (gate)
+                return sessions.Values.Where(s => s.Generation == generation && DateTime.UtcNow - s.CreatedUtc < TimeSpan.FromHours(12)).OrderByDescending(s => s.LastSeenUtc)
+                    .Select(s => new BrowserDevice(s.Handle, s.Name, s.Device, s.Address, s.CreatedUtc, s.LastSeenUtc, s.Picture)).ToArray();
+        }
+    }
+    /// <summary>Ends one browser's session and cancels its pending uploads; the page must connect again.</summary>
+    public void Disconnect(string handle)
+    {
+        Session? removed;
+        lock (gate)
+        {
+            removed = sessions.Values.FirstOrDefault(s => s.Handle == handle);
+            if (removed == null)
+                return;
+            sessions.Remove(removed.Id);
+            busySessions.Remove(removed.Id);
+            noteAttempts.Remove(removed.Id);
+        }
+        foreach (Offer offer in offers.Values.Where(o => o.Session == removed.Id))
+        {
+            offer.Cancellation.Cancel();
+            offer.Job.Cancel();
+            RemoveOffer(offer);
+        }
+        Changed?.Invoke();
     }
     private bool SameOrigin(HttpContext context)
     {
@@ -317,9 +379,18 @@ public sealed partial class BrowserPortal : IDisposable
             context.Response.Headers.CacheControl = "no-store";
             context.Response.Headers["X-Content-Type-Options"] = "nosniff";
             context.Response.Headers["Referrer-Policy"] = "no-referrer";
-            context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'";
+            context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'";
             string path = context.Request.Path.Value ?? "/";
             bool get = HttpMethods.IsGet(context.Request.Method);
+            // Any LAN device can claim a .local name, so names only redirect: the page, its cookies and the API live on the IP origin.
+            if (!Uri.TryCreate(IpUrl, UriKind.Absolute, out Uri? ipOrigin) || !context.Request.Host.Host.TrimEnd('.').Equals(ipOrigin.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                if (get && path == "/")
+                    context.Response.Redirect(IpUrl + "/");
+                else
+                    context.Response.StatusCode = 403;
+                return;
+            }
             if (get && path is "/" or "/portal.js" or "/portal.css")
             {
                 string asset = path == "/" ? "portal.html" : path[1..];
@@ -344,6 +415,8 @@ public sealed partial class BrowserPortal : IDisposable
                     requiresCode = store.Preferences.RequireConnectionCode,
                     csrf = session?.Csrf,
                     name = store.Preferences.DeviceName,
+                    hasPicture = Profiles.Picture(store) != null,
+                    profileName = session?.Name ?? "",
                     maxFileBytes = MaxUploadBytes
                 });
                 return;
@@ -395,6 +468,36 @@ public sealed partial class BrowserPortal : IDisposable
                 context.Response.StatusCode = 403;
                 return;
             }
+            if (get && path == "/api/picture")
+            {
+                byte[]? picture = Profiles.Picture(store);
+                if (picture == null)
+                {
+                    context.Response.StatusCode = 404;
+                    return;
+                }
+                context.Response.ContentType = picture[0] == 0x89 ? "image/png" : "image/jpeg";
+                await context.Response.Body.WriteAsync(picture, context.RequestAborted);
+                return;
+            }
+            if (HttpMethods.IsPost(context.Request.Method) && path == "/api/profile")
+            {
+                BrowserProfile profile = await ReadJson<BrowserProfile>(context, Profiles.MaxPictureBytes * 2);
+                string name = Profiles.CleanName(profile.Name);
+                byte[]? picture = Profiles.FromDataUrl(profile.Picture);
+                lock (gate)
+                {
+                    session.Name = name;
+                    session.Picture = picture;
+                }
+                Changed?.Invoke();
+                await Json(context, new
+                {
+                    saved = true,
+                    name
+                });
+                return;
+            }
             if (get && path == "/api/files")
             {
                 await Json(context, Files.Select(f => new { id = f.Id, name = f.Name, size = f.Size }));
@@ -424,7 +527,7 @@ public sealed partial class BrowserPortal : IDisposable
                     noteAttempts[session.Id] = DateTime.UtcNow;
                 }
                 BrowserNote note = await ReadJson<BrowserNote>(context, 100000);
-                SharedNote saved = Notes.Add(note.Content, "Phone / browser");
+                SharedNote saved = Notes.Add(note.Content, session.Label);
                 await Json(context, saved);
                 return;
             }
@@ -525,7 +628,7 @@ public sealed partial class BrowserPortal : IDisposable
         if (request.SpaceId == null || request.Folder == null)
             throw new InvalidDataException("Invalid upload destination.");
         SharedSpace? targetSpace = request.SpaceId.Length == 0 ? null : Spaces.Get(request.SpaceId, true);
-        string requestedFolder = targetSpace == null ? store.Preferences.ReceiveFolder : Spaces.Resolve(targetSpace.Id, request.Folder, true, true);
+        string requestedFolder = targetSpace != null ? Spaces.Resolve(targetSpace.Id, request.Folder, true, true) : store.Preferences.SenderFolders ? Profiles.SenderFolder(store.Preferences.ReceiveFolder, session.Label) : store.Preferences.ReceiveFolder;
         if (request.Files == null || request.Files.Count is < 1 or > 100)
             throw new InvalidDataException("Choose between 1 and 100 files.");
         long total = 0;
@@ -553,7 +656,7 @@ public sealed partial class BrowserPortal : IDisposable
         {
             Id = manifest.Id,
             Direction = "Received",
-            PeerName = "Phone / browser",
+            PeerName = session.Label,
             PeerFingerprint = "browser",
             PeerAddress = session.Address,
             Transport = "Browser · HTTP",
@@ -569,7 +672,7 @@ public sealed partial class BrowserPortal : IDisposable
             string folder = requestedFolder;
             if (FileCatalog.FreeSpace(folder) < total + 64L * 1024 * 1024)
                 throw new IOException("The destination does not have enough free space.");
-            ReceiveDecision decision = ApproveReceive == null ? new(false, folder) : await ApproveReceive(new(targetSpace == null ? "Phone / browser" : "Browser → " + targetSpace.Name, "", manifest, folder, FileCatalog.FreeSpace(folder), false, true, targetSpace != null), approval.Token);
+            ReceiveDecision decision = ApproveReceive == null ? new(false, folder) : await ApproveReceive(new(targetSpace == null ? session.Label : session.Label + " → " + targetSpace.Name, "", manifest, folder, FileCatalog.FreeSpace(folder), false, true, targetSpace != null, session.Address, session.Picture), approval.Token);
             if (!decision.Accepted)
             {
                 job.State(TransferState.Declined, "Declined by the PC.");
@@ -744,7 +847,7 @@ public sealed partial class BrowserPortal : IDisposable
             {
                 Id = manifest.Id,
                 Direction = "Sent",
-                PeerName = "Phone / browser",
+                PeerName = session.Label,
                 PeerFingerprint = "browser",
                 PeerAddress = session.Address,
                 Transport = "Browser · HTTP",

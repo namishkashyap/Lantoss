@@ -79,6 +79,7 @@ internal static partial class Program
         AppearanceCases();
         await DesktopCasesAsync();
         await LocalAddressCasesAsync();
+        await Version20CasesAsync();
         await NoteCasesAsync();
         await EfficientSyncCasesAsync();
         await FirewallCasesAsync();

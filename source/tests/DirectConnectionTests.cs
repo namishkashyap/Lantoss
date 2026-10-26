@@ -45,8 +45,16 @@ internal static partial class Program
         }
         catch (CodeRequiredException) { rejected = true; }
         Check(rejected && right.Trusted(first.Fingerprint) == null, "Optional code protection prevents direct binding without a correct code");
-        paired = await sender.ConnectDirectAsync(nearby, receiver.PairingCode.Value);
-        Check(paired.Paired && right.Trusted(first.Fingerprint) != null && comparisons == 0, "A correct optional access code connects without an additional comparison dialog");
+        rejected = false;
+        try
+        {
+            await sender.ConnectDirectAsync(nearby, receiver.PairingCode.Value);
+        }
+        catch (ProtocolException) { rejected = true; }
+        Check(rejected && right.Trusted(first.Fingerprint) == null && comparisons == 1, "A correct access code alone cannot bind silently; the code-protected PC must confirm");
+        receiver.ApprovePair = (_, _) => { comparisons++; return Task.FromResult(true); };
+        paired = await sender.ConnectDirectAsync(nearby, receiver.PairingCode.Value, default, (_, _) => { comparisons++; return Task.FromResult(true); });
+        Check(paired.Paired && paired.KeyVerified && right.Trusted(first.Fingerprint) is { KeyVerified: true } && comparisons == 3, "Code-protected direct pairing is confirmed by on-screen comparison on both PCs");
         Check(new MetadataStore(right.Root).Preferences.RequireConnectionCode && sender.Browser.Running, "Security preference persists and automatic browser listener is real");
         left.SetPreferences(left.Preferences with
         {

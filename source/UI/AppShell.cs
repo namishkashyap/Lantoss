@@ -60,6 +60,7 @@ internal sealed class AppShell : IDisposable
     private readonly bool preview;
     public bool Preview => preview;
     private readonly Dictionary<string, Button> navigation = [];
+    private readonly Dictionary<string, string> navigationIcons = [];
     private readonly Forms.NotifyIcon? notifications;
     private readonly System.Drawing.Icon? trayIcon;
     private IPage? page;
@@ -93,14 +94,14 @@ internal sealed class AppShell : IDisposable
         if (preview)
             Find<TextBlock>("ModeBadge").Text = "PREVIEW";
         Engine.ApprovePair = Dialogs.CompareAsync;
-        Engine.ApproveReceive = Dialogs.ReceiveAsync;
+        Engine.ApproveReceive = (request, token) => { Ui(() => NotifyIncoming(request)); return Dialogs.ReceiveAsync(request, token); };
         Engine.ApproveSync = Dialogs.SyncAsync;
         Engine.SyncChanged += () => Ui(() => { if (CurrentPage == "Sync") page?.Refresh(); });
         Engine.Browser.Notes.Changed += () => Ui(() => { if (CurrentPage == "Text & links") page?.Refresh(); });
         Engine.Sync.Changed += () => Ui(() => { if (CurrentPage == "Sync") page?.Refresh(); });
         Engine.Status += message => Ui(() => Tell(message));
         Engine.PeersChanged += () => Ui(() => { RefreshExplorerMenu(); if (CurrentPage is "Home" or "Devices" or "Send" or "Shared Spaces") page?.Refresh(); });
-        Engine.Browser.Changed += () => Ui(() => { if (CurrentPage is "Phone & browser" or "Shared Spaces") page?.Refresh(); if (!preview && Engine.Running) _ = Firewall.EnsureAsync(); });
+        Engine.Browser.Changed += () => Ui(() => { if (CurrentPage is "Phone & browser" or "Shared Spaces" or "Devices" or "Home") page?.Refresh(); if (!preview && Engine.Running) _ = Firewall.EnsureAsync(); });
         Engine.Transfers.Changed += record => Ui(() => { if (CurrentPage is "Home" or "Transfers" or "History") page?.Refresh(); });
         Engine.Transfers.PersistenceFailed += _ => Ui(() => Tell("History could not be saved. Check free space and permissions in the app's local metadata folder."));
         Engine.Completed += record => Ui(() =>
@@ -119,6 +120,7 @@ internal sealed class AppShell : IDisposable
             trayIcon = (System.Drawing.Icon)asset.Clone();
             notifications = new Forms.NotifyIcon { Icon = trayIcon, Text = "Lantoss — local file sharing", Visible = true };
             notifications.DoubleClick += (_, _) => ShowWindow();
+            notifications.BalloonTipClicked += (_, _) => Ui(ShowWindow);
             Forms.ContextMenuStrip tray = new();
             tray.Items.Add("Open Lantoss", null, (_, _) => Ui(ShowWindow));
             tray.Items.Add("Start sharing server", null, (_, _) => Ui(() => { try { if (!Engine.Running) ToggleReceiving(); } catch (Exception error) { Error(error); } }));
@@ -133,10 +135,9 @@ internal sealed class AppShell : IDisposable
         for (int i = 0; i < names.Length; i++)
         {
             string name = names[i];
-            FrameworkElement glyph = C.Icon(icons[i], 18);
-            glyph.Margin = new(0, 0, 14, 0);
             Button button = C.Button(name, () => Navigate(name));
-            button.Content = C.Inline(glyph, C.Text(name, 12));
+            navigationIcons[name] = icons[i];
+            button.Content = NavigationContent(name, false);
             button.HorizontalAlignment = HorizontalAlignment.Stretch;
             button.HorizontalContentAlignment = HorizontalAlignment.Left;
             button.Margin = new(0, 0, 0, 4);
@@ -241,6 +242,12 @@ internal sealed class AppShell : IDisposable
         if (!preview)
             MessageBox.Show(Window, TransferEngine.HumanError(error), "Lantoss", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
+    private UIElement NavigationContent(string name, bool active)
+    {
+        FrameworkElement glyph = C.Icon(navigationIcons[name], 18, active ? "OnAccent" : "Primary");
+        glyph.Margin = new(0, 0, 14, 0);
+        return C.Inline(glyph, C.Text(name, 12, active ? "OnAccent" : "Text", active));
+    }
     public void Navigate(string destination)
     {
         CurrentPage = destination;
@@ -249,7 +256,10 @@ internal sealed class AppShell : IDisposable
         Find<TextBlock>("PageTitle").Text = destination;
         Find<TextBox>("SearchBox").IsEnabled = destination is "Home" or "Send" or "Transfers" or "Devices" or "History" or "Shared Spaces" or "Text & links";
         foreach ((string name, Button button) in navigation)
-            button.SetResourceReference(Control.BackgroundProperty, name == destination ? "PrimarySoft" : "Sidebar");
+        {
+            button.SetResourceReference(Control.BackgroundProperty, name == destination ? "Accent" : "Sidebar");
+            button.Content = NavigationContent(name, name == destination);
+        }
         page = destination switch
         {
             "Home" => new HomePage(this),
@@ -339,11 +349,22 @@ internal sealed class AppShell : IDisposable
         }
         catch (Exception error) when (error is IOException or System.Net.Sockets.SocketException or InvalidOperationException) { Tell("Waiting for home-network access. " + TransferEngine.HumanError(error)); }
     }
+    /// <summary>Raised as soon as a PC or browser asks to send, before the approval window, so a hidden or minimized app is noticed.</summary>
+    private void NotifyIncoming(ReceiveRequest request)
+    {
+        if (notifications == null || !Store.Preferences.Notifications)
+            return;
+        notifications.BalloonTipTitle = request.PeerName + " wants to send you files";
+        notifications.BalloonTipText = $"{request.Manifest.Entries.Count} files · {Format.Bytes(request.Manifest.TotalBytes)}" + (request.Address.Length > 0 ? " · " + request.Address : "") + ". Click to review.";
+        notifications.BalloonTipIcon = Forms.ToolTipIcon.Info;
+        notifications.ShowBalloonTip(10000);
+    }
     public void UpdateStatus()
     {
         Find<Button>("ReceiveToggle").Content = Engine.Running ? "Stop sharing" : "Start server";
         Find<TextBlock>("NetworkStatus").Text = Engine.Running ? "LAN · " + Engine.Endpoint : "Receiving off";
         Find<TextBlock>("ThisDevice").Text = Store.Preferences.DeviceName;
+        Find<ContentControl>("ThisAvatar").Content = C.Avatar(Store.Preferences.DeviceName, Profiles.Picture(Store), 36);
         try
         {
             DriveInfo drive = new(Path.GetPathRoot(Store.Preferences.ReceiveFolder)!);
