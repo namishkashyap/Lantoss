@@ -12,10 +12,16 @@ $LantossDist = Join-Path $LantossRepo 'dist'
 $LantossPackJs = Join-Path $PSScriptRoot 'pack.cjs'
 $LantossVerifyJs = Join-Path $PSScriptRoot 'verify.cjs'
 $LantossIconSizes = @(16, 32, 48, 64, 128, 256, 512, 1024)
+# rcodesign (apple-codesign, open source) seals and ad-hoc signs the macOS bundle on Windows. Build-only tool, pinned by hash.
+$LantossRcodesignUrl = 'https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign/0.29.0/apple-codesign-0.29.0-x86_64-pc-windows-msvc.zip'
+$LantossRcodesignSha256 = '54BB500E2DA7A8DE02FCAE0F331D1CAC6E6D7173B4281042FF9C528BA3159AAA'
 
 function Invoke-LantossNative {
     param([Parameter(Mandatory = $true)][string]$FilePath, [string[]]$ArgumentList = @())
-    & $FilePath @ArgumentList | Out-Host
+    # Tools such as rcodesign log progress to stderr; Windows PowerShell would treat that as an error, so only the exit code decides.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $FilePath @ArgumentList 2>&1 | ForEach-Object { "$_" } | Out-Host } finally { $ErrorActionPreference = $previous }
     if ($LASTEXITCODE -ne 0) { throw "$FilePath $($ArgumentList[0]) failed with exit code $LASTEXITCODE" }
 }
 
@@ -39,6 +45,17 @@ function Initialize-LantossIcons {
         & (Join-Path $LantossPackaging 'create-icons.ps1') -OutputDir $LantossAssets -Sizes $LantossIconSizes | Out-Null
         Write-Host "Rendered icons into $LantossAssets"
     }
+}
+
+function Get-LantossRcodesign {
+    $tools = Join-Path $LantossRepo 'work\pack-tools'
+    $zip = Join-Path $tools 'rcodesign.zip'
+    $exe = Join-Path $tools 'rcodesign\apple-codesign-0.29.0-x86_64-pc-windows-msvc\rcodesign.exe'
+    New-Item -ItemType Directory -Force -Path $tools | Out-Null
+    if (-not (Test-Path $zip)) { Invoke-WebRequest -Uri $LantossRcodesignUrl -OutFile $zip }
+    if ((Get-FileHash -Algorithm SHA256 -Path $zip).Hash -ne $LantossRcodesignSha256) { Remove-Item -Force $zip; throw 'rcodesign download does not match the pinned SHA-256' }
+    if (-not (Test-Path $exe)) { Expand-Archive -Path $zip -DestinationPath (Join-Path $tools 'rcodesign') -Force }
+    $exe
 }
 
 function Reset-LantossDirectory {
