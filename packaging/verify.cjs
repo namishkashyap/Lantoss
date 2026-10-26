@@ -296,13 +296,13 @@ function checkCommon(entries, check, { scripts = [] } = {}) {
     const name = path.posix.basename(entry.path);
     if (entry.type === 'dir') check(entry.mode === 0o755, `${entry.path}/ is 0755 (is ${modeText(entry.mode)})`);
     else if (entry.type === 'file') {
-      const wanted = EXECUTABLE_NAMES.includes(name) || name.endsWith('.sh') || scripts.includes(name) ? 0o755 : 0o644;
+      const wanted = EXECUTABLE_NAMES.includes(name) || name.endsWith('.sh') || name.endsWith('.command') || scripts.includes(name) ? 0o755 : 0o644;
       check(entry.mode === wanted, `${entry.path} is ${modeText(wanted)} (is ${modeText(entry.mode)})`);
       if (TEXT_FILE.test(entry.path)) {
         const text = entry.data.toString('utf8');
         check(!text.includes('\r'), `${entry.path} has LF line endings`);
         check(!/@[A-Z_]+@/.test(text), `${entry.path} has no unexpanded @PLACEHOLDER@`);
-        if (name.endsWith('.sh') || scripts.includes(name)) check(text.startsWith('#!/bin/sh\n'), `${entry.path} starts with #!/bin/sh`);
+        if (name.endsWith('.sh') || name.endsWith('.command') || scripts.includes(name)) check(text.startsWith('#!/bin/sh\n'), `${entry.path} starts with #!/bin/sh`);
       }
     } else if (entry.type === 'symlink') check(entry.target.length > 0, `${entry.path} has a symlink target`);
     else check(false, `${entry.path} has an unexpected ${entry.type}`);

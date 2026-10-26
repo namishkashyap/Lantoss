@@ -49,7 +49,7 @@ function Reset-LantossDirectory {
 
 # Self-contained folder publish into work/pack/<rid>/publish, isolated from other builds by work/pack-artifacts.
 function Publish-Lantoss {
-    param([Parameter(Mandatory = $true)][string]$Rid, [switch]$Skip)
+    param([Parameter(Mandatory = $true)][string]$Rid, [switch]$Skip, [string[]]$Extra = @())
     $publish = Join-Path $LantossWork "$Rid\publish"
     if ($Skip) {
         if (-not (Test-Path (Join-Path $publish 'Lantoss'))) { throw "No earlier publish in $publish. Run without -SkipPublish." }
@@ -59,8 +59,9 @@ function Publish-Lantoss {
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
     $env:DOTNET_NOLOGO = '1'
     Write-Host "Publishing $Rid"
-    Invoke-LantossNative dotnet @('publish', $LantossProject, '-c', 'Release', '-r', $Rid, '--self-contained', 'true',
-        '--artifacts-path', $LantossArtifacts, "-p:RestoreConfigFile=$LantossNuGetConfig", '-o', $publish, '--nologo')
+    $arguments = @('publish', $LantossProject, '-c', 'Release', '-r', $Rid, '--self-contained', 'true',
+        '--artifacts-path', $LantossArtifacts, "-p:RestoreConfigFile=$LantossNuGetConfig", '-o', $publish, '--nologo') + $Extra
+    Invoke-LantossNative dotnet $arguments
     if (-not (Test-Path (Join-Path $publish 'Lantoss'))) { throw "dotnet publish did not produce $publish\Lantoss" }
     $publish
 }

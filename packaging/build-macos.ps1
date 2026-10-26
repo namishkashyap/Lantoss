@@ -2,10 +2,11 @@
 .SYNOPSIS
 Builds dist/Lantoss-<version>-macOS-AppleSilicon.zip and dist/Lantoss-<version>-macOS-Intel.zip on Windows.
 .DESCRIPTION
-For each runtime: publishes a self-contained Lantoss, assembles Lantoss.app (Contents/MacOS = publish output,
-Contents/Resources/Lantoss.icns, Contents/Info.plist, Contents/PkgInfo), puts install.sh next to it, zips both with
-Unix modes, and checks the zip with verify.cjs and tar.exe. The app is not signed here; install.sh signs it ad hoc
-on the user's Mac. The version comes from <Version> in source/Desktop/Lantoss.Desktop.csproj.
+For each runtime: publishes a self-contained single-file Lantoss (Contents/MacOS then holds only Mach-O code, which
+code signing requires), assembles Lantoss.app (Contents/Resources/Lantoss.icns, Contents/Info.plist, Contents/PkgInfo),
+puts install.sh and a double-clickable "Install Lantoss.command" next to it, zips them with Unix modes, and checks the
+zip with verify.cjs and tar.exe. The app is not sealed here; the installer clears quarantine and signs it ad hoc on
+the user's Mac. The version comes from <Version> in source/Desktop/Lantoss.Desktop.csproj.
 .PARAMETER MinimumMacOS
 LSMinimumSystemVersion. 14.0 is the oldest macOS that .NET 10 supported at release. The .NET 10 runtime
 binaries are built for macOS 12.0, and verify.cjs fails if any bundled binary needs a newer macOS than this value.
@@ -59,7 +60,7 @@ foreach ($runtime in $Rid) {
     $isArm = $runtime -eq 'osx-arm64'
     $label = if ($isArm) { 'AppleSilicon' } else { 'Intel' }
     $arch = if ($isArm) { 'arm64' } else { 'x86_64' }
-    $publish = Publish-Lantoss -Rid $runtime -Skip:$SkipPublish
+    $publish = Publish-Lantoss -Rid $runtime -Skip:$SkipPublish -Extra @('-p:PublishSingleFile=true', '-p:DebugType=none')
 
     $stage = Join-Path $LantossWork "$runtime\macos"
     Reset-LantossDirectory $stage
@@ -79,7 +80,8 @@ foreach ($runtime in $Rid) {
         '--add', "$contents/Info.plist=$plist",
         '--add', "$contents/PkgInfo=$pkgInfo",
         '--add', "$contents/Resources/Lantoss.icns=$icns",
-        '--add', "$name/install.sh=$install")
+        '--add', "$name/install.sh=$install",
+        '--add', "$name/Install Lantoss.command=$install")
     Invoke-LantossNative node @($LantossVerifyJs, $zip, '--arch', $arch, '--version', $version)
     Test-LantossArchiveWithTar $zip
     $outputs += $zip

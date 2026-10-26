@@ -46,7 +46,7 @@ function normalizeArchivePath(value) {
 
 function isExecutable(archivePath, execNames = EXECUTABLE_NAMES) {
   const name = baseName(archivePath);
-  return execNames.includes(name) || name.endsWith('.sh');
+  return execNames.includes(name) || name.endsWith('.sh') || name.endsWith('.command');
 }
 
 /** Returns the file contents, with CRLF converted to LF for text templates. */
