@@ -57,6 +57,35 @@ public sealed class Identity : IDisposable
         }
         finally { CryptographicOperations.ZeroMemory(pfx); }
     }
+    /// <summary>macOS and Linux keep the key in a PKCS#12 file that only the current user can read (mode 600) in the app data folder.</summary>
+    [UnsupportedOSPlatform("windows")]
+    public static Identity Portable(MetadataStore store)
+    {
+        string path = Path.Combine(store.Root, "identity.p12");
+        // macOS cannot load ephemeral keys; its default import keeps the key in a temporary keychain.
+        X509KeyStorageFlags flags = OperatingSystem.IsMacOS() ? X509KeyStorageFlags.DefaultKeySet : X509KeyStorageFlags.EphemeralKeySet;
+        if (File.Exists(path))
+        {
+            X509Certificate2 existing = X509CertificateLoader.LoadPkcs12FromFile(path, "", flags);
+            if (!existing.HasPrivateKey || existing.NotAfter.ToUniversalTime() <= DateTime.UtcNow.AddDays(1) || (!string.IsNullOrEmpty(store.Thumbprint) && existing.Thumbprint != store.Thumbprint))
+                throw new InvalidDataException("This device's key file changed or expired. Restore it or use a new data directory and pair the devices again.");
+            return new(existing);
+        }
+        if (!string.IsNullOrEmpty(store.Thumbprint))
+            throw new InvalidDataException("This device's key file is missing. Restore it or use a new data directory and pair the devices again.");
+        using Identity ephemeral = Ephemeral();
+        byte[] pfx = ephemeral.Certificate.Export(X509ContentType.Pkcs12, "");
+        try
+        {
+            using (FileStream file = new(path + ".tmp", new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }))
+                file.Write(pfx);
+            File.Move(path + ".tmp", path, true);
+            X509Certificate2 persistent = X509CertificateLoader.LoadPkcs12(pfx, "", flags);
+            store.SetCertificate(persistent.Thumbprint);
+            return new(persistent);
+        }
+        finally { CryptographicOperations.ZeroMemory(pfx); }
+    }
     public static string KeyFingerprint(X509Certificate certificate)
     {
         using X509Certificate2 publicCertificate = X509CertificateLoader.LoadCertificate(certificate.GetRawCertData());
