@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>Lantoss</string>
+    <key>CFBundleExecutable</key>
+    <string>Lantoss</string>
+    <key>CFBundleIconFile</key>
+    <string>Lantoss</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.namishkashyap.lantoss</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Lantoss</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleVersion</key>
+    <string>@BUNDLE_VERSION@</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>@MIN_MACOS@</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_flowshare._tcp</string>
+    </array>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright (c) 2026 namishkashyap</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Lantoss finds nearby computers and phones on your Wi-Fi and sends files directly to them over your local network.</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+</dict>
+</plist>
