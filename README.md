@@ -231,7 +231,7 @@ apply to connected devices; per-person team roles are not included.
 
 ### Automatic two-way sync
 
-1. Update **both PCs to 1.5** and keep both apps open. On the host, create a
+1. Install the **same Lantoss version on both PCs** and keep both apps open. On the host, create a
    Shared Space and select **Read & upload**.
 2. On just one of the PCs, open **Shared Spaces**, select the host, and choose
    **Set up automatic sync** for its space. Pick an existing local folder.
@@ -375,3 +375,8 @@ it is separate from the C# HTTP/TLS integration suite.
 Architecture/security decisions: DEVELOPMENT_NOTES.md. Feature status:
 ROADMAP.md. The old Hearth packages remain separate; their pages/codes do not
 connect to this Lantoss portal.
+
+## License
+
+Lantoss is released under the [MIT License](LICENSE). Bundled third-party
+components keep their own licenses; see the `*_LICENSE.txt` and notice files.
