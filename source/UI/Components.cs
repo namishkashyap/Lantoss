@@ -14,7 +14,7 @@ internal static class C
         {
             Text = text,
             FontSize = size,
-            FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
+            FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
             TextWrapping = TextWrapping.Wrap
         };
         block.SetResourceReference(TextBlock.ForegroundProperty, color);
@@ -179,6 +179,61 @@ internal static class C
         Border border = Card(panel, 16);
         border.SetResourceReference(Border.BackgroundProperty, "PrimarySoft");
         return border;
+    }
+    /// <summary>Round picture, or initials when there is no picture or it cannot be decoded.</summary>
+    public static FrameworkElement Avatar(string name, byte[]? picture, double size = 36)
+    {
+        Border circle = new()
+        {
+            Width = size,
+            Height = size,
+            CornerRadius = new(size / 2)
+        };
+        ImageSource? image = Picture(picture, (int)(size * 2));
+        if (image != null)
+            circle.Background = new ImageBrush(image) { Stretch = Stretch.UniformToFill };
+        else
+        {
+            circle.SetResourceReference(Border.BackgroundProperty, "Accent");
+            string initials = string.Concat(name.Split('(', '·')[0].Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(word => char.ToUpperInvariant(word[0])));
+            TextBlock text = Text(initials.Length > 0 ? initials : "?", Math.Round(size * 0.38), "OnAccent", true);
+            text.HorizontalAlignment = HorizontalAlignment.Center;
+            text.VerticalAlignment = VerticalAlignment.Center;
+            circle.Child = text;
+        }
+        AutomationProperties.SetName(circle, name + " picture");
+        return circle;
+    }
+    public static ImageSource? Picture(byte[]? data, int pixels)
+    {
+        if (data == null)
+            return null;
+        try
+        {
+            System.Windows.Media.Imaging.BitmapImage image = new();
+            image.BeginInit();
+            image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            image.DecodePixelWidth = pixels;
+            image.StreamSource = new MemoryStream(data);
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception error) when (error is NotSupportedException or IOException or InvalidOperationException or ArgumentException) { return null; }
+    }
+    /// <summary>Avatar with a bold title and a muted detail line, used for PCs, browsers and senders.</summary>
+    public static DockPanel Person(string name, byte[]? picture, string detail, double size = 40, string detailColor = "Muted")
+    {
+        FrameworkElement avatar = Avatar(name, picture, size);
+        avatar.Margin = new(0, 0, 14, 0);
+        avatar.VerticalAlignment = VerticalAlignment.Center;
+        DockPanel row = new();
+        DockPanel.SetDock(avatar, Dock.Left);
+        row.Children.Add(avatar);
+        StackPanel text = Stack(Space(Text(name, 15, bold: true), 4), Text(detail, 12, detailColor));
+        text.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(text);
+        return row;
     }
     public static FrameworkElement Icon(string name, double size = 20, string color = "Primary")
     {

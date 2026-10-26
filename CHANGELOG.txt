@@ -1,3 +1,28 @@
+2026-10-26 - Lantoss 2.0: people, pictures, notifications and security fixes
+
+Phones and PCs connected through the web page now appear in Devices and Home.
+Each shows its name, picture, device type, address and last activity, and can
+be disconnected. Visitors choose a name and picture on the page. The picture is
+cropped and re-encoded to a 128 px JPEG, and the server accepts only small
+PNG/JPEG data. The PC owner can set a profile picture in Settings, shown in the
+sidebar and on the page. Lantoss shows a Windows notification as soon as a PC
+or browser asks to send files, and clicking it opens the app. The approval
+window, Transfers, History and notes now show the sender's name, device type
+and address. An optional setting saves received files in Inbox\<sender>.
+The design is refreshed: deeper ink, a stronger emerald accent, bold
+headings, rounder controls and a solid active sidebar item, in the app and on
+the page.
+
+Security fixes:
+- Code-protected direct pairing now needs on-screen confirmation on both PCs,
+  so an access code relayed through a spoofed advert cannot pair silently.
+- .local names only redirect to the PC's IP address, so a device that takes
+  over the name cannot reach the portal's cookies or API.
+- The elevated firewall script escapes curly single quotes in the app path.
+- One IP address can hold at most four browser sessions.
+- Expanded 8.3 short names (FLOWSH~1) are validated, so they cannot reach the
+  reserved .flowshare- folders.
+
 2026-10-22 - Lantoss 1.9: local address, text/link board and lighter sync
 
 Added automatic share-wollvo.local on HTTP port 80, per-device local names,

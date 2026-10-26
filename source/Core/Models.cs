@@ -18,6 +18,10 @@ public sealed record Preferences
     public bool AutoConnect { get; init; } = true;
     public bool AutoConfigureFirewall { get; init; } = true;
     public bool CloseToTray { get; init; } = true;
+    public bool SenderFolders
+    {
+        get; init;
+    }
 }
 
 public sealed record Peer
@@ -234,7 +238,7 @@ public sealed record SelectionItem(string Path, string Name, long Size, int File
     public string Detail => $"{Format.Bytes(Size)} · {Files} {(Files == 1 ? "file" : "files")}" + (Folders > 0 ? $" · {Folders} folders" : "");
 }
 public sealed record PairRequest(string Name, string Fingerprint, string ComparisonCode, bool Incoming);
-public sealed record ReceiveRequest(string PeerName, string Fingerprint, Manifest Manifest, string DefaultFolder, long FreeBytes, bool KeyVerified = true, bool Browser = false, bool FixedFolder = false);
+public sealed record ReceiveRequest(string PeerName, string Fingerprint, Manifest Manifest, string DefaultFolder, long FreeBytes, bool KeyVerified = true, bool Browser = false, bool FixedFolder = false, string Address = "", byte[]? Picture = null);
 public sealed record ReceiveDecision(bool Accepted, string Folder, DuplicatePolicy Duplicates = DuplicatePolicy.KeepBoth);
 
 public static class Format

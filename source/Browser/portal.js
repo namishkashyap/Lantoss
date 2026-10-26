@@ -42,6 +42,32 @@ async function request(path, options = {}) {
   }
   return body;
 }
+let profile = { name: '', picture: '' };
+try { const saved = JSON.parse(localStorage.getItem('lantoss.profile') || '{}'); profile = { name: typeof saved.name === 'string' ? saved.name.slice(0, 40) : '', picture: typeof saved.picture === 'string' && saved.picture.startsWith('data:image/jpeg;base64,') ? saved.picture : '' }; } catch { }
+function showProfile() {
+  $('profile-name').value = profile.name;
+  const avatar = $('me-avatar'); avatar.textContent = '';
+  if (profile.picture) { const image = document.createElement('img'); image.src = profile.picture; image.alt = ''; avatar.append(image); }
+  else avatar.textContent = (profile.name.trim()[0] || '?').toUpperCase();
+}
+function sendProfile() { return request('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: profile.name, picture: profile.picture || null }) }); }
+// Pictures are cropped and re-encoded here so only a small JPEG leaves the phone.
+function resizePicture(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file); const image = new Image();
+    image.onload = () => { const side = Math.min(image.naturalWidth, image.naturalHeight); const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128; canvas.getContext('2d').drawImage(image, (image.naturalWidth - side) / 2, (image.naturalHeight - side) / 2, side, side, 0, 0, 128, 128); URL.revokeObjectURL(url); resolve(canvas.toDataURL('image/jpeg', 0.82)); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That picture could not be opened.')); };
+    image.src = url;
+  });
+}
+$('profile-picture').addEventListener('change', async () => { const file = $('profile-picture').files[0]; $('profile-picture').value = ''; if (!file) return; try { profile.picture = await resizePicture(file); showProfile(); notice('Press Save to show this picture on the PC.'); } catch (error) { notice(error.message, true); } });
+$('profile-clear').addEventListener('click', () => { profile.picture = ''; showProfile(); notice('Press Save to remove your picture from the PC.'); });
+$('profile-form').addEventListener('submit', async event => {
+  event.preventDefault(); profile.name = $('profile-name').value.trim().slice(0, 40); $('profile-save').disabled = true;
+  try { await sendProfile(); try { localStorage.setItem('lantoss.profile', JSON.stringify(profile)); } catch { } showProfile(); notice('Saved. The PC now shows your name' + (profile.picture ? ' and picture.' : '.')); }
+  catch (error) { notice(error.message, true); }
+  finally { $('profile-save').disabled = false; }
+});
 async function connect() {
   try {
     const session = await request('/api/session');
@@ -51,6 +77,10 @@ async function connect() {
     if (session.connected) {
       csrf = session.csrf;
       $('connection-label').textContent = session.requiresCode ? 'Connected · code protection on' : 'Connected · no code needed';
+      $('host-picture').hidden = !session.hasPicture;
+      if (session.hasPicture) $('host-picture').src = '/api/picture?' + Date.now();
+      showProfile();
+      if (profile.name || profile.picture) { try { await sendProfile(); } catch { } }
       await refreshFiles();
       await refreshSpaces();
       await refreshNotes();

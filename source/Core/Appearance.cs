@@ -25,36 +25,36 @@ public static class Appearance
     public static IReadOnlyDictionary<string, string> Palette(bool dark) => dark
         ? new Dictionary<string, string>
         {
-            ["Background"] = "#101B19",
-            ["Surface"] = "#192824",
-            ["Sidebar"] = "#12211D",
-            ["Text"] = "#ECF6F0",
-            ["Muted"] = "#ACC3B8",
-            ["Border"] = "#344B42",
-            ["Primary"] = "#72DDB2",
-            ["PrimarySoft"] = "#203F33",
-            ["Accent"] = "#72DDB2",
-            ["OnAccent"] = "#10251D",
-            ["Success"] = "#73DEB2",
-            ["SuccessSoft"] = "#203F33",
+            ["Background"] = "#0C1715",
+            ["Surface"] = "#15241F",
+            ["Sidebar"] = "#0F1D1A",
+            ["Text"] = "#EEF7F2",
+            ["Muted"] = "#A9C2B7",
+            ["Border"] = "#2E453C",
+            ["Primary"] = "#6FE0B3",
+            ["PrimarySoft"] = "#1C3C30",
+            ["Accent"] = "#6FE0B3",
+            ["OnAccent"] = "#0B1F18",
+            ["Success"] = "#74E0B4",
+            ["SuccessSoft"] = "#1C3C30",
             ["Danger"] = "#FFB4AB",
-            ["DangerSoft"] = "#482A2A"
+            ["DangerSoft"] = "#472826"
         }
         : new Dictionary<string, string>
         {
-            ["Background"] = "#F3F7F5",
+            ["Background"] = "#F1F5F3",
             ["Surface"] = "#FFFFFF",
-            ["Sidebar"] = "#EAF1EE",
-            ["Text"] = "#142E2A",
-            ["Muted"] = "#536D66",
-            ["Border"] = "#CFDDD7",
-            ["Primary"] = "#0A6B58",
-            ["PrimarySoft"] = "#DDF1E9",
-            ["Accent"] = "#08745D",
+            ["Sidebar"] = "#E6EEEA",
+            ["Text"] = "#0E211D",
+            ["Muted"] = "#4A625C",
+            ["Border"] = "#CEDCD6",
+            ["Primary"] = "#08634F",
+            ["PrimarySoft"] = "#D8EFE5",
+            ["Accent"] = "#0A6E58",
             ["OnAccent"] = "#FFFFFF",
-            ["Success"] = "#126B4A",
-            ["SuccessSoft"] = "#DDF1E9",
-            ["Danger"] = "#AD343B",
-            ["DangerSoft"] = "#FCE8E7"
+            ["Success"] = "#0F6B47",
+            ["SuccessSoft"] = "#D8EFE5",
+            ["Danger"] = "#B42F37",
+            ["DangerSoft"] = "#FCE7E6"
         };
 }

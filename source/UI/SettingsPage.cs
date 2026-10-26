@@ -1,10 +1,37 @@
 using System.Windows.Automation;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 
 namespace Lantoss.UI;
 
 internal sealed class SettingsPage : IPage
 {
+    /// <summary>Center-crops to a 128 px square and re-encodes, so only a small, freshly encoded image is stored and served.</summary>
+    private static void SavePicture(string source, string target)
+    {
+        BitmapImage image = new();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.DecodePixelWidth = 384;
+        image.UriSource = new Uri(source);
+        image.EndInit();
+        int side = Math.Min(image.PixelWidth, image.PixelHeight);
+        BitmapSource square = new TransformedBitmap(new CroppedBitmap(image, new Int32Rect((image.PixelWidth - side) / 2, (image.PixelHeight - side) / 2, side, side)), new ScaleTransform(128.0 / side, 128.0 / side));
+        byte[] data = Encode(new PngBitmapEncoder(), square);
+        if (!Profiles.IsPicture(data))
+            data = Encode(new JpegBitmapEncoder { QualityLevel = 85 }, square);
+        if (!Profiles.IsPicture(data))
+            throw new InvalidDataException("This picture could not be made small enough. Choose another one.");
+        File.WriteAllBytes(target + ".tmp", data);
+        File.Move(target + ".tmp", target, true);
+    }
+    private static byte[] Encode(BitmapEncoder encoder, BitmapSource source)
+    {
+        encoder.Frames.Add(BitmapFrame.Create(source));
+        using MemoryStream stream = new();
+        encoder.Save(stream);
+        return stream.ToArray();
+    }
     private readonly AppShell app;
     public FrameworkElement View
     {
@@ -21,9 +48,55 @@ internal sealed class SettingsPage : IPage
             Margin = new(0, 8, 0, 18)
         };
         AutomationProperties.SetName(name, "This PC's device name");
+        ContentControl picture = new()
+        {
+            Content = C.Avatar(saved.DeviceName, Profiles.Picture(app.Store), 56),
+            Focusable = false,
+            Margin = new(0, 0, 16, 0)
+        };
+        Button choosePicture = C.Small("Choose picture", () =>
+        {
+            OpenFileDialog dialog = new()
+            {
+                Title = "Choose a profile picture",
+                Filter = "Pictures|*.png;*.jpg;*.jpeg;*.bmp;*.gif"
+            };
+            if (dialog.ShowDialog(app.Window) != true)
+                return;
+            try
+            {
+                SavePicture(dialog.FileName, Profiles.PicturePath(app.Store));
+            }
+            catch (Exception error) when (error is IOException or NotSupportedException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or InvalidDataException or FormatException) { app.Error(error); return; }
+            picture.Content = C.Avatar(app.Store.Preferences.DeviceName, Profiles.Picture(app.Store), 56);
+            app.UpdateStatus();
+        });
+        Button removePicture = C.Small("Remove", () =>
+        {
+            try
+            {
+                File.Delete(Profiles.PicturePath(app.Store));
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { app.Error(error); return; }
+            picture.Content = C.Avatar(app.Store.Preferences.DeviceName, null, 56);
+            app.UpdateStatus();
+        });
+        removePicture.Margin = new(7, 0, 0, 0);
+        DockPanel pictureRow = new();
+        DockPanel.SetDock(picture, Dock.Left);
+        pictureRow.Children.Add(picture);
+        StackPanel pictureActions = C.Stack(C.Space(C.Text("Shown in the sidebar and on the phone/browser page.", 12, "Muted"), 8), C.Inline(choosePicture, removePicture));
+        pictureActions.VerticalAlignment = VerticalAlignment.Center;
+        pictureRow.Children.Add(pictureActions);
+        CheckBox senderFolders = new()
+        {
+            Content = "Save received files in a folder named after the sender",
+            IsChecked = saved.SenderFolders,
+            Margin = new(0, 0, 0, 15)
+        };
         CheckBox notifications = new()
         {
-            Content = "Show native completion notifications",
+            Content = "Show Windows notifications for incoming and finished transfers",
             IsChecked = saved.Notifications
         };
         CheckBox startup = new()
@@ -97,7 +170,8 @@ internal sealed class SettingsPage : IPage
                 BrowserSharingEnabled = browser.IsChecked == true,
                 AutoConnect = autoConnect.IsChecked == true,
                 AutoConfigureFirewall = firewall.IsChecked == true,
-                CloseToTray = tray.IsChecked == true
+                CloseToTray = tray.IsChecked == true,
+                SenderFolders = senderFolders.IsChecked == true
             });
             app.Engine.ApplySavedPreferences();
             if (firewall.IsChecked == true)
@@ -106,8 +180,8 @@ internal sealed class SettingsPage : IPage
             app.UpdateStatus();
             app.Tell("Preferences saved. Discovery changes apply now. Existing jobs keep their chosen destination.");
         }, true);
-        StackPanel general = C.Stack(C.Heading("General"), C.Text("Device name", 12, bold: true), name, C.Space(C.Text("Appearance", 12, bold: true), 8), C.Space(C.Text("Choose System, Light, or Dark in the sidebar. Changes save immediately; System follows Windows automatically.", 12, "Muted"), 16), C.Space(startup, 7), C.Space(automatic, 7), C.Space(tray, 7), C.Space(explorer, 7), C.Space(C.Text("Windows 11: Share with Lantoss appears in the main menu. Choose a remembered PC or open the device picker.", 11, "Muted"), 12), C.Space(autoConnect, 7), C.Space(notifications, 12), save);
-        StackPanel transfers = C.Stack(C.Heading("Transfers"), C.Space(C.Text("Files are saved locally on this PC", 12, bold: true), 9), C.Space(folderText, 15), C.Space(folderPicker, 17),
+        StackPanel general = C.Stack(C.Heading("General"), C.Text("Profile picture", 12, bold: true), C.Space(pictureRow, 18, 8), C.Text("Name shown to other devices", 12, bold: true), name, C.Space(C.Text("Appearance", 12, bold: true), 8), C.Space(C.Text("Choose System, Light, or Dark in the sidebar. Changes save immediately; System follows Windows automatically.", 12, "Muted"), 16), C.Space(startup, 7), C.Space(automatic, 7), C.Space(tray, 7), C.Space(explorer, 7), C.Space(C.Text("Windows 11: Share with Lantoss appears in the main menu. Choose a remembered PC or open the device picker.", 11, "Muted"), 12), C.Space(autoConnect, 7), C.Space(notifications, 12), save);
+        StackPanel transfers = C.Stack(C.Heading("Transfers"), C.Space(C.Text("Files are saved locally on this PC", 12, bold: true), 9), C.Space(folderText, 15), C.Space(folderPicker, 17), senderFolders,
             C.Space(C.Text("Manual transfers require approval. Linked-folder sync uses its separate one-time host permission. Keep both is the default for manual duplicates.", 12, "Muted"), 15), C.Text("Closing the window keeps the server running when the tray option is enabled. Use Exit Lantoss in the tray to stop it. Transfer pause/resume and bandwidth limits are not included.", 11, "Muted"));
         NetworkAdapter[] available = NetworkAdapter.Available();
         ComboBox adapter = new()
@@ -133,7 +207,7 @@ internal sealed class SettingsPage : IPage
     {
     }
     private void Help() => MessageBox.Show(app.Window,
-        "Open Lantoss 1.9 on both Windows PCs and use the same trusted Wi-Fi. Choose the other PC and click Connect. The default is direct connection without a password or comparison code. Files still require receiver approval.\n\nClick Open in browser for this PC's transfer page. For a phone, open Phone & browser and scan the QR or open its displayed link. Choose files for download, or create a Shared Space from a folder. Enable Read & upload on a space to allow approved uploads into it. Live transfers show measured speed and estimated time.\n\nEnable Require an access code if desired. The code is shown in Phone & browser. Browser sharing uses local HTTP, not encryption; use your trusted home Wi-Fi.\n\nIf Windows Firewall asks, allow Private networks only. If discovery fails, try Find nearby PCs or Manual connection. Check guest isolation, VPN routing, and sleep. Private-network firewall access is configured after Windows administrator approval. Router settings stay under your control.",
+        "Open Lantoss on both Windows PCs and use the same trusted Wi-Fi. Choose the other PC and click Connect. The default is direct connection without a password or comparison code. Files still require receiver approval.\n\nClick Open in browser for this PC's transfer page. For a phone, open Phone & browser and scan the QR or open its displayed link. Choose files for download, or create a Shared Space from a folder. Enable Read & upload on a space to allow approved uploads into it. Live transfers show measured speed and estimated time.\n\nEnable Require an access code if desired. The code is shown in Phone & browser. Browser sharing uses local HTTP, not encryption; use your trusted home Wi-Fi.\n\nIf Windows Firewall asks, allow Private networks only. If discovery fails, try Find nearby PCs or Manual connection. Check guest isolation, VPN routing, and sleep. Private-network firewall access is configured after Windows administrator approval. Router settings stay under your control.",
         "Connect your PCs", MessageBoxButton.OK, MessageBoxImage.Information);
 }
 

@@ -8,7 +8,7 @@
 <body>
   <header><a class="brand" href="/"><span class="logo">≈</span> Lantoss</a><div class="header-actions"><label class="appearance" for="appearance">Appearance <select id="appearance"><option value="System">System</option><option value="Light">Light</option><option value="Dark">Dark</option></select></label><span class="pill">Home Wi-Fi</span></div></header>
   <main>
-    <p class="eyebrow" id="device">YOUR PC, WITHIN REACH</p>
+    <div class="host"><img id="host-picture" alt="" hidden><p class="eyebrow" id="device">YOUR PC, WITHIN REACH</p></div>
     <h1>A little closer.<br>Share from here.</h1>
     <p class="intro">Photos, files, and the things you want to send. Your phone and PC, on the same Wi-Fi.</p>
     <div id="notice" role="status" aria-live="polite"></div>
@@ -19,6 +19,11 @@
     </section>
     <div id="sharing" hidden>
       <div class="connected"><span class="dot"></span><span id="connection-label">Connected · no code needed</span></div>
+      <section class="card profile-card">
+        <div class="section-title"><span id="me-avatar" class="avatar" aria-hidden="true">?</span><div><h2>You on this PC</h2><p>Your name and picture appear in the PC's device list and on files you send.</p></div></div>
+        <form id="profile-form"><label for="profile-name">Your name</label><input id="profile-name" maxlength="40" autocomplete="nickname" placeholder="For example, Priya's phone">
+          <div class="profile-actions"><label class="file-button">Choose picture<input id="profile-picture" class="file-input" type="file" accept="image/*"></label><button type="button" id="profile-clear" class="secondary">Remove picture</button><button type="submit" id="profile-save">Save</button></div></form>
+      </section>
       <section id="devices-card" class="card" hidden><h2>Other PCs on your Wi-Fi</h2><p>Choose the PC whose files or text you want to access.</p><div id="browser-devices" class="space-list"></div></section>
       <section class="card notes-card">
         <div class="section-title"><span class="symbol">✎</span><div><h2>Text &amp; links</h2><p>Shared with this PC. Find received notes in the app's Text &amp; links area.</p></div><button id="notes-refresh" class="icon-button" aria-label="Refresh shared notes">↻</button></div>
