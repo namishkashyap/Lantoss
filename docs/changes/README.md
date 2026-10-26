@@ -10,3 +10,4 @@ checked, what is still unverified, and how to roll it back.
 | 2026-10-26 | [Private repository, license and 1.9.0 merge](2026-10-26-private-license-merge.md) |
 | 2026-10-26 | [Lantoss 2.0.0](2026-10-26-lantoss-2.0.0.md) |
 | 2026-10-26 | [Lantoss 2.0.0 for Windows, macOS and Linux](2026-10-26-cross-platform-2.0.0.md) |
+| 2026-10-26 | [Lantoss 2.0.1, macOS opening and phone address](2026-10-26-macos-open-and-phone-address-2.0.1.md) |

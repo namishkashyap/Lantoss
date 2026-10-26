@@ -4,17 +4,17 @@ Lantoss runs on Windows, macOS and Linux. Phones need no app, because they use
 the browser page. Install Lantoss on every computer you want to share between,
 and keep them on the same trusted home Wi-Fi or Ethernet.
 
-Get the files from the **[v2.0.0 release](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.0)**.
+Get the files from the **[v2.0.1 release](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.1)**.
 The previous Windows-only version stays available as [v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0).
 
 | Your computer | Download |
 |---|---|
-| Windows 10/11 (64-bit) | `Lantoss-Setup-2.0.0-x64.msi` |
-| Mac with Apple Silicon (M1 or later) | `Lantoss-2.0.0-macOS-AppleSilicon.zip` |
-| Mac with an Intel processor | `Lantoss-2.0.0-macOS-Intel.zip` |
-| Ubuntu, Debian, Linux Mint, Pop!_OS (64-bit PC) | `lantoss_2.0.0_amd64.deb` |
-| Raspberry Pi OS or other Debian-based ARM64 | `lantoss_2.0.0_arm64.deb` |
-| Any other Linux (Fedora, Arch, openSUSE…) | `lantoss-2.0.0-linux-x64.tar.gz` or `lantoss-2.0.0-linux-arm64.tar.gz` |
+| Windows 10/11 (64-bit) | `Lantoss-Setup-2.0.1-x64.msi` |
+| Mac with Apple Silicon (M1 or later) | `Lantoss-2.0.1-macOS-AppleSilicon.zip` |
+| Mac with an Intel processor | `Lantoss-2.0.1-macOS-Intel.zip` |
+| Ubuntu, Debian, Linux Mint, Pop!_OS (64-bit PC) | `lantoss_2.0.1_amd64.deb` |
+| Raspberry Pi OS or other Debian-based ARM64 | `lantoss_2.0.1_arm64.deb` |
+| Any other Linux (Fedora, Arch, openSUSE…) | `lantoss-2.0.1-linux-x64.tar.gz` or `lantoss-2.0.1-linux-arm64.tar.gz` |
 
 These are development builds. They are not signed by Microsoft or notarized by
 Apple, so each system asks you to confirm the first launch, as described below.
@@ -25,7 +25,7 @@ Apple, so each system asks you to confirm the first launch, as described below.
 
 ### Install
 1. If an older Lantoss is running, right-click its tray icon and choose **Exit Lantoss**.
-2. Double-click `Lantoss-Setup-2.0.0-x64.msi`. If SmartScreen appears, choose **More info → Run anyway**.
+2. Double-click `Lantoss-Setup-2.0.1-x64.msi`. If SmartScreen appears, choose **More info → Run anyway**.
 3. Follow the setup. In **Custom Setup** you can add a desktop shortcut and **Launch Lantoss at sign-in**.
    The **Explorer sharing** feature adds *Share with Lantoss* to the right-click menu. On Windows 11
    it asks once to trust the "Lantoss Development" publisher, then asks for administrator approval.
@@ -47,12 +47,22 @@ Requires macOS 14 Sonoma or later.
 
 ### Install
 1. Download the zip for your Mac (Apple menu → **About This Mac** shows *Chip: Apple M…* or *Processor: Intel*).
-2. Double-click the zip to unpack it. You get `Lantoss.app` and `install.sh`.
-3. Open **Terminal**, type `sh ` (with a trailing space), drag `install.sh` into the window, and press Return.
-   The script:
-   - copies Lantoss to **Applications**
-   - removes the download quarantine flag
-   - signs the app locally (ad-hoc). Apple Silicon Macs refuse to run unsigned code.
+2. Double-click the zip to unpack it. You get `Lantoss.app`, **Install Lantoss.command** and `install.sh`.
+   Don't open `Lantoss.app` straight from Downloads: macOS reports unsigned downloaded apps as "damaged".
+3. Double-click **Install Lantoss.command**.
+   - If macOS says it can't verify the file, click **Done**. Then open System Settings → **Privacy & Security**,
+     scroll down, click **Open Anyway** next to "Install Lantoss.command", and confirm.
+   - A Terminal window then:
+     - copies Lantoss to **Applications**
+     - removes the download quarantine flag
+     - signs the app for this Mac (ad-hoc), because Apple Silicon Macs refuse to run unsigned code
+
+     It may ask for your password.
+   - Terminal users can instead run `sh install.sh` in the unpacked folder.
+
+   **Already saw "Lantoss is damaged and can't be opened"?** Click **Cancel** (not Move to Bin) and do step 3.
+   Or run this in Terminal, adjusting the path to where you unpacked it:
+   `xattr -cr ~/Downloads/Lantoss-2.0.1-macOS-AppleSilicon/Lantoss.app`.
 
    <details><summary>Prefer to do it by hand?</summary>
 
@@ -83,15 +93,15 @@ Lantoss needs a desktop session (X11 or Wayland with XWayland).
 
 ### Debian, Ubuntu and derivatives (.deb)
 ```sh
-sudo apt install ./lantoss_2.0.0_amd64.deb      # or lantoss_2.0.0_arm64.deb
+sudo apt install ./lantoss_2.0.1_amd64.deb      # or lantoss_2.0.1_arm64.deb
 ```
 Then start **Lantoss** from your applications menu, or run `lantoss`.
 Uninstall with `sudo apt remove lantoss`.
 
 ### Any distribution (.tar.gz)
 ```sh
-tar -xzf lantoss-2.0.0-linux-x64.tar.gz
-cd lantoss-2.0.0
+tar -xzf lantoss-2.0.1-linux-x64.tar.gz
+cd lantoss-2.0.1
 ./install.sh            # installs for your user: ~/.local/opt/lantoss and a menu entry
 # sudo ./install.sh     # or system-wide into /opt/lantoss
 ```
@@ -118,5 +128,11 @@ Uninstall with `./uninstall.sh` (or `sudo ./uninstall.sh` for a system-wide inst
   Received files go to `Downloads/Lantoss Inbox` unless you choose another folder in Settings.
 - Open **Lantoss** on both computers and click the other one's name in **Devices** → **Connect**.
   Every transfer still asks the receiver to accept.
-- Phones: open **Phone & browser** and scan the QR code with the phone's camera.
+- Phones: open **Phone & browser** and scan the QR code with the phone's camera. The QR code uses the
+  computer's IP address, so it works on every phone, Android included.
+- **Phone page address.** iPhones, iPads and computers can also type a name such as
+  `http://share-wollvo.local`. Choose your own name in **Settings → Network → Phone page address**,
+  for example `family-share`, which gives `http://family-share.local`. Many Android phones can't open `.local`
+  names, so on Android use the QR code. If port 80 is unavailable, the name includes a port, for example
+  `http://family-share.local:48586`.
 - Lantoss never changes your router, DNS or hosts file, and works without internet or an account.
