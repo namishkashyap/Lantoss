@@ -1,3 +1,18 @@
+2026-10-26 - Lantoss 2.0.1: phone address and macOS install
+
+The Phone & browser QR code and copied link now use the computer's IP
+address, which works on every phone. Many Android phones cannot open .local
+names. The local name is shown alongside it for iPhones, iPads and
+computers. Admins can choose the name in Settings → Phone page address, for
+example family-share for http://family-share.local. Names are now published
+on any port, so Linux and computers with port 80 in use get a name too,
+with the port in the link.
+
+The macOS app is now one single-file executable plus native libraries, and
+the download includes a double-clickable "Install Lantoss.command". Opening
+the app straight from Downloads made macOS report it as "damaged"; the
+installer clears the download flag and signs the app for that Mac.
+
 2026-10-26 - Lantoss 2.0: people, pictures, notifications and security fixes
 
 New macOS and Linux apps (source/Desktop, Avalonia) run the same sharing
