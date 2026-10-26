@@ -45,6 +45,16 @@ public static class Profiles
             throw new InvalidDataException("Use a name up to 40 characters without control or formatting characters.");
         return name;
     }
+    /// <summary>Validates the admin's phone-page name: a single DNS label of letters, digits and inner hyphens, without ".local".</summary>
+    public static string AddressName(string? name)
+    {
+        name = (name ?? "").Trim().ToLowerInvariant();
+        if (name.EndsWith(".local", StringComparison.Ordinal))
+            name = name[..^6];
+        if (name.Length is < 1 or > 40 || name[0] == '-' || name[^1] == '-' || !name.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-'))
+            throw new InvalidDataException("Use an address of 1 to 40 letters, digits or hyphens, for example family-share.");
+        return name;
+    }
     public static string SenderFolder(string inbox, string sender)
     {
         char[] invalid = Path.GetInvalidFileNameChars();

@@ -54,7 +54,7 @@ internal static partial class Program
         }
         catch (InvalidDataException) { invalid = true; }
         Check(invalid, "Cyclic DNS name compression is rejected with bounded parsing");
-        Check(LocalNameClaim.DeviceUrlAllowed("http://" + LocalNameClaim.DeviceHost(key), key) && !LocalNameClaim.DeviceUrlAllowed("http://attacker.invalid", key) && !LocalNameClaim.DeviceUrlAllowed("http://" + LocalNameClaim.DeviceHost(key) + ":1234", key), "Discovered browser links accept only that device's no-port local hostname");
+        Check(LocalNameClaim.DeviceUrlAllowed("http://" + LocalNameClaim.DeviceHost(key), key) && !LocalNameClaim.DeviceUrlAllowed("http://attacker.invalid", key) && LocalNameClaim.DeviceUrlAllowed("http://" + LocalNameClaim.DeviceHost(key) + ":48586", key) && !LocalNameClaim.DeviceUrlAllowed("http://" + LocalNameClaim.DeviceHost(key) + "/path", key), "Discovered browser links accept only that device's local hostname, with or without its browser port");
         bool Claimed(string host) => host.Equals(LocalNameClaim.SharedHost, StringComparison.OrdinalIgnoreCase);
         Check(LocalBrowserAccess.HostAllowed("http://192.168.1.10", "SHARE-WOLLVO.LOCAL.", 80, Claimed)
             && !LocalBrowserAccess.HostAllowed("http://192.168.1.10", "attacker.invalid", 80, Claimed)

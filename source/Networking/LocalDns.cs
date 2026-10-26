@@ -170,9 +170,11 @@ public static class LocalDns
 public sealed record NameAction(string Host, bool Probe, uint Ttl = 30);
 
 /// <summary>Clock-driven claim state, separated from sockets so contention and takeover can be tested deterministically.</summary>
-public sealed class LocalNameClaim(IPAddress address, string key)
+public sealed class LocalNameClaim(IPAddress address, string key, string alias = LocalNameClaim.SharedHost)
 {
     public const string SharedHost = "share-wollvo.local";
+    /// <summary>The friendly name this PC tries to claim; the admin can choose it in Settings.</summary>
+    public string Alias { get; } = alias.ToLowerInvariant();
     private readonly string baseName = DeviceHost(key)[..^6];
     private int suffix = 1, uniqueProbes, aliasProbes;
     private DateTime uniqueDue, aliasDue, announceDue, defended;
@@ -196,7 +198,7 @@ public sealed class LocalNameClaim(IPAddress address, string key)
     {
         if (key.Length != 64 || !key.All(char.IsAsciiHexDigit))
             return false;
-        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) || uri.Scheme != "http" || uri.Port != 80 || uri.UserInfo.Length != 0 || uri.AbsolutePath != "/" || uri.Query.Length != 0 || uri.Fragment.Length != 0)
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) || uri.Scheme != "http" || uri.UserInfo.Length != 0 || uri.AbsolutePath != "/" || uri.Query.Length != 0 || uri.Fragment.Length != 0)
             return false;
         string host = DeviceHost(key);
         if (uri.Host.Equals(host, StringComparison.OrdinalIgnoreCase))
@@ -205,7 +207,7 @@ public sealed class LocalNameClaim(IPAddress address, string key)
         return uri.Host.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && uri.Host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
             && int.TryParse(uri.Host[prefix.Length..^6], out int suffix) && suffix is >= 2 and <= 32;
     }
-    public bool Owns(string host) => Ready && (host.Equals(Host, StringComparison.OrdinalIgnoreCase) || OwnsAlias && host.Equals(SharedHost, StringComparison.OrdinalIgnoreCase));
+    public bool Owns(string host) => Ready && (host.Equals(Host, StringComparison.OrdinalIgnoreCase) || OwnsAlias && host.Equals(Alias, StringComparison.OrdinalIgnoreCase));
     public NameAction[] Tick(DateTime now)
     {
         List<NameAction> actions = [];
@@ -227,7 +229,7 @@ public sealed class LocalNameClaim(IPAddress address, string key)
         {
             if (aliasProbes++ < 3)
             {
-                actions.Add(new(SharedHost, true));
+                actions.Add(new(Alias, true));
                 aliasDue = now.AddMilliseconds(250);
             }
             else
@@ -235,14 +237,14 @@ public sealed class LocalNameClaim(IPAddress address, string key)
                 OwnsAlias = true;
                 aliasOwner = null;
                 defended = default;
-                actions.Add(new(SharedHost, false));
+                actions.Add(new(Alias, false));
             }
         }
         if (Ready && now >= announceDue)
         {
             actions.Add(new(Host, false));
             if (OwnsAlias)
-                actions.Add(new(SharedHost, false));
+                actions.Add(new(Alias, false));
             announceDue = now.AddSeconds(15);
         }
         return actions.ToArray();
@@ -263,11 +265,11 @@ public sealed class LocalNameClaim(IPAddress address, string key)
                 if (OwnsAlias)
                 {
                     OwnsAlias = false;
-                    actions.Add(new(SharedHost, false, 0));
+                    actions.Add(new(Alias, false, 0));
                     aliasProbes = 0;
                 }
             }
-            if (other.Name != SharedHost)
+            if (!other.Name.Equals(Alias, StringComparison.OrdinalIgnoreCase))
                 continue;
             if (other.Ttl == 0)
             {
@@ -283,7 +285,7 @@ public sealed class LocalNameClaim(IPAddress address, string key)
             {
                 if (!message.Response || now - defended > TimeSpan.FromSeconds(10))
                 {
-                    actions.Add(new(SharedHost, false));
+                    actions.Add(new(Alias, false));
                     if (message.Response)
                         defended = now;
                 }

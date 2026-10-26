@@ -80,6 +80,7 @@ internal static partial class Program
         await DesktopCasesAsync();
         await LocalAddressCasesAsync();
         await Version20CasesAsync();
+        await Version201CasesAsync();
         await NoteCasesAsync();
         await EfficientSyncCasesAsync();
         await FirewallCasesAsync();

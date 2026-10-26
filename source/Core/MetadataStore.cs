@@ -173,6 +173,7 @@ public sealed class MetadataStore
             data.Preferences = preferences with
             {
                 DeviceName = name,
+                LocalName = Profiles.AddressName(preferences.LocalName),
                 ReceiveFolder = Path.GetFullPath(preferences.ReceiveFolder)
             };
         Save();

@@ -48,6 +48,13 @@ internal sealed class SettingsPage : IPage
             Margin = new(0, 8, 0, 18)
         };
         AutomationProperties.SetName(name, "This PC's device name");
+        TextBox address = new()
+        {
+            Text = saved.LocalName,
+            MaxLength = 46,
+            Margin = new(0, 8, 0, 6)
+        };
+        AutomationProperties.SetName(address, "Phone page address");
         ContentControl picture = new()
         {
             Content = C.Avatar(saved.DeviceName, Profiles.Picture(app.Store), 56),
@@ -171,7 +178,8 @@ internal sealed class SettingsPage : IPage
                 AutoConnect = autoConnect.IsChecked == true,
                 AutoConfigureFirewall = firewall.IsChecked == true,
                 CloseToTray = tray.IsChecked == true,
-                SenderFolders = senderFolders.IsChecked == true
+                SenderFolders = senderFolders.IsChecked == true,
+                LocalName = address.Text
             });
             app.Engine.ApplySavedPreferences();
             if (firewall.IsChecked == true)
@@ -193,7 +201,7 @@ internal sealed class SettingsPage : IPage
         };
         AutomationProperties.SetName(adapter, "Receiving network adapter");
         Button toggle = C.Button(app.Engine.Running ? "Stop sharing" : "Start sharing server", () => { if (app.Engine.Running) app.ToggleReceiving(); else if (adapter.SelectedItem is NetworkAdapter selected) app.StartReceiving(selected); else throw new IOException("Connect to private IPv4 Wi-Fi or Ethernet first."); app.UpdateStatus(); app.Navigate("Settings"); }, true);
-        StackPanel network = C.Stack(C.Heading("Network"), C.Text("Wi-Fi or Ethernet adapter", 12, bold: true), adapter, C.Space(toggle, 17), C.Space(discovery, 12), C.Space(C.Text("Receiving address: " + app.Engine.Endpoint, 12, "Primary", true), 13),
+        StackPanel network = C.Stack(C.Heading("Network"), C.Text("Wi-Fi or Ethernet adapter", 12, bold: true), adapter, C.Space(toggle, 17), C.Space(discovery, 12), C.Text("Phone page address", 12, bold: true), address, C.Space(C.Text("Phones and computers can open http://<address>.local. Use letters, digits and hyphens. The QR code in Phone & browser always works.", 11, "Muted"), 14), C.Space(C.Text("Receiving address: " + app.Engine.Endpoint, 12, "Primary", true), 13),
             C.Text("Discovery uses multicast DNS plus LAN broadcast. Connections recover automatically when adapters change.", 12, "Muted"), C.Space(firewall, 8, 12), C.Text("Windows may ask for administrator approval once for this app's Private-network access. Public and Domain profiles are not opened.", 11, "Muted"), C.Space(C.Button("Connection diagnostics", () => NetworkDiagnostics.Show(app)), 0, 17));
         TextBlock key = C.Text(app.Engine.Fingerprint, 11, "Muted");
         key.FontFamily = new("Consolas");

@@ -155,21 +155,29 @@ public sealed partial class BrowserPortal : IDisposable
     {
         if (!Running || adapter == null)
             return;
-        bool wanted = !allowLoopback && store.Preferences.Discoverable && new Uri(IpUrl).Port == 80;
-        if (wanted && localNames != null)
+        // Names are published on any port (port 80 gives the shortest link), using the admin's chosen address.
+        int port = new Uri(IpUrl).Port;
+        string alias;
+        try
+        {
+            alias = Profiles.AddressName(store.Preferences.LocalName) + ".local";
+        }
+        catch (InvalidDataException) { alias = LocalNameClaim.SharedHost; }
+        bool wanted = !allowLoopback && store.Preferences.Discoverable;
+        if (wanted && localNames != null && localNames.Alias == alias && localNames.Port == port)
             return;
         string before = Url;
         localNames?.Dispose();
         localNames = null;
         if (wanted)
         {
-            LocalNameService names = new(adapter, deviceKey);
+            LocalNameService names = new(adapter, deviceKey, alias: alias, port: port);
             names.Changed += () =>
             {
                 if (!ReferenceEquals(localNames, names))
                     return;
                 LocalAddressStatus = names.DeviceUrl.Length > 0
-                    ? "Local address ready. The shared name may open another PC; use its PC picker or this PC's link below."
+                    ? names.Url.Contains(alias, StringComparison.Ordinal) ? "Name ready. iPhone, iPad and computers can type it; the QR code works on every phone." : "Another PC already uses " + alias + ". This PC answers at its own name; choose a different address in Settings."
                     : "Checking the local name…";
                 Changed?.Invoke();
             };
@@ -188,8 +196,7 @@ public sealed partial class BrowserPortal : IDisposable
         }
         else
             LocalAddressStatus = allowLoopback ? "Preview uses loopback only; local names are not registered."
-            : !store.Preferences.Discoverable ? "PC discovery is off. Enable it in Settings for automatic local names; the direct QR link still works."
-            : "Port 80 is already in use or unavailable. Close the other local web server to enable the no-port address; the direct QR link still works.";
+            : "PC discovery is off. Enable it in Settings for the local name; the QR code still works.";
         if (before != Url)
             Changed?.Invoke();
     }

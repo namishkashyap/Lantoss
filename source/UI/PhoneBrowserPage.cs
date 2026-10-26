@@ -9,7 +9,7 @@ namespace Lantoss.UI;
 internal sealed class PhoneBrowserPage : IPage
 {
     private readonly AppShell app;
-    private bool directQr;
+    private bool nameQr;
     private readonly StackPanel connection = new(), shared = new();
     private readonly TextBlock accessCode = C.Text("", 23, "Primary", true);
     private readonly TextBlock transferSpeed = C.Text("", 12, "Muted");
@@ -62,7 +62,10 @@ internal sealed class PhoneBrowserPage : IPage
         connection.Children.Add(C.Heading("Open on your phone", C.Badge(app.Engine.Browser.Running ? "Browser is on" : "Browser is off")));
         if (app.Engine.Browser.Running)
         {
-            string url = directQr ? app.Engine.Browser.IpUrl : app.Engine.Browser.Url;
+            // The IP link works on every phone; many Android phones cannot resolve .local names, so it is the QR default.
+            string ip = app.Engine.Browser.IpUrl, named = app.Engine.Browser.Url;
+            bool hasName = named != ip;
+            string url = nameQr && hasName ? named : ip;
             using QRCodeGenerator generator = new();
             using QRCodeData data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
             using PngByteQRCode qr = new(data);
@@ -78,13 +81,23 @@ internal sealed class PhoneBrowserPage : IPage
             System.Windows.Automation.AutomationProperties.SetName(picture, "QR code for " + url);
             RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.NearestNeighbor);
             connection.Children.Add(picture);
-            connection.Children.Add(C.Space(C.Text(url, 15, "Primary", true), 15));
+            connection.Children.Add(C.Space(C.Text(url, 15, "Primary", true), 8));
+            if (hasName && url == ip)
+                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + named, 12, bold: true), 8));
             connection.Children.Add(C.Space(C.Text(app.Engine.Browser.LocalAddressStatus, 12, "Muted"), 12));
             Button copy = C.Small("Copy link", () => { Clipboard.SetText(url); app.Tell("Browser link copied."); });
             Button open = C.Small("Open page", () => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }));
             open.Margin = new(8, 0, 0, 0);
             connection.Children.Add(C.Space(C.Inline(copy, open), 14));
-            connection.Children.Add(C.Space(C.Small(directQr ? "Show local-name QR" : "Show direct QR fallback", () => { directQr = !directQr; Refresh(); }), 14));
+            Button change = C.Small("Change address", () => app.Navigate("Settings"));
+            if (hasName)
+            {
+                Button swap = C.Small(nameQr ? "Show IP QR (every phone)" : "Show name QR (iPhone, computers)", () => { nameQr = !nameQr; Refresh(); });
+                change.Margin = new(8, 0, 0, 0);
+                connection.Children.Add(C.Space(C.Inline(swap, change), 14));
+            }
+            else
+                connection.Children.Add(C.Space(change, 14));
             connection.Children.Add(C.Text(app.Store.Preferences.RequireConnectionCode ? "Scan, then enter the access code shown alongside." : "Scan and connect directly. No password or code.", 12, "Muted"));
         }
         else

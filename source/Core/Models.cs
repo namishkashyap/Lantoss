@@ -22,6 +22,8 @@ public sealed record Preferences
     {
         get; init;
     }
+    /// <summary>The phone page name, published as http://LocalName.local.</summary>
+    public string LocalName { get; init; } = "share-wollvo";
 }
 
 public sealed record Peer

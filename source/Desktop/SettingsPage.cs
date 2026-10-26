@@ -24,6 +24,12 @@ internal sealed class SettingsPage : IPage
             MaxLength = 64,
             Margin = new(0, 8, 0, 18)
         };
+        TextBox address = new()
+        {
+            Text = saved.LocalName,
+            MaxLength = 46,
+            Margin = new(0, 8, 0, 6)
+        };
         ContentControl picture = new()
         {
             Content = C.Avatar(saved.DeviceName, Profiles.Picture(app.Store), 56),
@@ -88,7 +94,8 @@ internal sealed class SettingsPage : IPage
                 BrowserSharingEnabled = browser.IsChecked == true,
                 AutoConnect = autoConnect.IsChecked == true,
                 CloseToTray = tray.IsChecked == true,
-                SenderFolders = senderFolders.IsChecked == true
+                SenderFolders = senderFolders.IsChecked == true,
+                LocalName = address.Text ?? ""
             });
             app.Engine.ApplySavedPreferences();
             app.UpdateStatus();
@@ -118,7 +125,7 @@ internal sealed class SettingsPage : IPage
                 throw new IOException("Connect to private IPv4 Wi-Fi or Ethernet first.");
             app.Navigate("Settings");
         }, true);
-        StackPanel network = C.Stack(C.Heading("Network"), C.Text("Wi-Fi or Ethernet adapter", 12, bold: true), adapter, C.Space(toggle, 17), C.Space(discovery, 12),
+        StackPanel network = C.Stack(C.Heading("Network"), C.Text("Wi-Fi or Ethernet adapter", 12, bold: true), adapter, C.Space(toggle, 17), C.Space(discovery, 12), C.Text("Phone page address", 12, bold: true), address, C.Space(C.Text("Phones and computers can open http://<address>.local. Use letters, digits and hyphens. The QR code in Phone & browser always works.", 11, "Muted"), 14),
             C.Space(C.Text("Receiving address: " + app.Engine.Endpoint, 12, "Primary", true), 13),
             C.Space(C.Text("Discovery uses multicast DNS plus LAN broadcast. Connections recover automatically when adapters change.", 12, "Muted"), 14),
             C.AsyncButton("Connection diagnostics", app.Dialogs.DiagnosticsAsync));
