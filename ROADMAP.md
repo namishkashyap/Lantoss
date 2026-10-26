@@ -1,6 +1,30 @@
 # Delivery status
 
-## Included in Lantoss for Windows 1.6
+## Local sharing improvements in 1.9
+
+Automatic share-wollvo.local on port 80 with conflict probing, per-device names,
+common-name owner handoff and browser PC picker. Friendly names require working
+mDNS on the local network; port conflicts or unsupported resolvers use the direct
+QR fallback. No DNS/router/hosts-file changes are made. Physical Wi-Fi/phone
+acceptance remains outstanding; see VERIFICATION.md.
+
+Shared-folder Refresh stays in the current folder in app/browser and preserves
+upload choices. Text & links adds a bounded local board, native TLS sends and
+phone-browser posting, with literal rendering and explicit copy/open actions.
+Idle sync reuses manifests and filesystem events, performs minute metadata
+sweeps and rolling old-file audits, and bounds hashes/caches. Manual Sync now
+forces checksum verification; conflict and previous-version protections remain.
+
+## Installer and desktop integration in 1.8
+
+Per-user MSI with Start menu, optional desktop/startup features, repair/uninstall;
+native Windows 11 main-menu device submenu backed by a signed sparse package;
+single-instance batch handoff; tray receiving/sync and Start server/Exit. Home
+now focuses on files, devices and phone access. The development publisher requires
+explicit trust during setup. Public publisher signing, a machine-wide service
+and silent auto-updates are not included.
+
+## Included in Lantoss for Windows 1.9
 
 Lantoss branding across the app and browser; teal/mint Light and Dark themes;
 immediate System/Light/Dark appearance selection in the Windows sidebar and
@@ -52,12 +76,12 @@ and physical-device limitations are in VERIFICATION.md.
 ## Not implemented
 
 Pause/resume and restart continuation; recipient batches/priorities/bandwidth
-controls; global auto-accept of manual incoming files; launch at login; persistent background
-receiving; Explorer sharing; compression; folder archives for browser download.
+controls; global auto-accept of manual incoming files; compression; folder archives
+for browser download.
 
 Per-person team roles, invites, audit administration, deletion propagation,
 scheduled sync, backup pruning/restore UI, block-level sync, and NAS/mounted shares.
 
 HTTPS setup for ordinary phone browsers, expiring internet share links, remote
-relays, SSO, organizations, signing/installers, and native macOS/Linux clients.
+relays, SSO, organizations, code signing, and native macOS/Linux clients.
 No automatic router exposure or certificate-warning bypass is provided.

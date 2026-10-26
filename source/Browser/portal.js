@@ -19,6 +19,7 @@ applyAppearance();
 
 let csrf = '', selected = [], busy = false, activeUpload = null, offerAbort = null, offerId = '', cancelled = false;
 let activeSpace = null, activeFolder = '', transferPolling = false, spaceLoad = 0;
+let notesRevision = '';
 const bytes = size => { const units = ['B','KB','MB','GB']; let at = 0; while (size >= 1024 && at < 3) { size /= 1024; at++; } return `${size.toFixed(at ? 1 : 0)} ${units[at]}`; };
 function notice(message, error = false) { $('notice').textContent = message; $('notice').className = error ? 'error' : ''; }
 const rateText = speed => speed > 0 ? `${bytes(speed)}/s` : 'Measuring…';
@@ -27,6 +28,7 @@ const validSelection = () => selected.length > 0 && selected.length <= 100 && se
 function updateTarget() {
   const readOnly = activeSpace && !activeSpace.canUpload;
   $('files').disabled = busy || !!readOnly;
+  $('spaces-refresh').disabled = busy;
   $('send').disabled = busy || !!readOnly || !validSelection();
   $('send-title').textContent = activeSpace ? `Upload to ${activeSpace.name}` : 'Send to your PC';
   $('upload-hint').textContent = readOnly ? 'This space is read only. Use PC inbox instead to send files.' : activeSpace ? `Destination: ${activeFolder || 'space root'}. Approve the batch on the PC.` : 'Pick files or photos. Approve the request on your PC.';
@@ -51,6 +53,8 @@ async function connect() {
       $('connection-label').textContent = session.requiresCode ? 'Connected · code protection on' : 'Connected · no code needed';
       await refreshFiles();
       await refreshSpaces();
+      await refreshNotes();
+      await refreshBrowserDevices();
       startTransferPolling();
     }
   } catch (error) { notice(error.message, true); }
@@ -82,8 +86,11 @@ async function refreshFiles() {
   }
 }
 $('refresh').addEventListener('click', () => refreshFiles().catch(error => notice(error.message, true)));
-async function refreshSpaces() {
+async function refreshSpaces(reloadFolder = true) {
+  if (busy) { notice('Finish or cancel this upload before refreshing its destination.'); return; }
+  const previousSpace = activeSpace, previousFolder = activeFolder, previousLoad = spaceLoad;
   const spaces = await request('/api/spaces');
+  if (spaceLoad !== previousLoad || busy) return;
   $('spaces').replaceChildren();
   if (!spaces.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Create a space from a folder in the Windows app. Only those folders will appear here.'; $('spaces').append(empty); }
   for (const space of spaces) {
@@ -94,7 +101,7 @@ async function refreshSpaces() {
   }
   if (activeSpace) {
     const latest = spaces.find(space => space.id === activeSpace.id && space.available);
-    if (!latest) { activeSpace = null; activeFolder = ''; $('space-browser').hidden = true; } else activeSpace = latest;
+    if (!latest) { activeSpace = null; activeFolder = ''; $('space-browser').hidden = true; } else { activeSpace = latest; if (reloadFolder && previousSpace?.id === latest.id) await openSpace(latest, previousFolder); }
     updateTarget();
   } else {
     const wanted = new URLSearchParams(location.search).get('space');
@@ -123,6 +130,61 @@ async function openSpace(space, path = '') {
   updateTarget();
 }
 $('spaces-refresh').addEventListener('click', () => refreshSpaces().catch(error => notice(error.message, true)));
+async function copyNote(content) {
+  try {
+    if (globalThis.navigator?.clipboard && window.isSecureContext) await navigator.clipboard.writeText(content);
+    else {
+      const field = document.createElement('textarea'); field.value = content; field.className = 'copy-helper'; document.body.append(field);
+      try { field.select(); if (!document.execCommand('copy')) throw new Error('Select and copy the note manually.'); } finally { field.remove(); }
+    }
+    notice('Copied.');
+  } catch (error) { notice(error.message || 'Select and copy the note manually.', true); }
+}
+async function refreshNotes() {
+  const snapshot = await request('/api/notes?revision=' + encodeURIComponent(notesRevision));
+  if (snapshot.revision === notesRevision) return;
+  notesRevision = snapshot.revision;
+  $('notes-list').replaceChildren();
+  if (!snapshot.notes.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Shared text and links appear here.'; $('notes-list').append(empty); }
+  for (const note of snapshot.notes) {
+    const row = document.createElement('div'); row.className = 'note-row';
+    const text = document.createElement('div'); text.className = 'note-content'; text.textContent = note.content;
+    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = `${note.sender} · ${new Date(note.createdUtc).toLocaleString()}`;
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const copy = document.createElement('button'); copy.className = 'secondary'; copy.textContent = 'Copy'; copy.addEventListener('click', () => void copyNote(note.content)); actions.append(copy);
+    // Link detection is repeated on the client. No received HTML or executable URL is evaluated.
+    if (note.kind === 'link') {
+      try { const uri = new URL(note.content); if (['http:', 'https:'].includes(uri.protocol)) { const link = document.createElement('a'); link.href = uri.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Open link ↗'; actions.append(link); } } catch { }
+    }
+    row.append(text, meta, actions); $('notes-list').append(row);
+  }
+}
+$('notes-refresh').addEventListener('click', () => refreshNotes().catch(error => notice(error.message, true)));
+$('note-form').addEventListener('submit', async event => {
+  event.preventDefault(); const content = $('note-content').value; $('note-send').disabled = true;
+  try {
+    await request('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+    if ($('note-content').value === content) $('note-content').value = '';
+    notice('Shared with this PC.'); await refreshNotes();
+  } catch (error) { notice(error.message, true); }
+  finally { $('note-send').disabled = false; }
+});
+async function pollNotes() { try { if (!$('sharing').hidden && !document.hidden) await refreshNotes(); } catch { } finally { setTimeout(pollNotes, 5000); } }
+setTimeout(pollNotes, 5000);
+async function refreshBrowserDevices() {
+  const devices = await request('/api/devices');
+  $('browser-devices').replaceChildren();
+  for (const device of devices) {
+    try {
+      const url = new URL(device.url);
+      if (url.protocol !== 'http:' || (url.port && url.port !== '80') || !/^share-wollvo-[a-f0-9]{16}(?:-\d{1,2})?\.local$/i.test(url.hostname) || url.username || url.password) continue;
+      const link = document.createElement('a'); link.className = 'space-card'; link.href = url.href; link.textContent = device.name; $('browser-devices').append(link);
+    } catch { }
+  }
+  $('devices-card').hidden = $('browser-devices').children.length === 0;
+}
+async function pollBrowserDevices() { try { if (!$('sharing').hidden && !document.hidden) await refreshBrowserDevices(); } catch { } finally { setTimeout(pollBrowserDevices, 15000); } }
+setTimeout(pollBrowserDevices, 15000);
 $('space-up').addEventListener('click', () => { if (activeSpace && !busy) { const parent = activeFolder.includes('/') ? activeFolder.slice(0, activeFolder.lastIndexOf('/')) : ''; void openSpace(activeSpace, parent).catch(error => notice(error.message, true)); } });
 $('inbox').addEventListener('click', () => { if (busy) return; spaceLoad++; activeSpace = null; activeFolder = ''; $('space-browser').hidden = true; updateTarget(); });
 async function refreshTransfers() {

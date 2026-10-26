@@ -1,5 +1,135 @@
 # Verification record
 
+## Lantoss 1.9 - 22 October 2026
+
+234 C# checks passed. The existing CurrentUserOnly named-pipe client fixture is
+skipped because the development host denies its connection; the symlink fixture
+is skipped because link creation is unavailable. Production ACL and path checks
+were not weakened. Tests use scratch files and ephemeral identities.
+
+New coverage includes deterministic simultaneous DNS claims, unique device names,
+conflict defense, shared-name handoff after goodbye, bounded compression parsing,
+A/NSEC records, Host/Origin restrictions, per-key browser URL validation, and
+mDNS discovery metadata. A real LocalNameService UDP test claims/answers on an
+isolated multicast group and ephemeral test port; it verifies legacy unicast
+transaction IDs from the same PC without publishing production .local names.
+
+Text/link checks cover atomic persistence, duplicate identities, input/storage
+bounds, safe literal markup, revision polling, authenticated TLS sends between
+two loopback engines, actual HTTP session/post/poll behavior with Unicode, and
+cross-origin denial. Existing TLS, file integrity, conflicts, sync authorization,
+offline recovery, discovery and mocked Private-firewall regressions pass.
+
+The 500-file sync fixture performs 20 unchanged scans: zero additional file
+content bytes hashed, no extra metadata enumeration, 28,320 bytes allocated in
+total. Twenty thousand permission guards allocate zero bytes in the measured
+loop. Watcher tests detect a same-size edit with its timestamp restored; minute
+metadata sweeps reuse hashes and a 31-minute rolling audit hashes at most one
+old file. These are fixture measurements, not a CPU/memory usage guarantee for
+every PC, filesystem or workload. Full-file hashes/transfers still cost I/O.
+
+25 native COM checks pass, including the shipping signed DLL; its real binary
+selection fixture also passes the managed interoperability check. The native
+DLL/MSIX and embedded public certificate match. No development certificate is
+trusted on the build host. Existing installer/trust acceptance boundaries below
+still apply to 1.9.
+
+25 WPF checks pass, including literal note rendering, HTTP/HTTPS-only explicit
+link actions and preserving a draft through incoming events. The offscreen
+harness pumps queued dispatcher notifications as a real window would. All ten
+pages render in Light (1440x900) and Dark (1000x720); the populated Text & links
+page was visually reviewed in both. The packaged loopback HTTP preview passes.
+16 browser DOM regressions cover current-subfolder Refresh, files added/removed,
+preserved upload selections, delayed stale responses after navigation, literal
+notes/drafts, explicit HTTP clipboard fallback and the validated PC picker.
+JavaScript syntax, C# whitespace verification and self-contained publish pass.
+
+Live browser automation could not reach either temporary loopback preview before
+its test lifetime elapsed. This is recorded as unverified, not a browser pass.
+Physical phone/two-PC Wi-Fi, production UDP 5353 resolution, real port-80/firewall
+coexistence and owner handoff across real devices remain acceptance checks. The
+friendly address needs available port 80 and working mDNS; QR remains the fallback.
+
+The MSI is built with WiX warnings as errors. Read-only checks and extraction
+verify its four features, 19 payload files, three shortcuts and payload hashes.
+Source archives exclude private signing keys, SDK/tool caches and runtime data.
+No MSI install, package registration, publisher trust, real firewall modification
+or system DNS/hosts-file change was performed on the development host.
+
+## Lantoss 1.8 - 20 October 2026
+
+206 C# checks passed, with the existing restricted-host named-pipe and symlink
+fixtures skipped. The six additional checks cover one-use native selection
+decoding, Unicode, recipient fingerprints, malformed lengths, oversized counts,
+trailing bytes and preventing an outside path from being consumed. One test reads
+the actual mixed file/folder request emitted by the native COM harness.
+
+25 native COM checks passed. They exercise activation, lifetime tracking,
+IEnumExplorerCommand, stable child identities, the always-present picker,
+filesystem selection state, Unicode and mixed file/folder Invoke. The harness
+also LoadLibrary-activates the actual signed shipping DLL and checks its exports,
+class factory, command title and object release. Test Invoke writes scratch files
+without starting the normal app or changing registry/package/certificate state.
+
+20 WPF checks passed; all nine pages exported in both themes. Home was visually
+reviewed in Light at 1440x960 and Dark at 1000x720. Phone and device actions stay
+compact on the small layout. The 11 browser DOM-state checks, JavaScript syntax,
+formatting and self-contained Windows publication pass.
+
+MakeAppx validates the complete external layout and manifest without /nv. The
+identity-only package uses /nv solely because its declared external files are
+deliberately absent from that tiny package. CMS cryptographic verification of
+its signature passes and matches the app's embedded public certificate. The
+native DLL is signed by the same development key; Windows reports an untrusted
+chain on this host, as expected because publisher trust was never installed.
+
+WiX builds the per-user MSI with warnings as errors. Read-only MSI checks verify
+four features, 19 payload files, three shortcuts, current-user registration,
+the modern-package custom action, cleanup order and feature-tree navigation.
+Cabinet extraction compares the embedded app, native DLL and signed MSIX with
+the release payload. These package checks do not constitute an installation test.
+
+No MSI, sparse identity or publisher certificate was installed on the development
+host. Live Windows 11 menu placement, UAC consent, actual same-user IPC delivery,
+installation/repair/upgrade/rollback/uninstall, sign-in and physical two-PC sharing
+remain target-desktop checks in installer/TESTING.md. The app and MSI are unsigned;
+the native DLL and identity package are development-signed. No Windows service,
+global context-menu override or machine network-category change is installed.
+
+
+## Lantoss 1.7 - 20 October 2026
+
+**200 C# checks passed, with two environment-limited fixtures skipped.** The
+added desktop checks cover scoped file/folder Explorer plans, fallback recipient
+selection, Unicode labels and quoted commands, saved-key targets, blocked and
+unpaired removal, sign-in commands, bounded launch parsing, oversized-request
+rejection, persisted tray behavior and the legacy per-store instance identity.
+Existing native TLS, HTTP, file integrity, folder sync and discovery checks pass.
+
+The development host denied a CurrentUserOnly named-pipe client connection, so
+the actual forwarding/recovery fixture is explicitly skipped. The second skip
+is the existing symbolic-link privilege fixture. The IPC protections were not
+relaxed to bypass the host restriction. Real cross-process Explorer delivery
+therefore remains a target-Windows acceptance check, not a claimed pass.
+
+**20 native WPF UI checks passed**, including preparing the exact Unicode file
+from an Explorer picker request and ensuring the picker does not send early.
+The preview harness supplies the dispatcher context normally installed by
+Application.Run for the added asynchronous selection check. All nine pages
+exported in both themes; Dark Settings and Explorer selection were visually
+reviewed. The 11 browser DOM-state checks, JavaScript syntax, formatting and
+strict self-contained publication pass. Previews do not change shell/startup
+registration, use protected identities, or run normal LAN/firewall setup.
+
+The WiX MSI builds with warnings as errors and its standard validation. Read-only
+MSI inspection verifies per-user scope, feature defaults, file/folder menus,
+quoted sign-in launch, shortcuts, optional-feature UI and cleanup before file
+removal. Cabinet extraction is used to compare the embedded executable with
+the published app. These are package checks; real install/repair/rollback,
+uninstall, sign-in, Task Manager startup control and Explorer invocation still
+need the desktop checks in installer/TESTING.md. No MSI was installed on this
+development host. The package is unsigned; no machine-wide service is installed.
+
 ## Lantoss 1.6 - 20 October 2026
 
 **186 C# checks passed; one existing symbolic-link fixture was skipped** because

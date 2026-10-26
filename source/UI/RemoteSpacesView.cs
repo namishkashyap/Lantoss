@@ -15,7 +15,7 @@ internal sealed class RemoteSpacesView
     private RemoteSpace? selected;
     private string folder = "";
     private int generation;
-    private bool loading, active;
+    private bool loading, active, reloadPending;
     public FrameworkElement View
     {
         get;
@@ -24,16 +24,16 @@ internal sealed class RemoteSpacesView
     {
         this.app = app;
         devices.ItemTemplate = (DataTemplate)app.Window.FindResource("DeviceNameTemplate");
-        Button reload = C.AsyncButton("Refresh folders", LoadSpacesAsync, icon: "sync");
+        Button reload = C.AsyncButton("Refresh folders", RefreshCurrentAsync, icon: "sync");
         reload.Margin = new(10, 0, 0, 0);
         reload.VerticalAlignment = VerticalAlignment.Center;
         System.Windows.Automation.AutomationProperties.SetName(devices, "Connected PC");
         View = C.Card(C.Stack(C.Heading("Shared folders on your other PCs"),
             C.Space(C.Text("Browse, download, upload, or link a folder for automatic two-way sync. All PC-to-PC traffic uses TLS.", 12, "Muted"), 14),
             C.Space(C.Inline(devices, reload), 14), C.Space(status, 14), contents));
-        devices.SelectionChanged += async (_, _) => { generation++; peer = devices.SelectedItem as Peer; selected = null; folder = ""; contents.Children.Clear(); if (active) await LoadSpacesAsync(); };
+        devices.SelectionChanged += async (_, _) => { generation++; peer = devices.SelectedItem as Peer; selected = null; folder = ""; contents.Children.Clear(); if (active) await RefreshCurrentAsync(); };
         View.Loaded += async (_, _) => { active = !app.Preview; RefreshPeers(); if (!active) return; timer.Start(); await LoadSpacesAsync(); };
-        View.Unloaded += (_, _) => { active = false; generation++; timer.Stop(); };
+        View.Unloaded += (_, _) => { active = false; generation++; reloadPending = false; timer.Stop(); };
         timer.Tick += async (_, _) => { if (!loading && active) { if (selected == null) await LoadSpacesAsync(); else await BrowseAsync(selected, folder); } };
     }
     public void RefreshPeers()
@@ -45,6 +45,15 @@ internal sealed class RemoteSpacesView
             return;
         devices.ItemsSource = peers;
         devices.SelectedItem = peers.FirstOrDefault(item => item.Fingerprint == key) ?? peers.FirstOrDefault();
+    }
+    private Task RefreshCurrentAsync()
+    {
+        if (loading)
+        {
+            reloadPending = true;
+            return Task.CompletedTask;
+        }
+        return selected == null ? LoadSpacesAsync() : BrowseAsync(selected, folder);
     }
     private async Task LoadSpacesAsync()
     {
@@ -81,7 +90,7 @@ internal sealed class RemoteSpacesView
             }
         }
         catch (Exception error) { if (load == generation) status.Text = TransferEngine.HumanError(error) + " Refresh retries automatically."; }
-        finally { loading = false; }
+        finally { loading = false; if (reloadPending && active) { reloadPending = false; await RefreshCurrentAsync(); } }
     }
     private async Task BrowseAsync(RemoteSpace space, string path)
     {
@@ -139,7 +148,7 @@ internal sealed class RemoteSpacesView
             }
         }
         catch (Exception error) { if (load == generation) status.Text = TransferEngine.HumanError(error); }
-        finally { loading = false; }
+        finally { loading = false; if (reloadPending && active) { reloadPending = false; await RefreshCurrentAsync(); } }
     }
     private async Task LinkAsync(Peer target, RemoteSpace space)
     {

@@ -1,0 +1,72 @@
+{
+  "Version": "1.9.0",
+  "Date": "2026-10-22",
+  "Target": "Windows x64",
+  "Features": [
+    "Automatic share-wollvo.local and per-device local names with browser PC picker",
+    "Reload current shared folder in app and browser",
+    "Text and link sharing in app and browser",
+    "Watcher/cached-manifest sync with bounded hashes and rolling audits"
+  ],
+  "Checks": {
+    "ApplicationPassed": 234,
+    "EnvironmentSkips": 2,
+    "NativeComPassed": 25,
+    "WpfPassed": 25,
+    "BrowserDomPassed": 16,
+    "ThemePageRenders": 20,
+    "Format": "Passed",
+    "JavaScriptSyntax": "Passed",
+    "SelfContainedPublish": "Passed",
+    "PackagedHttpPreview": "Passed",
+    "MsiPayloadsMatched": 19,
+    "SourceFilesMatched": 113
+  },
+  "Performance": {
+    "files": 500,
+    "idleScans": 20,
+    "idleAllocated": 28320,
+    "additionalIdleHashBytes": 0,
+    "guardChecks": 20000,
+    "guardBytes": 0
+  },
+  "Installer": {
+    "Product": "Lantoss",
+    "Version": "1.9.0",
+    "CurrentUserOnly": true,
+    "Features": 4,
+    "Files": 19,
+    "Shortcuts": 3,
+    "RegistryRows": 12,
+    "UninstallCleanupBeforeRemoveFiles": true,
+    "Passed": true
+  },
+  "Explorer": {
+    "SparseSignatureValid": true,
+    "NativeDllSignerMatches": true,
+    "NativeDllTrustStatus": "UnknownError",
+    "PublisherThumbprint": "B5D1F640C1627B683AE70FF2EEADC51A77E8855B",
+    "IdentityVersion": "1.9.0.0",
+    "NativeComClass": "18F23026-095D-4FD5-AEF4-7DDF06847DE9",
+    "FileAndFolderVerbs": 2,
+    "NoHostTrustChanged": true
+  },
+  "Limitations": [
+    "Physical phone/two-PC Wi-Fi and production mDNS resolution not verified",
+    "Live browser automation could not reach temporary loopback preview before its lifetime expired",
+    "Port 80 and working mDNS needed for no-port local names; direct QR fallback included",
+    "No actual installation, Windows trust change, firewall modification or DNS/hosts-file change performed",
+    "MSI and main app unsigned; native DLL and MSIX use a development certificate",
+    "Current-user pipe and symlink fixtures skipped due host restrictions"
+  ],
+  "Artifacts": [
+    {
+      "File": "Lantoss-Setup-1.9.0-x64.msi",
+      "SHA256": "FB744813CD32F72F815C5CD7053CE2F121DD9B778347A803F242D4DC60EECC35"
+    },
+    {
+      "File": "Lantoss-1.9-Source.zip",
+      "SHA256": "09CE627DD16358172E86E804BD8707ABE30C74DDAB2973FFF3B4936641C3A1A2"
+    }
+  ]
+}

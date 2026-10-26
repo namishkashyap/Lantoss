@@ -7,9 +7,8 @@ namespace Lantoss.UI;
 internal sealed class HomePage : IPage
 {
     private readonly AppShell app;
-    private readonly StackPanel devices = new(), recent = new(), connection = new();
-    private readonly StackPanel deviceFilters = new() { Orientation = Orientation.Horizontal };
-    private bool pairedFilter;
+    private readonly StackPanel devices = new();
+    private readonly TextBlock status = C.Text("", 12, "Muted");
     public FrameworkElement View
     {
         get;
@@ -17,34 +16,35 @@ internal sealed class HomePage : IPage
     public HomePage(AppShell app)
     {
         this.app = app;
-        UniformGrid actions = new()
-        {
-            Columns = 3,
-            Margin = new(-6, 0, -6, 0)
-        };
-        actions.Children.Add(Quick("Send files", "Choose files or folders", "send", app.PickFiles));
-        actions.Children.Add(Quick("Phone & browser", "Scan the QR to share", "devices", () => app.Navigate("Phone & browser")));
-        actions.Children.Add(Quick("Connect a PC", "Direct. No code needed.", "pair", () => app.Dialogs.Pair()));
-        StackPanel left = C.Stack(C.Heading("Quick actions"), actions);
-        View = C.Stack(C.Space(Dropzone(app), 24), C.Heading("Nearby PCs", C.Small("See all →", () => app.Navigate("Devices"))), C.Space(deviceFilters, 12), C.Space(devices, 24), C.Space(C.Columns(left, C.Card(connection), 340), 26), C.Heading("Recent transfers", C.Small("View history →", () => app.Navigate("History"))), recent);
+        // Home has one starting action. Detailed history, settings and sync stay in the sidebar.
+        Border send = Dropzone(app);
+        send.MaxWidth = 920;
+        send.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Button phone = C.Button("Open phone & browser", () => app.Navigate("Phone & browser"), icon: "devices");
+        View = C.Stack(C.Space(C.Text("Share something.", 30, bold: true), 8),
+            C.Space(C.Text("Pick files, then choose a device on your Wi-Fi.", 14, "Muted"), 24),
+            C.Space(send, 26), C.Heading("Your devices", C.Small("Manage devices", () => app.Navigate("Devices"))),
+            C.Space(devices, 22), C.Card(Row(C.Stack(C.Space(C.Text("Sharing with your phone?", 15, bold: true), 6),
+                C.Text("Open the transfer page or scan its QR code.", 12, "Muted")), phone), 18),
+            C.Space(status, 0, 18));
     }
-    private static Button Quick(string title, string subtitle, string icon, Action action)
+    private static DockPanel Row(FrameworkElement description, FrameworkElement action)
     {
-        Button button = C.Button(title, action);
-        FrameworkElement image = C.Icon(icon, 25);
-        image.HorizontalAlignment = HorizontalAlignment.Left;
-        button.Content = C.Stack(C.Space(image, 13), C.Space(C.Text(title, 13, bold: true), 6), C.Text(subtitle, 11, "Muted"));
-        button.Padding = new(19, 20, 19, 20);
-        button.Margin = new(6, 0, 6, 0);
-        button.HorizontalAlignment = HorizontalAlignment.Stretch;
-        button.HorizontalContentAlignment = HorizontalAlignment.Left;
-        return button;
+        // These short rows fit beside their action even on a small laptop; wrap only the text.
+        DockPanel row = new();
+        action.Margin = new(18, 0, 0, 0);
+        action.VerticalAlignment = VerticalAlignment.Center;
+        DockPanel.SetDock(action, Dock.Right);
+        row.Children.Add(action);
+        description.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(description);
+        return row;
     }
     public static Border Dropzone(AppShell app)
     {
         Grid layout = new()
         {
-            MinHeight = 222
+            MinHeight = 200
         };
         Rectangle outline = new()
         {
@@ -58,11 +58,11 @@ internal sealed class HomePage : IPage
         layout.Children.Add(outline);
         FrameworkElement icon = C.Icon("upload", 39);
         icon.HorizontalAlignment = HorizontalAlignment.Center;
-        TextBlock title = C.Text("Drop files or folders here", 22, bold: true);
+        TextBlock title = C.Text("Drop files here", 21, bold: true);
         title.TextAlignment = TextAlignment.Center;
-        TextBlock subtitle = C.Text("Choose what to share. Keep the rest private.", 12, "Muted");
+        TextBlock subtitle = C.Text("Files and folders stay on your home network.", 12, "Muted");
         subtitle.TextAlignment = TextAlignment.Center;
-        Button files = C.Button("Browse files", app.PickFiles, true), folders = C.Button("Browse folders", app.PickFolders);
+        Button files = C.Button("Choose files", app.PickFiles, true, "plus"), folders = C.Button("Choose folder", app.PickFolders);
         folders.Margin = new(10, 0, 0, 0);
         StackPanel buttons = C.Inline(files, folders);
         buttons.HorizontalAlignment = HorizontalAlignment.Center;
@@ -85,59 +85,34 @@ internal sealed class HomePage : IPage
     public void Refresh()
     {
         devices.Children.Clear();
-        deviceFilters.Children.Clear();
-        Peer[] known = app.Engine.Peers.Where(p => !p.Blocked).ToArray();
-        Button nearby = C.Small("Nearby (" + known.Count(p => p.Online) + ")", () => { pairedFilter = false; Refresh(); });
-        Button paired = C.Small("Paired (" + known.Count(p => p.Paired) + ")", () => { pairedFilter = true; Refresh(); });
-        paired.Margin = new(8, 0, 0, 0);
-        nearby.SetResourceReference(Control.BackgroundProperty, pairedFilter ? "Surface" : "PrimarySoft");
-        paired.SetResourceReference(Control.BackgroundProperty, pairedFilter ? "PrimarySoft" : "Surface");
-        Button team = C.Small("Team · planned", () => { });
-        team.IsEnabled = false;
-        team.ToolTip = "Team workspaces are planned for a later phase.";
-        team.Margin = new(8, 0, 0, 0);
-        deviceFilters.Children.Add(nearby);
-        deviceFilters.Children.Add(paired);
-        deviceFilters.Children.Add(team);
-        Peer[] peers = known.Where(p => (pairedFilter ? p.Paired : p.Online) && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(4).ToArray();
+        Peer[] peers = app.Engine.Peers.Where(p => !p.Blocked && (p.Online || p.Paired)
+            && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(p => p.Online).ThenBy(p => p.Name).Take(4).ToArray();
         if (peers.Length == 0)
         {
-            StackPanel explanation = C.Stack(C.Space(C.Text(app.Search.Length > 0 ? "No PCs match your search." : "Open Lantoss on your other PC.", 15, bold: true), 7), C.Text(app.Engine.Running ? "Its name will appear here. Click Connect to connect directly. For a phone, use Phone & browser." : "Nearby connection starts when you open the app. If you stopped sharing, click Find nearby PCs to turn it on again.", 12, "Muted"));
-            devices.Children.Add(C.Card(C.Columns(explanation, C.Button("Find nearby PCs", () => app.Dialogs.Pair(), icon: "devices"), 185)));
+            devices.Children.Add(C.Card(Row(C.Stack(
+                C.Space(C.Text(app.Search.Length > 0 ? "No matching devices" : "Open Lantoss on your other PC", 15, bold: true), 6),
+                C.Text("Use the same home Wi-Fi. Your PC will appear here automatically.", 12, "Muted")),
+                C.Button("Find a device", () => app.Dialogs.Pair(), icon: "devices")), 18));
         }
-        else
+        foreach (Peer peer in peers)
         {
-            UniformGrid grid = new()
+            Button action = C.Button(peer.Paired ? "Send files" : "Connect", () =>
             {
-                Columns = Math.Min(peers.Length, 4),
-                Margin = new(-6, 0, -6, 0)
-            };
-            foreach (Peer peer in peers)
-            {
-                FrameworkElement graphic = C.Icon("devices", 35);
-                graphic.HorizontalAlignment = HorizontalAlignment.Left;
-                Border card = C.Card(C.Stack(C.Space(graphic, 15), C.Space(C.Text(peer.Name, 13, bold: true), 7), C.Space(C.Text(peer.TrustLabel, 11, peer.Paired ? "Success" : "Muted"), 13), C.Small(peer.Paired ? "Send files" : peer.SupportsQuickPair ? "Connect" : "Use code", () => { if (peer.Paired) { app.SelectedPeerKey = peer.Fingerprint; app.Navigate("Send"); } else app.Dialogs.Pair(peer); })), 18);
-                card.Margin = new(6, 0, 6, 0);
-                grid.Children.Add(card);
-            }
-            devices.Children.Add(grid);
+                if (peer.Paired)
+                {
+                    app.SelectedPeerKey = peer.Fingerprint;
+                    app.Navigate("Send");
+                }
+                else
+                    app.Dialogs.Pair(peer);
+            }, icon: peer.Paired ? "send" : "pair");
+            devices.Children.Add(C.Space(C.Card(Row(C.Stack(C.Space(C.Text(peer.Name, 15, bold: true), 5),
+                C.Text(peer.Online ? "On your network" : "Offline · open Lantoss on this PC", 12, peer.Online ? "Success" : "Muted")), action), 16), 8));
         }
-        connection.Children.Clear();
-        connection.Children.Add(C.Heading("Connection & security", C.Badge("LAN mode"), 14));
         double speed = app.Engine.Transfers.Records.Where(r => !r.Terminal).Sum(r => r.BytesPerSecond);
-        connection.Children.Add(C.Space(C.Text(speed > 0 ? $"{speed / 1048576:0.0} MB/s" : "Ready when you are", 21, bold: true), 7));
-        connection.Children.Add(C.Space(C.Text(speed > 0 ? "Measured active file throughput" : "Transfer speed appears while files move.", 11, "Muted"), 18));
-        connection.Children.Add(C.Space(C.Text(app.Engine.Running ? "Receiving · " + app.Engine.Endpoint : "Receiving is off", 11, "Muted"), 11));
-        connection.Children.Add(C.Text("Native: TLS · browser: local HTTP", 11, "Success", true));
-        recent.Children.Clear();
-        TransferRecord[] records = app.Engine.Transfers.Records.Take(4).ToArray();
-        if (records.Length == 0)
-            recent.Children.Add(C.Card(C.Text("Your transfers will appear here. Nothing has been sent or received yet.", 12, "Muted")));
-        else
-        {
-            foreach (TransferRecord record in records)
-                recent.Children.Add(C.Space(HistoryPage.Summary(record), 9));
-        }
+        status.Text = speed > 0 ? $"{speed / 1048576:0.0} MB/s transferring" : "";
+        status.Visibility = speed > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 }
 

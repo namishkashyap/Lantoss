@@ -19,6 +19,12 @@
     </section>
     <div id="sharing" hidden>
       <div class="connected"><span class="dot"></span><span id="connection-label">Connected · no code needed</span></div>
+      <section id="devices-card" class="card" hidden><h2>Other PCs on your Wi-Fi</h2><p>Choose the PC whose files or text you want to access.</p><div id="browser-devices" class="space-list"></div></section>
+      <section class="card notes-card">
+        <div class="section-title"><span class="symbol">✎</span><div><h2>Text &amp; links</h2><p>Shared with this PC. Find received notes in the app's Text &amp; links area.</p></div><button id="notes-refresh" class="icon-button" aria-label="Refresh shared notes">↻</button></div>
+        <form id="note-form"><label for="note-content">Text or link</label><textarea id="note-content" maxlength="16000" rows="4" placeholder="Paste a link or write a note…" required></textarea><button id="note-send" type="submit">Share with this PC</button></form>
+        <div id="notes-list" class="downloads"></div>
+      </section>
       <section class="card spaces-card">
         <div class="section-title"><span class="symbol">▤</span><div><h2>Shared Spaces</h2><p>Folders your PC has chosen to share. Permissions are set by the host.</p></div><button id="spaces-refresh" class="icon-button" aria-label="Refresh shared spaces">↻</button></div>
         <div id="spaces" class="space-list"></div>

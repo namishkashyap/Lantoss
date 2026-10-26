@@ -1,30 +1,34 @@
-LANTOSS 1.6 - LOCAL WI-FI SHARING
+LANTOSS 1.9 - LOCAL ADDRESS, TEXT SHARING AND LIGHTER SYNC
 
-FlowShare is now Lantoss.
+1. Exit the old app from its tray menu.
+2. Run Lantoss-Setup-1.9.0-x64.msi. Keep the Explorer feature. Desktop and
+   Launch Lantoss at sign-in are optional features in Custom Setup. On Windows
+   11, approve development-publisher trust and Windows administrator access for
+   the native menu. The app can also be installed without the Explorer feature.
+3. Open Lantoss on both PCs on your trusted home Wi-Fi. Connect once.
+4. Right-click files/folders -> Share with Lantoss -> PC name directly in the
+   Windows 11 main menu. The receiving PC still approves the transfer. Sign out
+   and back in if Explorer is still displaying its cached old menu.
+5. In Settings, enable Launch Lantoss in the tray when I sign in and automatic
+   sharing server startup. Save. Closing the window keeps sharing in the tray;
+   use Exit Lantoss to stop the server. Start server can also be clicked manually.
 
-1. Close the older FlowShare/Lantoss app, including its tray window.
-2. Extract the ZIP and run app\Lantoss.exe on each Windows PC.
-3. Use the same home Wi-Fi. Discovery and direct connections are automatic.
-4. If Windows asks, approve administrator access for the app's scoped Private-
-   network firewall rules. Manual file transfers still ask the receiver first.
+On a phone or PC on the same Wi-Fi, open http://share-wollvo.local with Lantoss
+running. Leave browser sharing and discovery enabled. The page lists other PCs
+running 1.9, each with its own local name. Port 80 must be available and the
+network/device must allow mDNS. Phone & browser explains the current status;
+use Show direct QR fallback if the friendly name cannot resolve. Scanning still
+avoids typing an IP or port. The browser uses HTTP; native PC transfers use TLS.
 
-APPEARANCE: choose System, Light or Dark near the top of the sidebar. Changes
-save immediately. System follows Windows automatically. The phone/browser
-page has its own selector and follows that device's system preference.
+Use Text & links to send a note or URL to a connected PC. Save to This PC to
+share it with this PC's phone/browser page. Incoming notes preserve your draft.
+The board keeps the latest 100 notes within 2 MB. Copy/open actions are explicit.
+Refresh near shared folders now reloads the current folder without a page reload.
+Sync uses notifications/caches to reduce idle disk work. Sync now performs a full
+checksum check. Keep both apps running; deletions still do not propagate.
 
-PHONE: open Phone & browser and scan the QR. No phone app is needed. Use
-Open in browser to transfer from a browser on this PC. Browser sharing uses
-local HTTP; use your trusted home Wi-Fi. Optional codes are in Settings.
-
-SHARED FOLDERS: open Shared Spaces to share local folders or browse another
-connected PC inside the app. Enable Read & upload for approved remote uploads.
-To sync, link a remote space to a local folder once and approve on the host.
-Keep both apps open. Added/changed files sync; deletions do not propagate.
-Conflicts and replaced versions are retained. Read README.md before linking.
-
-UPGRADES: existing connections, receive folders, spaces, history and sync links
-are reused. Some internal protocol/backup names retain FlowShare compatibility.
-
-DEVELOPERS: source\ contains the complete code with explanatory comments.
-Read DEVELOPER_GUIDE.md for architecture, build steps and compatibility notes.
-README.md explains usage; VERIFICATION.md records the actual checks.
+Uninstall is available in Windows Installed apps. Your received files, metadata
+and synced folders are kept. This is a signed-in-user server, not a Windows service.
+The installer and main app are unsigned; the native DLL and Windows identity
+package are development-signed. No publisher certificate is trusted merely by
+building or previewing the app. See README.md for usage and SETUP.md to build.

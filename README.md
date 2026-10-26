@@ -1,7 +1,127 @@
-# Lantoss 1.6 for Windows and phone browsers
+# Lantoss 1.9 for Windows and phone browsers
 
 Private home-Wi-Fi file sharing. PC connections are direct by default: no
 password, typed code, or comparison prompt. Access-code protection is optional.
+
+## Install Lantoss 1.9
+
+Download and double-click **Lantoss-Setup-1.9.0-x64.msi**. Close the older app
+using **Exit Lantoss** in the Windows tray first. The installer installs for the
+current Windows account under LocalAppData/Programs/Lantoss, creates Start menu
+entries, and registers repair/uninstall in Windows Installed apps. The .NET
+runtime is included. The Windows 11 identity package and native extension use a local development signing certificate; this is not a publicly trusted release. The MSI itself is unsigned.
+
+## New in 1.9
+
+### One local address
+
+Open **http://share-wollvo.local** on a phone or PC connected to the same home
+Wi-Fi. Keep Lantoss's sharing server, browser sharing and discovery enabled. The
+app automatically listens on HTTP port 80 and advertises the local name through
+mDNS; no IP address, port, router configuration or hosts-file edit is needed on a
+network that supports local multicast name resolution.
+
+If several PCs run Lantoss, exactly one claims the common name after checking
+for conflicts. The page's **Other PCs** list opens each discovered PC's own local
+name. When the common-name owner exits, another eligible PC takes over after its
+goodbye message or the short DNS lease expires. Each PC also has a stable local
+name derived from its saved device key. Update both PCs to 1.9 to advertise these
+browser links. A DNS name identifies a destination; it does not authenticate it.
+
+The short URL needs port 80 to be available and mDNS to be allowed by the device
+and Wi-Fi. If port 80 is busy, Lantoss keeps browser sharing available on 48586
+or an available port and explains the fallback in **Phone & browser**. Use
+**Show direct QR fallback** on devices without working .local resolution; scanning
+still avoids typing an IP or port. Guest Wi-Fi isolation, VPNs and managed
+networks can block local communication. These cases cannot be fixed by claiming
+a hostname. The app does not change router DNS, system DNS or hosts files.
+
+### Text & links
+
+Open **Text & links** in the sidebar. Choose a connected PC to send it a note or
+URL, or choose **This PC** to make it available on this PC's phone/browser page.
+The browser has a matching text-and-links area. Incoming notes appear there
+without replacing your draft. Use **Copy**, **Open link** or native **Delete**
+explicitly; text is never executed, opened or copied automatically. Only HTTP
+and HTTPS links get an Open link action.
+
+The board keeps the latest 100 notes within 2 MB, with up to 16,000 characters
+per note. It is recent local sharing history, not a permanent notebook. Native
+PC sends use the paired TLS connection; browser access follows the existing
+optional-code/session policy and local HTTP transport. Share notes only on your
+trusted Wi-Fi when code protection is off.
+
+### Refresh and lighter sync
+
+The shared-folder **Refresh** button reloads the folder you are currently viewing
+in both the app and browser. Browser refresh preserves selected upload files and
+ignores outdated responses if you navigate while a request is running.
+
+Sync now uses filesystem notifications and cached manifests. Idle five-second
+checks do not enumerate folders or read file contents. A metadata sweep every
+60 seconds catches missed notifications; a rolling checksum audit checks one
+old file per sweep after 30 minutes. **Sync now** performs a full checksum pass.
+Hashes stream through one reader per scanner with a 64 KB buffer, caches are
+bounded, and unchanged peer manifests omit their repeated file lists. Conflict
+copies, previous versions, authorization checks and retry behavior are retained.
+Large or active folders still need disk/CPU work; this is not block-level sync.
+
+In Custom Setup, keep the application and Explorer sharing features. Optionally
+select **Desktop shortcut** and **Launch Lantoss at sign-in** for installation.
+With the feature-tree UI, select a feature's icon and choose to install it on
+the local hard drive. Startup can also be enabled later in app Settings.
+
+### Right-click sharing
+
+Connect the other PC once in Lantoss. Right-click a file or folder in Explorer,
+then **Share with Lantoss → the PC name** in Windows 11's main menu.
+Choosing a named PC queues a normal encrypted
+transfer; that recipient must still approve. **Choose a PC…** opens the selected
+files in Send without sending until a recipient is chosen. Unpaired/blocked PCs
+are omitted. Up to 32 remembered PCs are shown, with current labels refreshed
+while Lantoss runs. The menu can launch the app if it is closed.
+
+Windows 11 sends the entire selection in one bounded request (up to 256 items,
+within a 96 KiB handoff limit). Existing unsent drafts are preserved for direct
+named-PC sends. Windows 10 keeps its classic menu and 15-item selection limit.
+
+During installation, the Windows 11 feature asks once to trust **Lantoss
+Development** for app packages, then requests Windows administrator approval.
+Only this build's public signing certificate goes into Local Machine Trusted
+People; no root certificate is installed. Declining cancels this feature's install;
+you can run setup again with Explorer sharing unchecked. No trust or package
+registration is changed merely by building or previewing the app.
+
+After upgrading, sign out and back in if Explorer still caches the old menu.
+Settings can disable/re-enable the installed sharing menu. For a portable build,
+install the MSI first to deploy the extension and its identity package.
+
+### Simpler Home
+
+Home now contains Choose files / Choose folder, a short device list and one
+phone/browser entry. Transfer history, sync and advanced settings remain in the
+sidebar. Light, Dark and System appearance continue to work.
+
+### Startup and sharing server
+
+In Settings, enable **Launch Lantoss in the tray when I sign in** and **Start
+the sharing server automatically when Lantoss opens**, then save. The server
+starts discovery, native receiving, the browser portal when enabled and linked
+folder sync. **Start server** is also available in the top bar, Settings and
+the tray. The Start menu includes **Lantoss in the tray** for a quiet launch.
+
+With **Keep receiving and syncing in the tray when I close the window** enabled
+(the default), closing the window hides it while sharing continues. Reopen via
+the tray icon. Use **Exit Lantoss** to stop sharing and save history. It runs in
+the signed-in user's session; it is not a Windows service and does not run before
+sign-in or after sign-out. Windows Task Manager can independently disable startup.
+
+Uninstall removes the executable, installed docs, shortcuts and Lantoss's own
+current-user Explorer/startup entries. Received files, app metadata, sync folders
+and retained versions are kept. Exit Lantoss before uninstalling or upgrading.
+Uninstall also removes this user's Explorer identity package. The development
+publisher certificate remains trusted for other installed Lantoss builds;
+installer/TESTING.md explains how to remove it after all such builds are gone.
 
 ## Build from this repository
 
@@ -191,8 +311,9 @@ Connection diagnostics → Set up Private-network access**. Rules are checked on
 opening when Windows permits inspection. If inspection needs administrator rights,
 the app remembers a previously verified setup for the same executable and ports.
 
-The phone link normally uses port 48586. If occupied, a free port is selected;
-always use the current QR/link. Native receiving normally uses port 48585.
+The phone page first tries port 80 for **http://share-wollvo.local**. If occupied,
+it falls back to 48586, then an available port; use the current QR/link shown in
+Phone & browser. Native receiving normally uses port 48585.
 If native discovery is blocked, Manual connection remains a fallback. Check
 router guest/client isolation, VPN routing, and whether the other PC is asleep.
 **Devices → Connection diagnostics** shows listener/discovery state and detected

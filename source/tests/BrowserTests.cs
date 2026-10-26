@@ -198,6 +198,12 @@ internal static partial class Program
         await File.WriteAllTextAsync(source, "A local browser test file. Production invents no shared files.");
         await portal.ShareAsync([source]);
         await portal.StartAsync(Loopback, 0);
+        string sharedFolder = Path.Combine(store.Root, "Family shared folder");
+        Directory.CreateDirectory(Path.Combine(sharedFolder, "Photos"));
+        await File.WriteAllTextAsync(Path.Combine(sharedFolder, "Photos", "First shared file.txt"), "Isolated browser preview fixture.");
+        portal.Spaces.Add(sharedFolder);
+        portal.Notes.Add("A note from your Windows PC. Copy it on your phone, or share a reply here.", "Family PC");
+        portal.Notes.Add("https://example.com/family", "Family PC");
         await File.WriteAllTextAsync(Path.Combine(root, "browser-url.txt"), portal.Url);
         Console.WriteLine("TEST BROWSER SERVER " + portal.Url);
         for (int tick = 0; tick < 1200 && !File.Exists(Path.Combine(root, "stop-browser")); tick++)

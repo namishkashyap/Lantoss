@@ -48,6 +48,10 @@ public sealed record WireMessage
     public string RelativePath { get; init; } = "";
     public string SyncId { get; init; } = "";
     public string ExpectedHash { get; init; } = "";
+    public string NoteId { get; init; } = "";
+    public string NoteContent { get; init; } = "";
+    public string KnownRevision { get; init; } = "";
+    public string SnapshotRevision { get; init; } = "";
     public RemoteSpace[] Spaces { get; init; } = [];
     public SpaceEntry[] Entries { get; init; } = [];
 }
@@ -91,6 +95,9 @@ public static class Wire
             throw new ProtocolException("The peer sent invalid protocol fields.");
         if (message.Kind == "error")
             throw new ProtocolException(message.Error.Length > 300 ? "The peer rejected the request." : message.Error);
+        if (message.NoteId == null || message.NoteId.Length > 32 || message.NoteContent == null || message.NoteContent.Length > SharedNotes.MaxCharacters
+            || message.KnownRevision == null || message.KnownRevision.Length > 64 || message.SnapshotRevision == null || message.SnapshotRevision.Length > 64)
+            throw new ProtocolException("Invalid note or snapshot fields.");
         if (message.SpaceId is null || message.SpaceId.Length > 32 || message.SyncId is null || message.SyncId.Length > 32 || message.RelativePath is null || message.RelativePath.Length > 2048 || message.ExpectedHash is null || message.ExpectedHash.Length > 64 || message.Spaces is null || message.Spaces.Length > 32 || message.Entries is null || message.Entries.Length > 1000)
             throw new ProtocolException("Invalid shared-folder protocol fields.");
         return message;

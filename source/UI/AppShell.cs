@@ -50,6 +50,12 @@ internal sealed class AppShell : IDisposable
     {
         get;
     }
+    public WindowsIntegration? Integration
+    {
+        get;
+    }
+    private readonly ExplorerSharing explorerSharing;
+    private bool exitRequested, trayNoticeShown;
     private readonly Identity identity;
     private readonly bool preview;
     public bool Preview => preview;
@@ -72,6 +78,9 @@ internal sealed class AppShell : IDisposable
         Engine = new(store, identity, allowLoopback: preview);
         Dialogs = new(this);
         Firewall = new(this);
+        explorerSharing = new(this);
+        if (!preview)
+            Integration = new();
         using (Stream icon = Assembly.GetExecutingAssembly().GetManifestResourceStream("Lantoss.ico")!)
             Window.Icon = BitmapFrame.Create(icon, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
         if (!preview)
@@ -87,9 +96,10 @@ internal sealed class AppShell : IDisposable
         Engine.ApproveReceive = Dialogs.ReceiveAsync;
         Engine.ApproveSync = Dialogs.SyncAsync;
         Engine.SyncChanged += () => Ui(() => { if (CurrentPage == "Sync") page?.Refresh(); });
+        Engine.Browser.Notes.Changed += () => Ui(() => { if (CurrentPage == "Text & links") page?.Refresh(); });
         Engine.Sync.Changed += () => Ui(() => { if (CurrentPage == "Sync") page?.Refresh(); });
         Engine.Status += message => Ui(() => Tell(message));
-        Engine.PeersChanged += () => Ui(() => { if (CurrentPage is "Home" or "Devices" or "Send" or "Shared Spaces") page?.Refresh(); });
+        Engine.PeersChanged += () => Ui(() => { RefreshExplorerMenu(); if (CurrentPage is "Home" or "Devices" or "Send" or "Shared Spaces") page?.Refresh(); });
         Engine.Browser.Changed += () => Ui(() => { if (CurrentPage is "Phone & browser" or "Shared Spaces") page?.Refresh(); if (!preview && Engine.Running) _ = Firewall.EnsureAsync(); });
         Engine.Transfers.Changed += record => Ui(() => { if (CurrentPage is "Home" or "Transfers" or "History") page?.Refresh(); });
         Engine.Transfers.PersistenceFailed += _ => Ui(() => Tell("History could not be saved. Check free space and permissions in the app's local metadata folder."));
@@ -108,10 +118,18 @@ internal sealed class AppShell : IDisposable
             using System.Drawing.Icon asset = new(iconStream);
             trayIcon = (System.Drawing.Icon)asset.Clone();
             notifications = new Forms.NotifyIcon { Icon = trayIcon, Text = "Lantoss — local file sharing", Visible = true };
-            notifications.DoubleClick += (_, _) => { Window.WindowState = WindowState.Normal; Window.Show(); Window.Activate(); };
+            notifications.DoubleClick += (_, _) => ShowWindow();
+            Forms.ContextMenuStrip tray = new();
+            tray.Items.Add("Open Lantoss", null, (_, _) => Ui(ShowWindow));
+            tray.Items.Add("Start sharing server", null, (_, _) => Ui(() => { try { if (!Engine.Running) ToggleReceiving(); } catch (Exception error) { Error(error); } }));
+            tray.Items.Add("Stop sharing server", null, (_, _) => Ui(() => { if (Engine.Running) ToggleReceiving(); }));
+            tray.Items.Add(new Forms.ToolStripSeparator());
+            tray.Items.Add("Exit Lantoss", null, (_, _) => Ui(() => { exitRequested = true; Window.Close(); }));
+            notifications.ContextMenuStrip = tray;
+            RefreshExplorerMenu();
         }
-        string[] names = ["Home", "Send", "Transfers", "Devices", "Phone & browser", "Shared Spaces", "Sync", "History", "Settings"];
-        string[] icons = ["home", "send", "transfer", "devices", "devices", "folder", "sync", "history", "settings"];
+        string[] names = ["Home", "Send", "Transfers", "Devices", "Phone & browser", "Text & links", "Shared Spaces", "Sync", "History", "Settings"];
+        string[] icons = ["home", "send", "transfer", "devices", "devices", "file", "folder", "sync", "history", "settings"];
         for (int i = 0; i < names.Length; i++)
         {
             string name = names[i];
@@ -163,6 +181,53 @@ internal sealed class AppShell : IDisposable
         if (store.RecoveryNotice != null)
             Tell(store.RecoveryNotice);
     }
+    public void ShowWindow()
+    {
+        Window.Show();
+        Window.WindowState = WindowState.Normal;
+        Window.Activate();
+    }
+    public void AcceptLaunch(LaunchRequest request) => explorerSharing.Accept(request);
+    public void RefreshExplorerMenu()
+    {
+        if (preview || Integration == null)
+            return;
+        try
+        {
+            Integration.Refresh(Store.Peers);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException) { Tell("Explorer integration needs attention: " + error.Message); }
+    }
+    public async Task PrepareExplorerShareAsync(IEnumerable<string> paths, string? peerKey)
+    {
+        if (selecting)
+            throw new IOException("Finish the current file selection before sharing another Explorer batch.");
+        string[] selected = paths.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        Peer? direct = Store.Peers.FirstOrDefault(peer => peer.Fingerprint == peerKey && peer.Paired && !peer.Blocked);
+        if (direct != null)
+        {
+            // Choosing a named PC in Explorer is the sender's explicit send action.
+            // Queue through the normal pinned-TLS/receiver-approval path; preserve any unsent draft.
+            if (!Engine.Running && !preview)
+                ToggleReceiving();
+            _ = Engine.Send(direct, selected);
+            Navigate("Transfers");
+            Tell("Explorer transfer queued for " + direct.Name + ". The receiver must approve the files.");
+            return;
+        }
+        // Keep existing draft files unless the user explicitly replaces them.
+        if (Selection.Count > 0 && !preview && MessageBox.Show(Window, "Replace the current unsent file selection with the files selected in Explorer?", "Share with Lantoss", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        _ = await Task.Run(() => FileCatalog.BuildAsync(selected, Guid.NewGuid().ToString("N"), false, default));
+        if (!Engine.Running && !preview)
+            ToggleReceiving();
+        Selection.Clear();
+        await AddSelectionsAsync(selected);
+        Peer? target = Store.Peers.FirstOrDefault(peer => peer.Fingerprint == peerKey && peer.Paired && !peer.Blocked);
+        SelectedPeerKey = target?.Fingerprint;
+        Navigate("Send");
+        Tell(target != null ? "Ready for " + target.Name + ". Review the files, then click Send securely." : peerKey == null ? "Files from Explorer are ready. Choose a PC and click Send securely." : "That PC is no longer paired or is blocked. Choose another connected PC.");
+    }
     public T Find<T>(string name) where T : class => Window.FindName(name) as T ?? throw new InvalidDataException("Missing UI control: " + name);
     public void Ui(Action action)
     {
@@ -182,7 +247,7 @@ internal sealed class AppShell : IDisposable
         page = null;
         Find<TextBox>("SearchBox").Text = "";
         Find<TextBlock>("PageTitle").Text = destination;
-        Find<TextBox>("SearchBox").IsEnabled = destination is "Home" or "Send" or "Transfers" or "Devices" or "History" or "Shared Spaces";
+        Find<TextBox>("SearchBox").IsEnabled = destination is "Home" or "Send" or "Transfers" or "Devices" or "History" or "Shared Spaces" or "Text & links";
         foreach ((string name, Button button) in navigation)
             button.SetResourceReference(Control.BackgroundProperty, name == destination ? "PrimarySoft" : "Sidebar");
         page = destination switch
@@ -192,6 +257,7 @@ internal sealed class AppShell : IDisposable
             "Transfers" => new TransfersPage(this),
             "Devices" => new DevicesPage(this),
             "Phone & browser" => new PhoneBrowserPage(this),
+            "Text & links" => new NotesPage(this),
             "Shared Spaces" => new SharedSpacesPage(this),
             "Sync" => new SyncPage(this),
             "History" => new HistoryPage(this),
@@ -275,7 +341,7 @@ internal sealed class AppShell : IDisposable
     }
     public void UpdateStatus()
     {
-        Find<Button>("ReceiveToggle").Content = Engine.Running ? "Stop sharing" : "Start receiving";
+        Find<Button>("ReceiveToggle").Content = Engine.Running ? "Stop sharing" : "Start server";
         Find<TextBlock>("NetworkStatus").Text = Engine.Running ? "LAN · " + Engine.Endpoint : "Receiving off";
         Find<TextBlock>("ThisDevice").Text = Store.Preferences.DeviceName;
         try
@@ -412,6 +478,19 @@ internal sealed class AppShell : IDisposable
         if (allowClose || preview)
         {
             Dispose();
+            return;
+        }
+        if (!exitRequested && Store.Preferences.CloseToTray)
+        {
+            e.Cancel = true;
+            Window.Hide();
+            if (!trayNoticeShown && notifications != null)
+            {
+                trayNoticeShown = true;
+                notifications.BalloonTipTitle = "Lantoss is still running";
+                notifications.BalloonTipText = "Receiving and sync continue in the tray. Use Exit Lantoss to stop the server.";
+                notifications.ShowBalloonTip(4000);
+            }
             return;
         }
         if (closing)

@@ -11,8 +11,12 @@ public sealed partial class TransferEngine
     private readonly ConcurrentDictionary<string, SyncStatus> syncStatuses = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> syncLocks = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> activeSync = new();
+    private sealed record RemoteSnapshot(string Revision, Manifest Manifest);
+    private readonly ConcurrentDictionary<string, RemoteSnapshot> remoteSnapshots = new();
+    private readonly ConcurrentDictionary<string, (string Local, string Remote)> reconciled = new();
+    public ScanStatistics SyncScanStatistics => spaceScanner.Statistics;
     public event Action? SyncChanged;
-    public SyncStatus[] SyncStatuses => Sync.Links.Select(link => syncStatuses.GetValueOrDefault(link.Id) ?? new(link.Id, link.Enabled ? "Waiting for the other PC" : "Paused", false, link.LastSuccessUtc)).ToArray();
+    public SyncStatus[] SyncStatuses => Sync.Headers.Select(link => syncStatuses.GetValueOrDefault(link.Id) ?? new(link.Id, link.Enabled ? "Waiting for the other PC" : "Paused", false, link.LastSuccessUtc)).ToArray();
     public async Task<SyncLink> LinkSpaceAsync(Peer peer, RemoteSpace space, string folder, CancellationToken token = default)
     {
         FileCatalog.CheckSafeDirectory(folder);
@@ -20,7 +24,7 @@ public sealed partial class TransferEngine
             throw new IOException("Choose an existing local folder.");
         if (!space.CanUpload)
             throw new IOException("On the host PC, change this space to Read & upload before enabling two-way sync.");
-        if (Sync.Links.Any(link => SyncStore.Overlap(link.Folder, folder)))
+        if (Sync.Headers.Any(link => SyncStore.Overlap(link.Folder, folder)))
             throw new IOException("This folder overlaps an existing sync link. Choose a separate folder.");
         SyncLink link = new(Guid.NewGuid().ToString("N"), peer.Fingerprint, space.Id, space.Name + " · " + peer.Name, Path.GetFullPath(folder));
         WireMessage granted = await SpaceRequestAsync(peer, new()
@@ -36,7 +40,7 @@ public sealed partial class TransferEngine
     }
     public void PauseSync(string id, bool paused)
     {
-        SyncLink link = Sync.Links.First(item => item.Id == id);
+        SyncLink link = Sync.GetLink(id) ?? throw new IOException("This sync link was removed.");
         if (activeSync.TryGetValue(id, out CancellationTokenSource? work))
             work.Cancel();
         Sync.SetEnabled(id, !paused);
@@ -47,12 +51,17 @@ public sealed partial class TransferEngine
         if (activeSync.TryGetValue(id, out CancellationTokenSource? work))
             work.Cancel();
         Sync.RemoveLink(id);
+        remoteSnapshots.TryRemove(id, out _);
+        reconciled.TryRemove(id, out _);
         syncStatuses.TryRemove(id, out _);
         SyncChanged?.Invoke();
     }
     private void SetSyncStatus(SyncLink link, string message, bool busy = false)
     {
-        syncStatuses[link.Id] = new(link.Id, message, busy, Sync.Links.FirstOrDefault(item => item.Id == link.Id)?.LastSuccessUtc);
+        SyncStatus next = new(link.Id, message, busy, Sync.LastSuccess(link.Id));
+        if (syncStatuses.TryGetValue(link.Id, out SyncStatus? previous) && previous == next)
+            return;
+        syncStatuses[link.Id] = next;
         SyncChanged?.Invoke();
     }
     private async Task SyncLoopAsync(CancellationToken token)
@@ -62,13 +71,13 @@ public sealed partial class TransferEngine
         {
             while (!token.IsCancellationRequested)
             {
-                foreach (SyncLink link in Sync.Links.Where(item => item.Enabled))
+                foreach (SyncLink link in Sync.Headers.Where(item => item.Enabled))
                 {
                     if (retry.TryGetValue(link.Id, out var delay) && delay.Retry > DateTime.UtcNow)
                         continue;
                     try
                     {
-                        await SyncOnceAsync(link.Id, token);
+                        await SyncOnceAsync(link.Id, token, false);
                         retry.Remove(link.Id);
                     }
                     catch (Exception error) when (!token.IsCancellationRequested)
@@ -85,7 +94,7 @@ public sealed partial class TransferEngine
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
     }
-    public async Task SyncOnceAsync(string id, CancellationToken token = default)
+    public async Task SyncOnceAsync(string id, CancellationToken token = default, bool force = true)
     {
         if (!Running)
             throw new IOException("Start sharing before syncing folders.");
@@ -94,30 +103,54 @@ public sealed partial class TransferEngine
         using CancellationTokenSource work = CancellationTokenSource.CreateLinkedTokenSource(token, lifetime?.Token ?? CancellationToken.None);
         try
         {
-            SyncLink link = Sync.Links.FirstOrDefault(item => item.Id == id && item.Enabled) ?? throw new OperationCanceledException("This sync link is paused or removed.");
+            SyncLink link = Sync.GetHeader(id) ?? throw new OperationCanceledException("This sync link is paused or removed.");
+            if (!link.Enabled)
+                throw new OperationCanceledException("This sync link is paused.");
             activeSync[id] = work;
             Peer peer = store.Trusted(link.PeerKey) ?? throw new IOException("Reconnect this PC to restore its saved sync permission.");
             void LocalGuard()
             {
                 work.Token.ThrowIfCancellationRequested();
-                if (!Sync.Links.Any(item => item.Id == id && item.Enabled && item.Folder == link.Folder))
+                if (!Sync.IsEnabled(id, link.Folder))
                     throw new OperationCanceledException();
                 FileCatalog.CheckSafeDirectory(link.Folder);
                 if (!Directory.Exists(link.Folder))
                     throw new IOException("The local sync folder is unavailable.");
             }
             LocalGuard();
-            SetSyncStatus(link, "Checking file changes…", true);
-            Manifest local = await spaceScanner.ScanAsync(link.Folder, work.Token);
+            if (force || !reconciled.ContainsKey(id))
+                SetSyncStatus(link, "Checking file changes…", true);
+            Manifest local = await spaceScanner.ScanAsync(link.Folder, work.Token, force);
+            remoteSnapshots.TryGetValue(id, out RemoteSnapshot? savedRemote);
             WireMessage response = await SpaceRequestAsync(peer, new()
             {
                 Kind = "space-snapshot",
+                KnownRevision = force ? "" : savedRemote?.Revision ?? "",
                 SpaceId = link.SpaceId,
                 SyncId = link.Id
             }, work.Token);
-            Wire.Require(response, "snapshot");
-            Manifest remote = response.Manifest ?? throw new ProtocolException("Missing shared folder snapshot.");
+            Manifest remote;
+            if (response.Kind == "snapshot-unchanged" && !force && savedRemote != null && response.SnapshotRevision == savedRemote.Revision)
+                remote = savedRemote.Manifest;
+            else
+            {
+                Wire.Require(response, "snapshot");
+                remote = response.Manifest ?? throw new ProtocolException("Missing shared folder snapshot.");
+                if (response.SnapshotRevision.Length == 32)
+                    remoteSnapshots[id] = new(response.SnapshotRevision, remote);
+                else
+                    remoteSnapshots.TryRemove(id, out _); // Older PCs still send a full, compatible snapshot.
+            }
+            if (!force && response.SnapshotRevision.Length == 32 && reconciled.TryGetValue(id, out var agreed) && agreed.Local == local.Id && agreed.Remote == response.SnapshotRevision)
+            {
+                LocalGuard();
+                SetSyncStatus(link, "Up to date · watching for changes.");
+                return;
+            }
             SyncFiles.ValidateSnapshot(remote);
+            LocalGuard();
+            link = Sync.GetLink(id) ?? throw new OperationCanceledException("This sync link was removed.");
+            SetSyncStatus(link, "Checking file changes…", true);
             Dictionary<string, ManifestEntry> left = local.Entries.ToDictionary(entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase);
             Dictionary<string, ManifestEntry> right = remote.Entries.ToDictionary(entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase);
             // The last agreed content hash distinguishes a one-sided edit from simultaneous edits.
@@ -203,11 +236,15 @@ public sealed partial class TransferEngine
                     Baseline = baseline,
                     LastSuccessUtc = DateTime.UtcNow
                 });
+            if (changed == 0 && response.SnapshotRevision.Length == 32)
+                reconciled[id] = (local.Id, response.SnapshotRevision);
+            else
+                reconciled.TryRemove(id, out _);
             SetSyncStatus(link, conflicts > 0 ? $"Up to date · {conflicts} conflict copies preserved on both PCs." : changed > 0 ? $"Up to date · {changed} files updated." : "Up to date · watching for changes.");
         }
         catch (Exception error)
         {
-            SyncLink? latest = Sync.Links.FirstOrDefault(link => link.Id == id);
+            SyncLink? latest = Sync.GetLink(id);
             if (latest != null)
                 SetSyncStatus(latest, latest.Enabled ? HumanError(error) + " Waiting to retry." : "Paused. Local files are kept.");
             throw;
@@ -239,7 +276,7 @@ public sealed partial class TransferEngine
                 }
             }, work.Token);
             Wire.Require(await Wire.ReadAsync(channel.Stream, work.Token), "accepted");
-            await SendSpaceBlobAsync(channel.Stream, entry, job, () => { if (store.Trusted(peer.Fingerprint) == null || !Sync.Links.Any(item => item.Id == link.Id && item.Enabled)) throw new OperationCanceledException(); }, work.Token);
+            await SendSpaceBlobAsync(channel.Stream, entry, job, () => { if (store.Trusted(peer.Fingerprint) == null || !Sync.IsEnabled(link.Id)) throw new OperationCanceledException(); }, work.Token);
             WireMessage ack = await Wire.ReadAsync(channel.Stream, work.Token, 300);
             Wire.Require(ack, "verified");
             if (ack.Sha256 != entry.Sha256)

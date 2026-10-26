@@ -17,11 +17,12 @@ public sealed class MdnsDiscovery : IDisposable
     private readonly string fingerprint, name;
     private readonly int port;
     private readonly bool visible, requireCode;
+    private readonly Func<string>? browserUrl;
     private readonly CancellationTokenSource lifetime = new();
     private UdpClient? udp;
     private DateTime lastReply;
     public event Action<Peer>? Found;
-    public MdnsDiscovery(NetworkAdapter adapter, string fingerprint, string name, int port, bool visible, bool requireCode = false)
+    public MdnsDiscovery(NetworkAdapter adapter, string fingerprint, string name, int port, bool visible, bool requireCode = false, Func<string>? browserUrl = null)
     {
         this.adapter = adapter;
         this.fingerprint = fingerprint;
@@ -29,6 +30,7 @@ public sealed class MdnsDiscovery : IDisposable
         this.port = port;
         this.visible = visible;
         this.requireCode = requireCode;
+        this.browserUrl = browserUrl;
     }
     public void Start()
     {
@@ -51,12 +53,13 @@ public sealed class MdnsDiscovery : IDisposable
         catch { socket.Dispose(); throw; }
     }
     public void Query() => Send(BuildQuery());
+    public void Publish() => Announce();
     private void Announce(uint ttl = 75)
     {
         if (!visible)
             return;
         lastReply = DateTime.UtcNow;
-        Send(BuildAnnouncement(adapter.Address, fingerprint, name, port, ttl, requireCode: requireCode));
+        Send(BuildAnnouncement(adapter.Address, fingerprint, name, port, ttl, requireCode: requireCode, browserUrl: browserUrl?.Invoke() ?? ""));
     }
     private void Send(byte[] packet)
     {
@@ -118,7 +121,7 @@ public sealed class MdnsDiscovery : IDisposable
         U16(stream, 1);
         return stream.ToArray();
     }
-    public static byte[] BuildAnnouncement(IPAddress address, string key, string name, int port, uint ttl = 75, bool quickPair = true, bool directConnect = true, bool requireCode = false)
+    public static byte[] BuildAnnouncement(IPAddress address, string key, string name, int port, uint ttl = 75, bool quickPair = true, bool directConnect = true, bool requireCode = false, string browserUrl = "")
     {
         string instance = key[..16].ToLowerInvariant() + "." + Service, host = "fs-" + key[..16].ToLowerInvariant() + ".local";
         using MemoryStream packet = new();
@@ -127,7 +130,7 @@ public sealed class MdnsDiscovery : IDisposable
         Record(instance, 33, true, body => { U16(body, 0); U16(body, 0); U16(body, (ushort)port); WriteName(body, host); });
         Record(instance, 16, true, body =>
         {
-            foreach (string text in new[] { "v=1", "id=" + key, "name=" + name, "quick=" + (quickPair ? "1" : "0"), "direct=" + (directConnect ? "1" : "0"), "locked=" + (requireCode ? "1" : "0") })
+            foreach (string text in new[] { "v=1", "id=" + key, "name=" + name, "quick=" + (quickPair ? "1" : "0"), "direct=" + (directConnect ? "1" : "0"), "locked=" + (requireCode ? "1" : "0"), "web=" + browserUrl })
             {
                 byte[] bytes = Encoding.UTF8.GetBytes(text);
                 if (bytes.Length > 255)
@@ -211,7 +214,8 @@ public sealed class MdnsDiscovery : IDisposable
             if (!servers.TryGetValue(instance, out var service) || service.Port is < 1 or > 65535 || !addresses.TryGetValue(service.Host, out IPAddress? address) || !address.Equals(source))
                 continue;
             string name = MetadataStore.ValidateName(encoded);
-            return new Peer { Fingerprint = key.ToUpperInvariant(), Name = name, Address = source.ToString(), Port = service.Port, SupportsQuickPair = fields.GetValueOrDefault("quick") == "1", SupportsDirectConnect = fields.GetValueOrDefault("direct") == "1", RequiresCode = fields.GetValueOrDefault("locked") == "1" };
+            string web = fields.GetValueOrDefault("web") ?? "";
+            return new Peer { Fingerprint = key.ToUpperInvariant(), Name = name, Address = source.ToString(), Port = service.Port, BrowserUrl = LocalNameClaim.DeviceUrlAllowed(web, key) ? web : "", BrowserAdvertised = fields.ContainsKey("web"), SupportsQuickPair = fields.GetValueOrDefault("quick") == "1", SupportsDirectConnect = fields.GetValueOrDefault("direct") == "1", RequiresCode = fields.GetValueOrDefault("locked") == "1" };
         }
         return null;
     }

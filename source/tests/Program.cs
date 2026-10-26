@@ -77,6 +77,10 @@ internal static partial class Program
     private static async Task RunAsync(bool large)
     {
         AppearanceCases();
+        await DesktopCasesAsync();
+        await LocalAddressCasesAsync();
+        await NoteCasesAsync();
+        await EfficientSyncCasesAsync();
         await FirewallCasesAsync();
         foreach (string invalid in new[] { "../escape", "/absolute", "a/../../escape", "a\\b", "a:b", "CON.txt", "COM¹.txt", "NUL", "space ", "bad.", "a//b", ".flowshare-hidden" })
         {
