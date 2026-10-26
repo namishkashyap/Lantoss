@@ -83,6 +83,58 @@ internal static class UiRegressionChecks
                 throw new InvalidDataException("Primary button labels must update contrast in place.");
             passed++;
         }
+        // Exercise Explorer's recipient-picker path without registering shell keys or starting a listener.
+        string explorerFile = Path.Combine(app.Store.Root, "Explorer photo & family 😀.txt");
+        File.WriteAllText(explorerFile, "Preview-only Explorer selection fixture.");
+        // Offscreen previews do not call Application.Run, which normally installs this UI context.
+        SynchronizationContext? previousContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(app.Window.Dispatcher));
+        Task prepare = app.PrepareExplorerShareAsync([explorerFile], null);
+        System.Windows.Threading.DispatcherFrame frame = new();
+        System.Windows.Threading.DispatcherTimer timeout = new()
+        {
+            Interval = TimeSpan.FromSeconds(8)
+        };
+        timeout.Tick += (_, _) => frame.Continue = false;
+        _ = prepare.ContinueWith(_ => app.Window.Dispatcher.BeginInvoke(() => frame.Continue = false), TaskScheduler.Default);
+        timeout.Start();
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+        timeout.Stop();
+        SynchronizationContext.SetSynchronizationContext(previousContext);
+        if (!prepare.IsCompleted)
+            throw new TimeoutException("Explorer selection did not finish.");
+        prepare.GetAwaiter().GetResult();
+        if (app.CurrentPage != "Send" || app.Selection.Count != 1 || app.Selection[0].Path != explorerFile)
+            throw new InvalidDataException("Explorer must prepare exactly the selected local file in the Send page.");
+        passed++;
+        app.Render(Path.Combine(output, "Explorer-selection.png"), 1440, 960);
+        if (app.Engine.Transfers.Records.Length != 0)
+            throw new InvalidDataException("Choose a PC must not send before a recipient is chosen.");
+        passed++;
+        app.Navigate("Text & links");
+        app.Render(Path.Combine(output, "Notes-before-incoming.png"), 1440, 900);
+        DependencyObject noteRoot = app.Window.Content as DependencyObject ?? app.Window;
+        TextBox noteDraft = Descendants<TextBox>(noteRoot).Single(text => System.Windows.Automation.AutomationProperties.GetName(text) == "Text or link to share");
+        noteDraft.Text = "Keep my unfinished note 😀";
+        app.Engine.Browser.Notes.Add("<img src=x onerror=alert(1)>\nReceived as plain text.", "Family PC");
+        app.Engine.Browser.Notes.Add("https://example.com/family", "Phone / browser");
+        app.Engine.Browser.Notes.Add("javascript:alert(1)", "Family PC");
+        // Offscreen checks have no Application.Run loop; process the same queued refreshes as a live window.
+        app.Window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if (noteDraft.Text != "Keep my unfinished note 😀")
+            throw new InvalidDataException("Incoming notes must preserve a typed draft.");
+        passed++;
+        foreach (string mode in new[] { "Light", "Dark" })
+        {
+            app.ApplyTheme(mode);
+            app.Render(Path.Combine(output, mode + "-Text-and-links.png"), mode == "Light" ? 1440 : 1000, mode == "Light" ? 900 : 720);
+            if (!Descendants<TextBlock>(noteRoot).Any(text => text.Text.Contains("<img src=x", StringComparison.Ordinal)))
+                throw new InvalidDataException("Received markup must render as literal text.");
+            passed++;
+            if (Descendants<Button>(noteRoot).Count(button => System.Windows.Automation.AutomationProperties.GetName(button) == "Open link") != 1)
+                throw new InvalidDataException("Only HTTP/HTTPS notes expose an explicit Open link action.");
+            passed++;
+        }
         File.WriteAllText(Path.Combine(output, "ui-checks.json"), JsonSerializer.Serialize(new
         {
             passed,

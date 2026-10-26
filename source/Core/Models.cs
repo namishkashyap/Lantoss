@@ -17,6 +17,7 @@ public sealed record Preferences
     public bool BrowserSharingEnabled { get; init; } = true;
     public bool AutoConnect { get; init; } = true;
     public bool AutoConfigureFirewall { get; init; } = true;
+    public bool CloseToTray { get; init; } = true;
 }
 
 public sealed record Peer
@@ -34,6 +35,12 @@ public sealed record Peer
         get; init;
     }
     public int Port
+    {
+        get; init;
+    }
+    public string BrowserUrl { get; init; } = "";
+    [JsonIgnore]
+    public bool BrowserAdvertised
     {
         get; init;
     }

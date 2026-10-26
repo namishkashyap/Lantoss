@@ -20,6 +20,7 @@ public sealed record BrowserFile(string Id, string Name, long Size, string Path,
 public sealed record BrowserUploadFile(string Name, long Size);
 public sealed record BrowserUploadRequest(List<BrowserUploadFile> Files, string SpaceId = "", string Folder = "");
 public sealed record BrowserLogin(string Code);
+public sealed record BrowserNote(string Content);
 
 // LAN-only HTTP portal. This is deliberately separate from the native TLS protocol.
 public sealed partial class BrowserPortal : IDisposable
@@ -34,6 +35,7 @@ public sealed partial class BrowserPortal : IDisposable
     private readonly Dictionary<string, Session> sessions = [];
     private readonly HashSet<string> busySessions = [];
     private readonly Dictionary<string, (DateTime Start, int Count)> attempts = [];
+    private readonly Dictionary<string, DateTime> noteAttempts = [];
     private readonly ConcurrentDictionary<string, Offer> offers = new();
     private readonly SemaphoreSlim streams = new(3, 3);
     private WebApplication? server;
@@ -41,6 +43,8 @@ public sealed partial class BrowserPortal : IDisposable
     private CancellationTokenSource lifetime = new();
     private CancellationTokenSource accessLifetime = new();
     private bool protectedMode;
+    private readonly string deviceKey;
+    private LocalNameService? localNames;
     private int generation;
     private sealed record Session(string Id, string Csrf, string Address, DateTime CreatedUtc, int Generation);
     private sealed class Offer(string id, string session, string folder, Manifest manifest, TransferJob job, string spaceId = "", string spaceRoot = "")
@@ -62,7 +66,18 @@ public sealed partial class BrowserPortal : IDisposable
     {
         get; set;
     }
-    public string Url { get; private set; } = "";
+    public string IpUrl { get; private set; } = "";
+    public string Url => localNames?.Url is { Length: > 0 } name ? name : IpUrl;
+    public string DeviceUrl => localNames?.DeviceUrl ?? "";
+    public string LocalAddressStatus { get; private set; } = "Start browser sharing to enable the local name.";
+    public Func<object[]>? AvailableBrowserDevices
+    {
+        get; set;
+    }
+    public SharedNotes Notes
+    {
+        get;
+    }
     public bool Running => server != null;
     public Task WhenStopped { get; private set; } = Task.CompletedTask;
     public BrowserFile[] Files
@@ -73,17 +88,19 @@ public sealed partial class BrowserPortal : IDisposable
                 return files.Values.ToArray();
         }
     }
-    public BrowserPortal(MetadataStore store, TransferRegistry transfers, PairingCode code, bool allowLoopback = false)
+    public BrowserPortal(MetadataStore store, TransferRegistry transfers, PairingCode code, bool allowLoopback = false, string? deviceKey = null)
     {
         this.store = store;
+        Notes = new(store.Root);
         this.transfers = transfers;
         this.code = code;
         this.allowLoopback = allowLoopback;
+        this.deviceKey = deviceKey ?? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(store.Root)));
         protectedMode = store.Preferences.RequireConnectionCode;
         Spaces = new(store);
         Spaces.Changed += RevokeSpace;
     }
-    public async Task StartAsync(NetworkAdapter network, int port = 48586)
+    public async Task StartAsync(NetworkAdapter network, int port = 80)
     {
         if (Running)
             return;
@@ -92,25 +109,67 @@ public sealed partial class BrowserPortal : IDisposable
         await WhenStopped.ConfigureAwait(false);
         adapter = network;
         lifetime = new();
-        WebApplication candidate = CreateServer(network, port);
-        try
+        WebApplication? candidate = null;
+        int[] choices = port == 80 ? [80, 48586, 0] : port == 0 ? [0] : [port, 0];
+        for (int index = 0; index < choices.Length; index++)
         {
-            await candidate.StartAsync(lifetime.Token).ConfigureAwait(false);
-        }
-        catch (IOException) when (port != 0)
-        {
-            await candidate.DisposeAsync().ConfigureAwait(false);
-            candidate = CreateServer(network, 0);
+            candidate = CreateServer(network, choices[index]);
             try
             {
                 await candidate.StartAsync(lifetime.Token).ConfigureAwait(false);
+                break;
             }
+            catch (Exception error) when ((error is IOException or System.Net.Sockets.SocketException) && index < choices.Length - 1) { await candidate.DisposeAsync().ConfigureAwait(false); candidate = null; }
             catch { await candidate.DisposeAsync().ConfigureAwait(false); throw; }
         }
-        catch { await candidate.DisposeAsync().ConfigureAwait(false); throw; }
+        if (candidate == null)
+            throw new IOException("No browser listening port is available.");
         server = candidate;
-        Url = candidate.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single().TrimEnd('/');
+        IpUrl = candidate.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single().TrimEnd('/');
+        RefreshLocalAddress();
         Changed?.Invoke();
+    }
+    public void RefreshLocalAddress()
+    {
+        if (!Running || adapter == null)
+            return;
+        bool wanted = !allowLoopback && store.Preferences.Discoverable && new Uri(IpUrl).Port == 80;
+        if (wanted && localNames != null)
+            return;
+        string before = Url;
+        localNames?.Dispose();
+        localNames = null;
+        if (wanted)
+        {
+            LocalNameService names = new(adapter, deviceKey);
+            names.Changed += () =>
+            {
+                if (!ReferenceEquals(localNames, names))
+                    return;
+                LocalAddressStatus = names.DeviceUrl.Length > 0
+                    ? "Local address ready. The shared name may open another PC; use its PC picker or this PC's link below."
+                    : "Checking the local name…";
+                Changed?.Invoke();
+            };
+            try
+            {
+                localNames = names;
+                names.Start();
+                LocalAddressStatus = "Checking the local name…";
+            }
+            catch (Exception error) when (error is System.Net.Sockets.SocketException or IOException)
+            {
+                names.Dispose();
+                localNames = null;
+                LocalAddressStatus = "Local-name discovery is unavailable. Scan the direct-link QR code instead.";
+            }
+        }
+        else
+            LocalAddressStatus = allowLoopback ? "Preview uses loopback only; local names are not registered."
+            : !store.Preferences.Discoverable ? "PC discovery is off. Enable it in Settings for automatic local names; the direct QR link still works."
+            : "Port 80 is already in use or unavailable. Close the other local web server to enable the no-port address; the direct QR link still works.";
+        if (before != Url)
+            Changed?.Invoke();
     }
     private WebApplication CreateServer(NetworkAdapter network, int port)
     {
@@ -134,6 +193,7 @@ public sealed partial class BrowserPortal : IDisposable
     }
     public void ApplySecurityPolicy()
     {
+        RefreshLocalAddress();
         if (protectedMode == store.Preferences.RequireConnectionCode)
             return;
         protectedMode = store.Preferences.RequireConnectionCode;
@@ -145,6 +205,7 @@ public sealed partial class BrowserPortal : IDisposable
         {
             generation++;
             sessions.Clear();
+            noteAttempts.Clear();
             browserJobs.Clear();
             busySessions.Clear();
             accessLifetime.Cancel();
@@ -162,7 +223,10 @@ public sealed partial class BrowserPortal : IDisposable
     {
         WebApplication? previous = server;
         server = null;
-        Url = "";
+        localNames?.Dispose();
+        localNames = null;
+        IpUrl = "";
+        LocalAddressStatus = "Browser sharing is off.";
         lifetime.Cancel();
         ResetConnections();
         if (previous != null)
@@ -236,15 +300,16 @@ public sealed partial class BrowserPortal : IDisposable
     private bool SameOrigin(HttpContext context)
     {
         string origin = context.Request.Headers.Origin.ToString();
-        return origin == Url && context.Request.Headers["Sec-Fetch-Site"].ToString() is not "cross-site";
+        return LocalBrowserAccess.SameOrigin(origin, context.Request.Host.Host, context.Request.Host.Port, context.Request.Headers["Sec-Fetch-Site"].ToString());
     }
+    private bool AllowedHost(HostString host) => LocalBrowserAccess.HostAllowed(IpUrl, host.Host, host.Port, name => localNames?.Accepts(name) == true);
     private static bool Csrf(HttpContext context, Session session) => context.Request.Headers["X-Lantoss-CSRF"].ToString() == session.Csrf;
     private async Task HandleAsync(HttpContext context)
     {
         try
         {
             IPAddress? remote = context.Connection.RemoteIpAddress;
-            if (adapter == null || remote == null || !Uri.TryCreate(Url, UriKind.Absolute, out Uri? address) || !adapter.Contains(remote) || (!NetworkAdapter.Private(remote) && !(allowLoopback && IPAddress.IsLoopback(remote))) || context.Request.Host.ToString() != address.Authority)
+            if (adapter == null || remote == null || !adapter.Contains(remote) || (!NetworkAdapter.Private(remote) && !(allowLoopback && IPAddress.IsLoopback(remote))) || !AllowedHost(context.Request.Host))
             {
                 context.Response.StatusCode = 403;
                 return;
@@ -335,6 +400,34 @@ public sealed partial class BrowserPortal : IDisposable
                 await Json(context, Files.Select(f => new { id = f.Id, name = f.Name, size = f.Size }));
                 return;
             }
+            if (get && path == "/api/devices")
+            {
+                await Json(context, AvailableBrowserDevices?.Invoke() ?? []);
+                return;
+            }
+            if (get && path == "/api/notes")
+            {
+                await Json(context, Notes.Snapshot(context.Request.Query["revision"].ToString()));
+                return;
+            }
+            if (HttpMethods.IsPost(context.Request.Method) && path == "/api/notes")
+            {
+                lock (gate)
+                {
+                    if (noteAttempts.TryGetValue(session.Id, out DateTime last) && DateTime.UtcNow - last < TimeSpan.FromSeconds(1))
+                    {
+                        context.Response.StatusCode = 429;
+                        return;
+                    }
+                    if (noteAttempts.Count >= 64)
+                        noteAttempts.Clear();
+                    noteAttempts[session.Id] = DateTime.UtcNow;
+                }
+                BrowserNote note = await ReadJson<BrowserNote>(context, 100000);
+                SharedNote saved = Notes.Add(note.Content, "Phone / browser");
+                await Json(context, saved);
+                return;
+            }
             if (get && path == "/api/transfers")
             {
                 await Json(context, TransferViews(session.Id));
@@ -410,13 +503,13 @@ public sealed partial class BrowserPortal : IDisposable
                 context.Abort();
         }
     }
-    private static async Task<T> ReadJson<T>(HttpContext context)
+    private static async Task<T> ReadJson<T>(HttpContext context, int maximum = 32768)
     {
-        if (context.Request.ContentLength is > 32768)
+        if (context.Request.ContentLength > maximum)
             throw new InvalidDataException("This request is too large.");
         IHttpMaxRequestBodySizeFeature? limit = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (limit is { IsReadOnly: false })
-            limit.MaxRequestBodySize = 32768;
+            limit.MaxRequestBodySize = maximum;
         return await JsonSerializer.DeserializeAsync<T>(context.Request.Body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true, MaxDepth = 8 }, context.RequestAborted) ?? throw new InvalidDataException("The request is empty.");
     }
     private static Task Json(HttpContext context, object value) => context.Response.WriteAsJsonAsync(value, context.RequestAborted);

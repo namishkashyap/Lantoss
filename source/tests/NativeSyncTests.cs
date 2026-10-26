@@ -21,6 +21,11 @@ internal static partial class Program
             Port = host.Port,
             SupportsDirectConnect = true
         });
+        await client.SendNoteAsync(hostPeer, "https://example.com/from-client");
+        Check(host.Browser.Notes.Snapshot().Notes.Single().Content == "https://example.com/from-client", "A paired PC delivers a link over pinned TLS into the other app's Text & links area");
+        Peer clientPeer = hostStore.Peers.Single(p => p.Fingerprint == clientKey.Fingerprint);
+        await host.SendNoteAsync(clientPeer, "Reply from host 😀");
+        Check(client.Browser.Notes.Snapshot().Notes.Single().Content == "Reply from host 😀", "Native text sharing works in both PC-to-PC directions");
         string hostFolder = Path.Combine(hostStore.Root, "Family"), clientFolder = Path.Combine(clientStore.Root, "Local family");
         Directory.CreateDirectory(hostFolder);
         Directory.CreateDirectory(clientFolder);
@@ -90,7 +95,8 @@ internal static partial class Program
         File.Delete(Path.Combine(clientFolder, "host.txt"));
         await client.SyncOnceAsync(link.Id);
         Check(File.ReadAllText(Path.Combine(clientFolder, "host.txt")) == "Host edited the remote file" && File.Exists(Path.Combine(hostFolder, "host.txt")), "Sync never propagates a deletion and restores the remaining safe copy");
-        Manifest snapshot = await new SyncScanner().ScanAsync(hostFolder, default);
+        using SyncScanner snapshotScanner = new();
+        Manifest snapshot = await snapshotScanner.ScanAsync(hostFolder, default);
         Check(snapshot.Entries.All(entry => !entry.RelativePath.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase)), "Sync snapshots exclude private staging and previous-version backups");
         Manifest manualSelection = await FileCatalog.BuildAsync([hostFolder], Guid.NewGuid().ToString("N"), false, default);
         Check(manualSelection.FileCount > 0 && manualSelection.Entries.All(entry => !entry.RelativePath.Contains("/.flowshare-", StringComparison.OrdinalIgnoreCase)), "A synced folder can still be shared manually without exposing its internal version backups");

@@ -20,7 +20,7 @@ internal sealed class DevicesPage : IPage
         pair.Margin = new(10, 0, 0, 0);
         Button diagnostics = C.Button("Connection diagnostics", () => NetworkDiagnostics.Show(app));
         diagnostics.Margin = new(10, 0, 0, 0);
-        View = C.Stack(C.Space(C.Text("Your PCs, connected automatically.", 24, bold: true), 9), C.Space(C.Text("Open Lantoss 1.6 on both PCs. Discovery uses mDNS and LAN broadcast, and direct connections are automatic unless code protection is enabled.", 13, "Muted"), 22), C.Space(C.Inline(scan, pair, diagnostics), 18), C.Space(status, 22), list,
+        View = C.Stack(C.Space(C.Text("Your PCs, connected automatically.", 24, bold: true), 9), C.Space(C.Text("Open Lantoss 1.9 on both PCs. Discovery uses mDNS and LAN broadcast, and direct connections are automatic unless code protection is enabled.", 13, "Muted"), 22), C.Space(C.Inline(scan, pair, diagnostics), 18), C.Space(status, 22), list,
             C.Space(C.Note("Using your phone?", "Open Phone & browser in the sidebar and scan its QR code. Phones use the browser page; NAS agents and internet sharing remain unavailable.", "devices"), 0, 20));
     }
     public void Refresh()

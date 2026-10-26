@@ -59,6 +59,7 @@ public sealed partial class TransferEngine : IDisposable
     public string Endpoint => Adapter == null ? "Not receiving" : $"{Adapter.Address}:{Port}";
     public bool Running => listener != null;
     public string Fingerprint => identity.Fingerprint;
+    private string advertisedBrowserUrl = "";
     public string DiscoveryStatus { get; private set; } = "Start receiving to discover nearby PCs.";
     public Peer[] Peers
     {
@@ -83,7 +84,10 @@ public sealed partial class TransferEngine : IDisposable
         this.allowLoopback = allowLoopback;
         this.automaticSync = automaticSync;
         Transfers = new(store);
-        Browser = new(store, Transfers, PairingCode, allowLoopback);
+        Browser = new(store, Transfers, PairingCode, allowLoopback, identity.Fingerprint);
+        Browser.AvailableBrowserDevices = () => Peers.Where(peer => peer.Online && !peer.Blocked && LocalNameClaim.DeviceUrlAllowed(peer.BrowserUrl, peer.Fingerprint))
+            .Select(peer => (object)new { name = peer.Name, url = peer.BrowserUrl }).ToArray();
+        Browser.Changed += () => { string url = Browser.DeviceUrl; if (Interlocked.Exchange(ref advertisedBrowserUrl, url) != url) discovery?.Publish(); };
         Sync = new SyncStore(store.Root);
         Browser.ApproveReceive = (request, token) => ApproveReceive?.Invoke(request, token) ?? Task.FromResult(new ReceiveDecision(false, request.DefaultFolder));
         Transfers.Changed += r => { if (r.State == TransferState.Completed) Completed?.Invoke(r); };
@@ -111,7 +115,7 @@ public sealed partial class TransferEngine : IDisposable
         {
             try
             {
-                discovery = new MdnsDiscovery(adapter, identity.Fingerprint, store.Preferences.DeviceName, Port, store.Preferences.Discoverable, store.Preferences.RequireConnectionCode);
+                discovery = new MdnsDiscovery(adapter, identity.Fingerprint, store.Preferences.DeviceName, Port, store.Preferences.Discoverable, store.Preferences.RequireConnectionCode, () => Browser.DeviceUrl);
                 discovery.Found += Observe;
                 discovery.Start();
                 DiscoveryStatus = store.Preferences.Discoverable ? "mDNS discovery is on for this network." : "Listening for peers; this PC is hidden from discovery.";
@@ -190,7 +194,7 @@ public sealed partial class TransferEngine : IDisposable
             return;
         try
         {
-            discovery = new MdnsDiscovery(Adapter, Fingerprint, store.Preferences.DeviceName, Port, store.Preferences.Discoverable, store.Preferences.RequireConnectionCode);
+            discovery = new MdnsDiscovery(Adapter, Fingerprint, store.Preferences.DeviceName, Port, store.Preferences.Discoverable, store.Preferences.RequireConnectionCode, () => Browser.DeviceUrl);
             discovery.Found += Observe;
             discovery.Start();
             DiscoveryStatus = store.Preferences.Discoverable ? "mDNS discovery is on for this network." : "This PC is hidden from discovery. Manual pairing is available.";
@@ -216,7 +220,7 @@ public sealed partial class TransferEngine : IDisposable
             return;
         try
         {
-            Browser.StartAsync(Adapter, allowLoopback ? 0 : 48586).GetAwaiter().GetResult();
+            Browser.StartAsync(Adapter, allowLoopback ? 0 : 80).GetAwaiter().GetResult();
         }
         catch (Exception error) when (error is IOException or SocketException or InvalidOperationException)
         {
@@ -239,7 +243,8 @@ public sealed partial class TransferEngine : IDisposable
             ProbeInBackground(trusted with
             {
                 Address = peer.Address,
-                Port = peer.Port
+                Port = peer.Port,
+                BrowserUrl = peer.BrowserAdvertised ? peer.BrowserUrl : trusted.BrowserUrl
             });
     }
     private async Task ProbeAsync(Peer peer)
@@ -400,6 +405,15 @@ public sealed partial class TransferEngine : IDisposable
                 {
                     Kind = "pong",
                     Name = store.Preferences.DeviceName
+                }, serverToken);
+                return;
+            }
+            if (hello.Kind == "text-post")
+            {
+                Browser.Notes.Add(hello.NoteContent, peer.Name, hello.NoteId);
+                await Wire.WriteAsync(ssl, new()
+                {
+                    Kind = "text-saved"
                 }, serverToken);
                 return;
             }
@@ -832,6 +846,7 @@ public sealed partial class TransferEngine : IDisposable
         {
             Browser.Dispose();
             Stop();
+            spaceScanner.Dispose();
             lifetime?.Dispose();
         }
     }

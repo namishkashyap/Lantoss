@@ -230,12 +230,13 @@ public sealed partial class TransferEngine
                     throw new ProtocolException("Folder scanning is busy. Sync will retry.");
                 try
                 {
-                    Manifest snapshot = await spaceScanner.ScanAsync(space.Folder, token);
+                    Manifest snapshot = await spaceScanner.ScanAsync(space.Folder, token, hello.KnownRevision.Length == 0);
                     Guard();
                     await Wire.WriteAsync(stream, new()
                     {
-                        Kind = "snapshot",
-                        Manifest = snapshot
+                        Kind = hello.KnownRevision == snapshot.Id ? "snapshot-unchanged" : "snapshot",
+                        SnapshotRevision = snapshot.Id,
+                        Manifest = hello.KnownRevision == snapshot.Id ? null : snapshot
                     }, token);
                 }
                 finally { snapshotSlot.Release(); }

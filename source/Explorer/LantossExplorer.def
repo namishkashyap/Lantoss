@@ -1,0 +1,4 @@
+LIBRARY LantossExplorer
+EXPORTS
+    DllGetClassObject
+    DllCanUnloadNow

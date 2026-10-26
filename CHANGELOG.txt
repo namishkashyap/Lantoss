@@ -1,3 +1,51 @@
+2026-10-22 - Lantoss 1.9: local address, text/link board and lighter sync
+
+Added automatic share-wollvo.local on HTTP port 80, per-device local names,
+conflict probing/defense, short renewable leases and owner handoff. The browser
+lists other discovered 1.9 PCs. Disabled discovery withdraws names. HTTP Host
+and Origin checks accept only owned local names and actual listener addresses.
+Port conflicts or unsupported/blocked mDNS retain a visible direct QR fallback.
+No hosts-file, system DNS or router settings are changed.
+
+Shared-folder Refresh reloads the current subfolder in the app and browser,
+queues native refresh during in-flight loads, and rejects stale browser responses
+without erasing upload selection. Added Text & links in the app and browser with
+paired TLS PC sends, explicit copy/open actions, safe literal rendering, bounded
+atomic local storage and draft preservation.
+
+Sync now caches immutable snapshots, uses filesystem notifications, metadata
+sweeps and rolling checksum audits, streams hashes through a bounded reader,
+reuses unchanged remote manifests and removes baseline cloning from hot guards.
+Watcher failures restart with polling recovery; edits arriving during scans are
+retained. Manual Sync now remains a full checksum check. Existing conflict,
+version, authorization, unavailable-root and deletion behavior is preserved.
+
+Validation: 234 C# checks passed (two existing environment-limited skips), 25
+native COM, 25 WPF UI and 16 browser DOM checks passed. Twenty theme/page renders
+and packaged HTTP preview passed. Real browser automation could not reach its
+loopback preview on this host; physical phone/Wi-Fi and installation acceptance
+remain unverified. See VERIFICATION.md for evidence and boundaries.
+
+2026-10-20 - Lantoss 1.8: Windows 11 main menu and simpler Home
+
+Added a native x64 IExplorerCommand submenu and signed sparse identity package,
+with remembered-PC choices, a picker and one bounded multiselection handoff.
+The MSI registers the Windows 11 menu after explicit development-publisher
+consent; Windows 10 retains its classic menu. Added native COM and decoding
+checks, installer verification, build/signing scripts and developer instructions.
+Simplified Home to file selection, device rows and one phone/browser action.
+Preserved appearance modes, server startup, receiver approval, shared folders
+and sync. Live installation and Explorer placement need target-desktop acceptance.
+
+2026-10-20 - Lantoss 1.7: installer, Explorer sharing and sign-in server
+
+Added a per-user x64 MSI with optional Explorer/desktop/startup features, Start
+menu entries, repair/upgrade metadata and scoped uninstall cleanup. Added
+Share with Lantoss cascades for files/folders with saved-PC targets, validated
+single-instance IPC and coalesced shell requests. Named-PC choices queue normal
+pinned-TLS transfers; receiver approval remains. Added sign-in launch, automatic
+server startup, background tray receiving/sync and explicit tray Exit.
+
 2026-10-20 - Lantoss 1.6: rename, appearance and developer documentation
 
 Renamed the executable/projects/resources, window/tray/dialogs, browser and

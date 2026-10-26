@@ -5,6 +5,32 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] is "--install-integration" or "--trust-explorer-publisher" or "--remove-explorer-package")
+        {
+            try
+            {
+                if (args[0] == "--trust-explorer-publisher")
+                    ExplorerPackage.TrustPublisher();
+                else if (args[0] == "--remove-explorer-package")
+                    ExplorerPackage.Remove();
+                else
+                {
+                    ExplorerPackage.Install();
+                    new WindowsIntegration().SetShellEnabled(true, []);
+                }
+                return 0;
+            }
+            catch (Exception error) { MessageBox.Show(error.Message, "Lantoss sharing menu", MessageBoxButton.OK, MessageBoxImage.Warning); return 1; }
+        }
+        if (args.Length == 1 && args[0] == "--uninstall-integration")
+        {
+            try
+            {
+                WindowsIntegration.RemoveUserIntegration();
+                return 0;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return 1; }
+        }
         // Preview runs use a memory-only identity and never start normal LAN/firewall setup.
         bool preview = args.Contains("--preview") || args.Contains("--ui-smoke") || args.Contains("--preview-browser") || args.Contains("--ui-regression");
         string Option(string name, string fallback)
@@ -14,10 +40,11 @@ internal static class Program
         }
         string data = Option("--data-dir", preview ? Path.Combine(Environment.CurrentDirectory, "work", "lantoss", "preview-state") : AppDataPaths.DefaultRoot(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
         // Keep the old mutex namespace: both names must lock the same reused store.
-        using Mutex? instance = preview ? null : new Mutex(false, "Local\\FlowShare-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(data).ToUpperInvariant())))[..20]);
+        using Mutex? instance = preview ? null : new Mutex(false, "Local\\FlowShare-" + DesktopInstance.Key(data));
         bool ownsInstance = false;
         try
         {
+            LaunchRequest? launch = preview ? null : LaunchRequest.Parse(args);
             if (instance != null)
             {
                 try
@@ -27,7 +54,15 @@ internal static class Program
                 catch (AbandonedMutexException) { ownsInstance = true; }
                 if (!ownsInstance)
                 {
-                    MessageBox.Show("Lantoss is already running for this Windows profile. Use its open window or tray icon.", "Lantoss");
+                    try
+                    {
+                        DesktopInstance.ForwardAsync(data, launch!).GetAwaiter().GetResult();
+                    }
+                    catch (Exception error) when (error is IOException or OperationCanceledException or TimeoutException or UnauthorizedAccessException)
+                    {
+                        MessageBox.Show("The running instance could not receive this request. Close the older Lantoss/FlowShare version and try again.\n\n" + error.Message, "Lantoss");
+                        return 1;
+                    }
                     return 0;
                 }
             }
@@ -59,7 +94,7 @@ internal static class Program
                     string output = Option("--ui-smoke", Path.Combine(data, "screens"));
                     Directory.CreateDirectory(output);
                     foreach (string theme in new[] { "Light", "Dark" })
-                        foreach (string page in new[] { "Home", "Send", "Transfers", "Devices", "Phone & browser", "Shared Spaces", "Sync", "History", "Settings" })
+                        foreach (string page in new[] { "Home", "Send", "Transfers", "Devices", "Phone & browser", "Text & links", "Shared Spaces", "Sync", "History", "Settings" })
                         {
                             shell.ApplyTheme(theme);
                             shell.Navigate(page);
@@ -73,6 +108,14 @@ internal static class Program
                 }
                 return 0;
             }
+            using DesktopInstance bridge = new(data, request => shell.Ui(() => shell.AcceptLaunch(request)));
+            shell.Window.Loaded += (_, _) =>
+            {
+                if (launch!.Kind == "background")
+                    shell.Window.Hide();
+                else
+                    shell.AcceptLaunch(launch);
+            };
             app.Run(shell.Window);
             return 0;
         }

@@ -309,3 +309,23 @@ remain separate.
 
 Actual checks, development failures repaired, and validation limits belong in
 VERIFICATION.md. No independent security audit or cross-device benchmark is implied.
+## 1.9 implementation notes - 22 October 2026
+
+Local names are implemented inside the app, with an isolated DNS codec/claim
+state machine and a selected-adapter mDNS responder. Production needs HTTP port
+80 and discovery enabled. Common-name conflict handling and per-key URLs keep
+multiple PCs usable; the browser picker exposes each PC. Host/Origin/session
+checks remain in force. QR fallback explains port/resolver/network limitations.
+
+SharedNotes is a separate bounded atomic store. Native text sends use existing
+pinned TLS authorization; browser posts use its session/Origin/CSRF policy.
+Neither renderer evaluates received text or automatically opens/copies it.
+Refresh paths retain the current shared subfolder and ignore stale completions.
+
+SyncScanner now owns/disposes watchers and caches immutable snapshots. Generation
+stamps preserve concurrent events, overflow restarts watchers, minute metadata
+sweeps recover missing events, and rolling old-file checks avoid whole-tree idle
+rehashes. Manual Sync now forces hashes. Remote revisions and cheap grant/header
+reads avoid repeated manifest bodies and deep baseline copies on idle cycles.
+Read DEVELOPER_GUIDE.md and VERIFICATION.md for boundaries, metrics and test scope.
+

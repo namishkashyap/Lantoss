@@ -56,7 +56,56 @@ public sealed class SyncStore
                 return data.Grants.ToArray();
         }
     }
-    public bool Granted(string id, string key, string space) => Grants.Any(grant => grant.Id == id && grant.PeerKey == key && grant.SpaceId == space);
+    // Hot guards must not clone every file's saved checksum on each transfer block.
+    public SyncLink[] Headers
+    {
+        get
+        {
+            lock (gate)
+                return data.Links.Select(link => link with { Baseline = [] }).ToArray();
+        }
+    }
+    public SyncLink? GetHeader(string id)
+    {
+        lock (gate)
+            return data.Links.FirstOrDefault(link => link.Id == id) is { } link ? link with
+            {
+                Baseline = []
+            } : null;
+    }
+    public SyncLink? GetLink(string id)
+    {
+        lock (gate)
+            return data.Links.FirstOrDefault(link => link.Id == id) is { } link ? link with
+            {
+                Baseline = new(link.Baseline, StringComparer.OrdinalIgnoreCase)
+            } : null;
+    }
+    public bool IsEnabled(string id, string? folder = null)
+    {
+        lock (gate)
+        {
+            foreach (SyncLink link in data.Links)
+                if (link.Id == id && link.Enabled && (folder == null || link.Folder == folder))
+                    return true;
+            return false;
+        }
+    }
+    public DateTime? LastSuccess(string id)
+    {
+        lock (gate)
+            return data.Links.FirstOrDefault(link => link.Id == id)?.LastSuccessUtc;
+    }
+    public bool Granted(string id, string key, string space)
+    {
+        lock (gate)
+        {
+            foreach (SyncGrant grant in data.Grants)
+                if (grant.Id == id && grant.PeerKey == key && grant.SpaceId == space)
+                    return true;
+            return false;
+        }
+    }
     public void Grant(SyncGrant grant)
     {
         if (!Guid.TryParseExact(grant.Id, "N", out _) || !Guid.TryParseExact(grant.SpaceId, "N", out _) || grant.PeerKey.Length != 64 || !grant.PeerKey.All(char.IsAsciiHexDigit))
