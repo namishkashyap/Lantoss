@@ -1,5 +1,16 @@
 2026-10-26 - Lantoss 2.0: people, pictures, notifications and security fixes
 
+New macOS and Linux apps (source/Desktop, Avalonia) run the same sharing
+engine with every screen of the Windows app: send, devices and browsers,
+transfers, phone & browser QR, text & links, shared spaces, two-way sync,
+history and settings. They also include the approval and pairing dialogs,
+system notifications and a tray menu. On macOS and Linux the device key is a
+PKCS#12 file readable only by the user. Packages:
+- macOS: Lantoss.app for Apple Silicon and Intel (zip with install.sh)
+- Linux: .deb and .tar.gz for x64 and arm64
+INSTALL.md covers each platform. The previous Windows-only version stays on
+the release/1.x branch and the v1.9.0 release.
+
 Phones and PCs connected through the web page now appear in Devices and Home.
 Each shows its name, picture, device type, address and last activity, and can
 be disconnected. Visitors choose a name and picture on the page. The picture is

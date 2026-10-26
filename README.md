@@ -1,11 +1,36 @@
-# Lantoss 1.9 for Windows and phone browsers
+# Lantoss 2.0 for Windows, macOS, Linux and phone browsers
 
-Private home-Wi-Fi file sharing. PC connections are direct by default: no
-password, typed code, or comparison prompt. Access-code protection is optional.
+Private home-Wi-Fi file sharing. Connections between computers are direct by
+default: no password, typed code, or comparison prompt. Access-code protection
+is optional.
 
-## Install Lantoss 1.9
+## Versions and downloads
 
-Download and double-click **Lantoss-Setup-1.9.0-x64.msi**. Close the older app
+| Version | Platforms | Download | Source |
+|---|---|---|---|
+| **2.0.0** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.0.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.0) | `main` |
+| 1.9.0 (previous) | Windows (MSI) | [Release v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0) | `release/1.x` |
+
+Step-by-step install, first-run, firewall and uninstall instructions for each
+platform are in **[INSTALL.md](INSTALL.md)**. All versions talk to each other
+on the same network, and phones need no app.
+
+## New in 2.0
+
+- **macOS and Linux apps** built from the same sharing engine, with every
+  screen of the Windows app: send, devices, transfers, phone & browser, text &
+  links, shared spaces, two-way sync, history and settings.
+- **People, not just devices.** Browsers connected through the web page appear
+  in the device list with a name and picture. Each computer can set its own
+  profile picture.
+- **Incoming-file notifications** and sender details (name, device, address)
+  in approvals, Transfers and History. An optional setting saves files in
+  `Inbox/<sender>`.
+- **Security fixes** and a bolder, cleaner design. See [CHANGELOG.txt](CHANGELOG.txt).
+
+## Install on Windows
+
+Download and double-click **Lantoss-Setup-2.0.0-x64.msi**. Close the older app
 using **Exit Lantoss** in the Windows tray first. The installer installs for the
 current Windows account under LocalAppData/Programs/Lantoss, creates Start menu
 entries, and registers repair/uninstall in Windows Installed apps. The .NET
