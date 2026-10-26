@@ -8,10 +8,13 @@ example family-share for http://family-share.local. Names are now published
 on any port, so Linux and computers with port 80 in use get a name too,
 with the port in the link.
 
-The macOS app is now one single-file executable plus native libraries, and
-the download includes a double-clickable "Install Lantoss.command". Opening
-the app straight from Downloads made macOS report it as "damaged"; the
-installer clears the download flag and signs the app for that Mac.
+The macOS app is now one single-file executable plus native libraries. The
+whole bundle is sealed and ad-hoc signed while packaging (rcodesign 0.29.0,
+pinned by SHA-256), so Info.plist and every resource are covered. In 2.0.0
+the bundle was unsealed, which made macOS report the downloaded app as
+"damaged"; now macOS shows its normal one-time "Open Anyway" prompt. The
+download also includes a double-clickable "Install Lantoss.command", which
+copies the app to Applications and clears the download flag.
 
 2026-10-26 - Lantoss 2.0: people, pictures, notifications and security fixes
 

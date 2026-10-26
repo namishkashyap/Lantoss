@@ -48,8 +48,9 @@ Requires macOS 14 Sonoma or later.
 ### Install
 1. Download the zip for your Mac (Apple menu → **About This Mac** shows *Chip: Apple M…* or *Processor: Intel*).
 2. Double-click the zip to unpack it. You get `Lantoss.app`, **Install Lantoss.command** and `install.sh`.
-   Don't open `Lantoss.app` straight from Downloads: macOS reports unsigned downloaded apps as "damaged".
-3. Double-click **Install Lantoss.command**.
+   The app is signed for local use (ad-hoc), not by an Apple Developer ID. macOS therefore asks once before
+   opening it, whether you use the installer or open `Lantoss.app` directly. Each time, the answer is **Open Anyway**.
+3. Double-click **Install Lantoss.command** (recommended).
    - If macOS says it can't verify the file, click **Done**. Then open System Settings → **Privacy & Security**,
      scroll down, click **Open Anyway** next to "Install Lantoss.command", and confirm.
    - A Terminal window then:
@@ -60,7 +61,8 @@ Requires macOS 14 Sonoma or later.
      It may ask for your password.
    - Terminal users can instead run `sh install.sh` in the unpacked folder.
 
-   **Already saw "Lantoss is damaged and can't be opened"?** Click **Cancel** (not Move to Bin) and do step 3.
+   **Saw "Lantoss is damaged and can't be opened" with the 2.0.0 download?** That build wasn't sealed.
+   Click **Cancel** (not Move to Bin), download 2.0.1, and do step 3.
    Or run this in Terminal, adjusting the path to where you unpacked it:
    `xattr -cr ~/Downloads/Lantoss-2.0.1-macOS-AppleSilicon/Lantoss.app`.
 
