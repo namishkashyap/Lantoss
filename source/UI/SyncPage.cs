@@ -11,8 +11,7 @@ internal sealed class SyncPage : IPage
     public SyncPage(AppShell app)
     {
         this.app = app;
-        View = C.Stack(C.Space(C.Text("Keep your folders together.", 26, bold: true), 10),
-            C.Space(C.Text("Low-impact automatic sync. Changed files update in the background while both PCs keep Lantoss open. Sync now runs a full checksum check.", 13, "Muted"), 20),
+        View = C.Stack(C.Hero("Manage", "Sync", "Keep a folder identical on two PCs. Changes update in the background while both PCs keep hopo open."),
             C.Space(C.Button("Choose another PC's shared folder", () => app.Navigate("Shared Spaces"), true, "folder"), 22), links,
             C.Space(C.Note("Conflicts and earlier versions are kept", "New and changed files sync both ways. Different same-name files retain a conflict copy on both PCs. Replaced versions are kept in the destination's .flowshare-versions folder. Deletions stay local and the remaining copy can restore them. Pause or remove a link to keep a deletion local. Backups are not pruned automatically."), 0, 18));
     }

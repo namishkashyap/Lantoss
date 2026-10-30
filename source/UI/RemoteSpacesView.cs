@@ -60,7 +60,7 @@ internal sealed class RemoteSpacesView
         if (peer == null)
         {
             contents.Children.Clear();
-            status.Text = "Waiting for a connected PC. Open Lantoss 1.6 on both PCs.";
+            status.Text = "Waiting for a connected PC. Open hopo on both PCs.";
             return;
         }
         if (loading || !active)
@@ -163,6 +163,6 @@ internal sealed class RemoteSpacesView
         status.Text = "Approve automatic sync on " + target.Name + "…";
         await app.Engine.LinkSpaceAsync(target, space, picker.FolderName);
         app.Navigate("Sync");
-        app.Tell("Folder linked. Changes now sync automatically while both PCs keep Lantoss open.");
+        app.Tell("Folder linked. Changes now sync automatically while both PCs keep hopo open.");
     }
 }

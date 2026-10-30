@@ -20,8 +20,8 @@ internal sealed class DevicesPage : IPage
         pair.Margin = new(10, 0, 0, 0);
         Button diagnostics = C.Button("Connection diagnostics", () => NetworkDiagnostics.Show(app));
         diagnostics.Margin = new(10, 0, 0, 0);
-        View = C.Stack(C.Space(C.Text("Your PCs, approved once.", 24, bold: true), 9), C.Space(C.Text("Open Lantoss on both PCs. Discovery uses mDNS and LAN broadcast, and a new PC is approved once on both screens. Paired PCs reconnect automatically.", 13, "Muted"), 22), C.Space(C.Inline(scan, pair, diagnostics), 18), C.Space(status, 22), list,
-            C.Space(C.Note("Using your phone?", "Open Phone & browser in the sidebar and scan its QR code. Phones use the browser page; NAS agents and internet sharing remain unavailable.", "devices"), 0, 20));
+        View = C.Stack(C.Hero("Manage", "Devices", "PCs running hopo on your Wi‑Fi appear here automatically. A new PC is approved once on both screens, then reconnects by itself."), C.Space(C.Inline(scan, pair, diagnostics), 18), C.Space(status, 22), list,
+            C.Space(C.Note("Using your phone?", "Open Phone & browser from the menu and scan its QR code. Phones use the browser page; NAS agents and internet sharing remain unavailable.", "devices"), 0, 20));
     }
     public void Refresh()
     {
@@ -29,7 +29,7 @@ internal sealed class DevicesPage : IPage
         list.Children.Clear();
         Peer[] peers = app.Engine.Peers.Where(p => p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).ToArray();
         if (peers.Length == 0)
-            list.Children.Add(C.Empty("Waiting for your other PC…", "Open this version of Lantoss on the other PC and use the same Wi-Fi. Its name should appear automatically. If it stays missing, check Connection help in Settings or use Manual connection.", action: C.Button("Find nearby PCs", () => { if (!app.Engine.Running) app.ToggleReceiving(); app.Engine.RefreshDiscovery(); }, icon: "sync")));
+            list.Children.Add(C.Empty("Waiting for your other PC…", "Open this version of hopo on the other PC and use the same Wi-Fi. Its name should appear automatically. If it stays missing, check Connection help in Settings or use Manual connection.", action: C.Button("Find nearby PCs", () => { if (!app.Engine.Running) app.ToggleReceiving(); app.Engine.RefreshDiscovery(); }, icon: "sync")));
         foreach (Peer peer in peers)
         {
             StackPanel actions = new()
@@ -67,7 +67,7 @@ internal sealed class DevicesPage : IPage
                 Margin = new(0, 15, 0, 0)
             };
             connectionDetails.SetResourceReference(Control.ForegroundProperty, "Muted");
-            string availability = peer.Online ? peer.Paired ? "Ready to send · remembered PC" : peer.RequiresCode ? "Ready to connect · access code required" : peer.SupportsDirectConnect ? "Ready to connect · no code needed" : peer.SupportsQuickPair ? "Ready to connect · comparison approval" : "Update both PCs for connection without typing, or use manual connection." : "Offline or not yet checked. Open Lantoss on that PC.";
+            string availability = peer.Online ? peer.Paired ? "Ready to send · remembered PC" : peer.RequiresCode ? "Ready to connect · access code required" : peer.SupportsDirectConnect ? "Ready to connect · no code needed" : peer.SupportsQuickPair ? "Ready to connect · comparison approval" : "Update both PCs for connection without typing, or use manual connection." : "Offline or not yet checked. Open hopo on that PC.";
             Border trust = C.Badge(peer.TrustLabel, peer.Paired ? "Success" : "Muted", peer.Paired ? "SuccessSoft" : "Background");
             trust.HorizontalAlignment = HorizontalAlignment.Left;
             StackPanel details = C.Stack(C.Space(name, 12), C.Space(trust, 10), C.Space(C.Text(availability, 12, "Muted"), 16), actions, connectionDetails);
@@ -81,7 +81,7 @@ internal sealed class DevicesPage : IPage
         {
             Button disconnect = C.Small("Disconnect", () => { if (MessageBox.Show(app.Window, "Disconnect " + browser.Label + "? Its pending uploads stop and the page must connect again.", "Disconnect browser", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Disconnect(browser.Handle); });
             string seen = DateTime.UtcNow - browser.LastSeenUtc < TimeSpan.FromMinutes(1) ? "active now" : "active " + browser.LastSeenUtc.ToLocalTime().ToString("HH:mm");
-            Button block = C.Small("Block", () => { if (MessageBox.Show(app.Window, "Block " + browser.Address + "? " + browser.Label + " is disconnected and this address cannot open the page until Lantoss restarts.", "Block browser", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Block(browser.Handle); });
+            Button block = C.Small("Block", () => { if (MessageBox.Show(app.Window, "Block " + browser.Address + "? " + browser.Label + " is disconnected and this address cannot open the page until hopo restarts.", "Block browser", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Block(browser.Handle); });
             block.Margin = new(8, 0, 0, 0);
             StackPanel actions = browser.Approved ? C.Inline(disconnect, block) : C.Inline(C.Small("Allow", () => app.Engine.Browser.Approve(browser.Handle)), block);
             Border state = C.Badge(browser.Approved ? "Allowed" : "Waiting for Allow", browser.Approved ? "Success" : "Danger", browser.Approved ? "SuccessSoft" : "DangerSoft");
@@ -133,7 +133,7 @@ internal sealed class HistoryPage : IPage
         this.app = app;
         Button export = C.Button("Export log", Export), clear = C.Button("Clear finished history", Clear);
         clear.Margin = new(9, 0, 0, 0);
-        View = C.Stack(C.Space(C.Text("A record of what moved.", 24, bold: true), 9), C.Space(C.Text("Search by filename or PC. History contains local metadata, never file contents.", 13, "Muted"), 20), C.Space(C.Inline(export, clear), 22), list);
+        View = C.Stack(C.Hero("Manage", "History", "What moved, and when. File contents are never stored."), C.Space(C.Inline(export, clear), 22), list);
     }
     public void Refresh()
     {
@@ -168,7 +168,7 @@ internal sealed class HistoryPage : IPage
         SaveFileDialog picker = new()
         {
             Title = "Export transfer metadata",
-            FileName = "Lantoss-history.csv",
+            FileName = "hopo-history.csv",
             Filter = "CSV files (*.csv)|*.csv"
         };
         if (picker.ShowDialog(app.Window) != true)

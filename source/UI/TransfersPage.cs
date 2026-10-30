@@ -27,7 +27,7 @@ internal sealed class TransfersPage : IPage
             filters[name] = button;
             tabs.Children.Add(button);
         }
-        View = C.Stack(C.Space(C.Text("Every file. Every step.", 24, bold: true), 9), C.Space(C.Text("Actual transfer progress, with integrity checked before completion.", 13, "Muted"), 22), C.Space(tabs, 20), rows,
+        View = C.Stack(C.Hero("Manage", "Transfers", "Live progress, verified on arrival."), C.Space(tabs, 20), rows,
             C.Space(C.Text("Pause/resume and restart continuation are planned. Retry starts a new transfer and asks the recipient for approval again.", 11, "Muted"), 0, 20));
     }
     public void Refresh()

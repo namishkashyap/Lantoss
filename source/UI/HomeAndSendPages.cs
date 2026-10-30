@@ -6,8 +6,11 @@ namespace Lantoss.UI;
 
 internal sealed class HomePage : IPage
 {
+    // The radar is drawn on a fixed 640 px stage and scaled down on small windows, like the design's nearby field.
+    private const double Stage = 640, Middle = Stage / 2;
     private readonly AppShell app;
-    private readonly StackPanel devices = new();
+    private readonly Canvas radar = new() { Width = Stage, Height = Stage };
+    private readonly StackPanel empty = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 0, 6) };
     private readonly TextBlock status = C.Text("", 12, "Muted");
     public FrameworkElement View
     {
@@ -16,29 +19,31 @@ internal sealed class HomePage : IPage
     public HomePage(AppShell app)
     {
         this.app = app;
-        // Home has one starting action. Detailed history, settings and sync stay in the sidebar.
-        Border send = Dropzone(app);
-        send.MaxWidth = 920;
-        send.HorizontalAlignment = HorizontalAlignment.Stretch;
-        Button phone = C.Button("Open phone & browser", () => app.Navigate("Phone & browser"), icon: "devices");
-        View = C.Stack(C.Space(C.Text("Share something.", 30, bold: true), 8),
-            C.Space(C.Text("Pick files, then choose a device on your Wi-Fi.", 14, "Muted"), 24),
-            C.Space(send, 26), C.Heading("Your devices", C.Small("Manage devices", () => app.Navigate("Devices"))),
-            C.Space(devices, 22), C.Card(Row(C.Stack(C.Space(C.Text("Sharing with your phone?", 15, bold: true), 6),
-                C.Text("Open the transfer page or scan its QR code.", 12, "Muted")), phone), 18),
-            C.Space(status, 0, 18));
-    }
-    private static DockPanel Row(FrameworkElement description, FrameworkElement action)
-    {
-        // These short rows fit beside their action even on a small laptop; wrap only the text.
-        DockPanel row = new();
-        action.Margin = new(18, 0, 0, 0);
-        action.VerticalAlignment = VerticalAlignment.Center;
-        DockPanel.SetDock(action, Dock.Right);
-        row.Children.Add(action);
-        description.VerticalAlignment = VerticalAlignment.Center;
-        row.Children.Add(description);
-        return row;
+        Button send = C.Button("Send files", () => app.Navigate("Send"), true, "send"), folder = C.Button("Share a folder", () => app.Navigate("Shared Spaces"), icon: "folder"), text = C.Button("Share text", () => app.Navigate("Text & links"), icon: "file"), phone = C.Button("Open on your phone", () => app.Navigate("Phone & browser"), icon: "phone");
+        foreach (Button item in new[] { folder, text, phone })
+            item.Margin = new(8, 0, 0, 0);
+        Border dock = C.Card(C.Inline(send, folder, text, phone), 8);
+        dock.CornerRadius = new(20);
+        dock.HorizontalAlignment = HorizontalAlignment.Center;
+        status.HorizontalAlignment = HorizontalAlignment.Center;
+        Grid field = new() { MinHeight = 560 };
+        field.Children.Add(new Viewbox { Child = radar, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, MaxHeight = Stage });
+        field.Children.Add(empty);
+        Grid layout = new() { AllowDrop = true };
+        layout.Background = Brushes.Transparent;
+        layout.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
+        layout.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        layout.Children.Add(field);
+        Grid.SetRow(dock, 1);
+        layout.Children.Add(C.Space(dock, 10, 12));
+        Grid.SetRow(status, 2);
+        layout.Children.Add(status);
+        // Dropping files anywhere on Home starts a send, as the old drop area did.
+        AutomationProperties.SetName(layout, "Drop files or folders to prepare a transfer");
+        layout.DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
+        layout.Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] paths) { await app.AddSelectionsAsync(paths); app.Navigate("Send"); } e.Handled = true; };
+        View = layout;
     }
     public static Border Dropzone(AppShell app)
     {
@@ -84,36 +89,98 @@ internal sealed class HomePage : IPage
     }
     public void Refresh()
     {
-        devices.Children.Clear();
-        Peer[] peers = app.Engine.Peers.Where(p => !p.Blocked && (p.Online || p.Paired)
-            && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(p => p.Online).ThenBy(p => p.Name).Take(4).ToArray();
-        if (peers.Length == 0)
+        radar.Children.Clear();
+        empty.Children.Clear();
+        foreach (double size in new[] { 600.0, 470, 340 })
         {
-            devices.Children.Add(C.Card(Row(C.Stack(
-                C.Space(C.Text(app.Search.Length > 0 ? "No matching devices" : "Open Lantoss on your other PC", 15, bold: true), 6),
-                C.Text("Use the same home Wi-Fi. Your PC will appear here automatically.", 12, "Muted")),
-                C.Button("Find a device", () => app.Dialogs.Pair(), icon: "devices")), 18));
+            Ellipse ring = new() { Width = size, Height = size, StrokeThickness = 1 };
+            ring.SetResourceReference(Shape.StrokeProperty, "GlassBorder");
+            Place(ring, Middle - size / 2, Middle - size / 2);
         }
+        Border self = new() { Width = 150, Height = 150, CornerRadius = new(75), BorderThickness = new(1) };
+        self.SetResourceReference(Border.BackgroundProperty, "Glass");
+        self.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
+        Ellipse beacon = new() { Width = 9, Height = 9, Margin = new(0, 0, 0, 6), HorizontalAlignment = HorizontalAlignment.Center };
+        beacon.SetResourceReference(Shape.FillProperty, "Accent");
+        TextBlock name = C.Text(app.Store.Preferences.DeviceName, 14, bold: true), label = C.Text("This PC", 11, "Muted");
+        name.TextAlignment = label.TextAlignment = TextAlignment.Center;
+        name.TextTrimming = TextTrimming.CharacterEllipsis;
+        name.TextWrapping = TextWrapping.NoWrap;
+        name.MaxWidth = 128;
+        StackPanel center = C.Stack(beacon, name, C.Space(label, 0, 2));
+        center.VerticalAlignment = VerticalAlignment.Center;
+        center.HorizontalAlignment = HorizontalAlignment.Center;
+        self.Child = center;
+        Place(self, Middle - 75, Middle - 75);
+        Peer[] peers = app.Engine.Peers.Where(p => !p.Blocked && (p.Online || p.Paired) && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).OrderByDescending(p => p.Online).ThenBy(p => p.Name).Take(8).ToArray();
+        BrowserDevice[] browsers = app.Engine.Browser.Devices.Where(b => b.Approved && b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(6).ToArray();
+        int count = peers.Length + browsers.Length, index = 0;
         foreach (Peer peer in peers)
+            Blip(index++, count, peer.Name, peer.Online ? "Mint" : "Muted", peer.Name + (peer.Online ? ", on Wi‑Fi" : ", offline"), Details(peer.Name, peer.Online ? "Online" : "Offline", peer.Online, "Wi‑Fi · " + peer.Address, peer.TrustLabel, peer.Paired ? C.Small("Send files", () => { app.SelectedPeerKey = peer.Fingerprint; app.Navigate("Send"); }) : C.Small("Connect", () => app.Dialogs.Pair(peer)), peer.Paired ? C.Small("Text", () => app.Navigate("Text & links")) : null));
+        foreach (BrowserDevice browser in browsers)
+            Blip(index++, count, browser.Label, "Phone", browser.Label + ", through the browser", Details(browser.Label, "Browser", true, "Connected · " + browser.Address, "Approved on this PC", C.Small("Send files", () => app.Navigate("Send")), C.Small("Disconnect", () => { if (MessageBox.Show(app.Window, "Disconnect " + browser.Label + "? Its pending uploads stop and the page must connect again.", "Disconnect browser", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Disconnect(browser.Handle); })));
+        if (count == 0)
         {
-            Button action = C.Button(peer.Paired ? "Send files" : "Connect", () =>
-            {
-                if (peer.Paired)
-                {
-                    app.SelectedPeerKey = peer.Fingerprint;
-                    app.Navigate("Send");
-                }
-                else
-                    app.Dialogs.Pair(peer);
-            }, icon: peer.Paired ? "send" : "pair");
-            devices.Children.Add(C.Space(C.Card(Row(C.Person(peer.Name, null, peer.Online ? "On your network" : "Offline · open Lantoss on this PC", 40, peer.Online ? "Success" : "Muted"), action), 16), 8));
+            TextBlock title = C.Text(app.Search.Length > 0 ? "No matching devices" : "Open hopo on your other PC", 15, bold: true), detail = C.Text("Use the same home Wi‑Fi. Your PCs and approved phones appear on this radar automatically.", 12, "Muted");
+            title.TextAlignment = detail.TextAlignment = TextAlignment.Center;
+            detail.MaxWidth = 420;
+            Button find = C.Button("Find a device", () => app.Dialogs.Pair(), icon: "devices");
+            find.HorizontalAlignment = HorizontalAlignment.Center;
+            empty.Children.Add(C.Card(C.Stack(C.Space(title, 6), C.Space(detail, 14), find), 18));
         }
-        foreach (BrowserDevice browser in app.Engine.Browser.Devices.Where(b => b.Approved && b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(3))
-            devices.Children.Add(C.Space(C.Card(Row(C.Person(browser.Label, browser.Picture, "Connected through the web · " + browser.Address, 40, "Success"), C.Button("Send files", () => app.Navigate("Send"), icon: "send")), 16), 8));
         double speed = app.Engine.Transfers.Records.Where(r => !r.Terminal).Sum(r => r.BytesPerSecond);
         status.Text = speed > 0 ? $"{speed / 1048576:0.0} MB/s transferring" : "";
         status.Visibility = speed > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+    private void Place(UIElement element, double left, double top)
+    {
+        Canvas.SetLeft(element, left);
+        Canvas.SetTop(element, top);
+        radar.Children.Add(element);
+    }
+    /// <summary>A device on the radar: a pulsing dot and name tag; clicking it opens the device card.</summary>
+    private void Blip(int index, int count, string name, string color, string automation, FrameworkElement details)
+    {
+        // Alternate the inner and middle rings so neighbours never overlap their name tags.
+        double radius = index % 2 == 0 ? 235 : 170, angle = (-140 + index * 360.0 / Math.Max(count, 1)) * Math.PI / 180;
+        double x = Middle + radius * Math.Cos(angle), y = Middle + radius * Math.Sin(angle);
+        Grid dot = new() { Width = 28, Height = 28 };
+        Ellipse halo = new() { Width = 28, Height = 28, Opacity = 0.22 }, core = new() { Width = 11, Height = 11 };
+        halo.SetResourceReference(Shape.FillProperty, color);
+        core.SetResourceReference(Shape.FillProperty, color);
+        dot.Children.Add(halo);
+        dot.Children.Add(core);
+        if (!app.Preview && SystemParameters.ClientAreaAnimation)
+            halo.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0.32, 0.06, TimeSpan.FromSeconds(1.6)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(index * 400) });
+        Border tag = new() { CornerRadius = new(999), Padding = new(10, 4, 10, 4), BorderThickness = new(1), Margin = new(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = C.Text(name, 12, "Text") };
+        ((TextBlock)tag.Child).TextWrapping = TextWrapping.NoWrap;
+        ((TextBlock)tag.Child).MaxWidth = 150;
+        ((TextBlock)tag.Child).TextTrimming = TextTrimming.CharacterEllipsis;
+        tag.SetResourceReference(Border.BackgroundProperty, "Menu");
+        tag.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
+        Button blip = new() { Style = (Style)app.Window.FindResource("Plain"), Content = C.Inline(dot, tag), Padding = new(2), ToolTip = automation };
+        AutomationProperties.SetName(blip, automation);
+        Popup card = new() { PlacementTarget = blip, Placement = PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true, Child = details, VerticalOffset = 6 };
+        blip.Click += (_, _) => card.IsOpen = !card.IsOpen;
+        Place(blip, x - 16, y - 16);
+    }
+    private static Border Details(string name, string state, bool online, string address, string trust, Button first, Button? second)
+    {
+        DockPanel top = new() { Margin = new(0, 0, 0, 8) };
+        Border chip = C.Badge(state, online ? "Success" : "Muted", online ? "SuccessSoft" : "Glass");
+        DockPanel.SetDock(chip, Dock.Right);
+        top.Children.Add(chip);
+        top.Children.Add(C.Text(name, 13, bold: true));
+        StackPanel actions = C.Inline(first);
+        if (second != null)
+        {
+            second.Margin = new(6, 0, 0, 0);
+            actions.Children.Add(second);
+        }
+        Border card = new() { Width = 250, Padding = new(14), CornerRadius = new(16), BorderThickness = new(1), Child = C.Stack(top, C.Text(address, 12, "Muted"), C.Space(C.Text(trust, 12, "Muted"), 12, 2), actions) };
+        card.SetResourceReference(Border.BackgroundProperty, "Surface");
+        card.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
+        return card;
     }
 }
 
@@ -134,7 +201,7 @@ internal sealed class SendPage : IPage
         StackPanel left = C.Stack(C.Space(C.Heading("Selected files & folders", C.Small("Clear selection", () => { app.Selection.Clear(); Refresh(); })), 6), C.Space(C.Inline(addFiles, addFolders), 18), C.Space(totals, 16), files);
         Button phone = C.Button("Share selection with phone/browser", async () => { if (app.Selection.Count == 0) { app.Navigate("Phone & browser"); return; } try { await Task.Run(() => app.Engine.Browser.ShareAsync(app.Selection.Select(item => item.Path).ToArray())); app.Navigate("Phone & browser"); } catch (Exception error) { app.Error(error); } }, icon: "devices");
         StackPanel right = C.Stack(C.Card(recipient), C.Space(phone, 0, 16), C.Space(C.Note("The recipient stays in control", "They see your identity, file count, size, and destination, then choose Accept or Decline."), 0, 18), C.Space(C.Note("Native transfers: original bytes, verified", "Folders keep their relative paths. Every native file is checked before it is finalized on the other PC.", "check"), 0, 18), C.Space(C.Text("Names, folder paths, and regular file bytes are preserved. Permissions, timestamps, alternate data streams, links, and other platform metadata are not copied.", 11, "Muted"), 0, 18));
-        View = C.Stack(C.Space(C.Text("Choose what moves. Choose where it goes.", 24, bold: true), 9), C.Space(C.Text("Choose one paired recipient for each job. Both apps must stay open.", 13, "Muted"), 24), C.Columns(C.Card(left), right, 325));
+        View = C.Stack(C.Hero("Share", "Send files", "Pick files, then a device. They approve before anything moves."), C.Columns(C.Card(left), right, 325));
     }
     public void Refresh()
     {

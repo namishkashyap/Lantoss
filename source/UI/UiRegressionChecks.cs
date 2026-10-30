@@ -42,7 +42,7 @@ internal static class UiRegressionChecks
             if (!labels.Contains("NK") || labels.Any(text => text.Contains("Fingerprint", StringComparison.Ordinal) || text.Contains("Peer {", StringComparison.Ordinal)))
                 throw new InvalidDataException("A selected PC must display its name without the internal peer record.");
             passed++;
-            if (device.ActualHeight > 42 || device.ItemTemplate == null)
+            if (device.ActualHeight > 48 || device.ItemTemplate == null)
                 throw new InvalidDataException("The connected-PC selector must stay compact and use its explicit name template.");
             passed++;
             Button refresh = Descendants<Button>(app.Window.Content as DependencyObject ?? app.Window).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "Refresh folders");
@@ -57,10 +57,19 @@ internal static class UiRegressionChecks
                 throw new InvalidDataException("The Send recipient must also honor the device-name display binding.");
             passed++;
         }
-        // Exercise the actual sidebar control and resource updates without rebuilding the page.
+        // Exercise the actual menu control and resource updates without rebuilding the page.
         app.Navigate("Home");
-        if (app.Window.Title != "Lantoss")
+        if (app.Window.Title != "hopo")
             throw new InvalidDataException("The window must use the new brand.");
+        app.ShowMenu(true);
+        app.Render(Path.Combine(output, "Menu.png"), 1440, 960);
+        if (app.Find<Grid>("MenuLayer").Visibility != Visibility.Visible || app.Find<StackPanel>("Navigation").Children.OfType<Button>().Count() != 9)
+            throw new InvalidDataException("The menu must open with the Share and Manage pages.");
+        app.Find<StackPanel>("Navigation").Children.OfType<Button>().First(button => System.Windows.Automation.AutomationProperties.GetName(button) == "Devices").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        if (app.CurrentPage != "Devices" || app.Find<Grid>("MenuLayer").Visibility != Visibility.Collapsed)
+            throw new InvalidDataException("Choosing a menu page must open it and close the menu.");
+        passed++;
+        app.Navigate("Home");
         passed++;
         FrameworkElement home = (FrameworkElement)app.Find<ContentControl>("PageContent").Content;
         ComboBox appearance = app.Find<ComboBox>("AppearanceSelector");

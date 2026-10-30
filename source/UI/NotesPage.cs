@@ -33,8 +33,7 @@ internal sealed class NotesPage : IPage
             app.Tell("Text shared. Find it in Text & links on the receiving PC or its browser page.");
         }, true, "send");
         send.Margin = new(12, 0, 0, 0);
-        View = C.Stack(C.Space(C.Text("Text & links", 26, bold: true), 9),
-            C.Space(C.Text("Share a note or link with a connected PC, or save it here for your phone. Nothing opens or copies automatically.", 13, "Muted"), 22),
+        View = C.Stack(C.Hero("Share", "Share text or a link", "Send a note or link to a nearby device, or save it here for your phone. Nothing opens or copies automatically."),
             C.Space(C.Card(C.Stack(C.Space(draft, 14), C.Inline(target, send), C.Space(C.Text("Up to 16,000 characters. Notes saved here are visible to connected browsers; optional access-code protection applies.", 11, "Muted"), 0, 12))), 24),
             C.Heading("Shared on this PC", C.Small("Refresh", Refresh)), notes);
         Refresh();

@@ -20,6 +20,34 @@ internal static class C
         block.SetResourceReference(TextBlock.ForegroundProperty, color);
         return block;
     }
+    /// <summary>Small uppercase group label (SHARE, MANAGE) from the hopo design.</summary>
+    public static TextBlock Eyebrow(string text, Thickness margin)
+    {
+        TextBlock block = Text(text.ToUpperInvariant(), 11, "Muted");
+        block.FontWeight = FontWeights.SemiBold;
+        block.Margin = margin;
+        return block;
+    }
+    /// <summary>Page opening: eyebrow, 24 px title and one muted line, with an optional action on the right.</summary>
+    public static DockPanel Hero(string eyebrow, string title, string subtitle, UIElement? action = null)
+    {
+        DockPanel panel = new() { Margin = new(0, 0, 0, 28) };
+        if (action != null)
+        {
+            action.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Bottom);
+            DockPanel.SetDock(action, Dock.Right);
+            panel.Children.Add(action);
+        }
+        TextBlock heading = Text(title, 24);
+        heading.FontWeight = FontWeights.SemiBold;
+        heading.Margin = new(0, 6, 0, 0);
+        TextBlock detail = Text(subtitle, 13, "Muted");
+        detail.MaxWidth = 640;
+        detail.HorizontalAlignment = HorizontalAlignment.Left;
+        detail.Margin = new(0, 8, 0, 0);
+        panel.Children.Add(Stack(Eyebrow(eyebrow, new()), heading, detail));
+        return panel;
+    }
     public static StackPanel Stack(params UIElement[] elements)
     {
         StackPanel panel = new();
@@ -80,7 +108,10 @@ internal static class C
         {
             FrameworkElement image = Icon(icon, 15, primary ? "OnAccent" : "Primary");
             image.Margin = new(0, 0, 8, 0);
-            button.Content = Inline(image, Text(text, 12, primary ? "OnAccent" : "Text", true));
+            TextBlock label = Text(text, 13, primary ? "OnAccent" : "Text");
+            label.FontWeight = primary ? FontWeights.SemiBold : FontWeights.Medium;
+            label.VerticalAlignment = VerticalAlignment.Center;
+            button.Content = Inline(image, label);
         }
         AutomationProperties.SetName(button, text);
         button.Click += (_, _) => { try { action(); } catch (Exception e) { AppShell.Current.Error(e); } };
@@ -95,18 +126,18 @@ internal static class C
     public static Button Small(string text, Action action)
     {
         Button b = Button(text, action);
-        b.Padding = new(10, 6, 10, 6);
-        b.FontSize = 11;
-        b.MinHeight = 30;
+        b.Padding = new(12, 6, 12, 6);
+        b.FontSize = 12;
+        b.MinHeight = 34;
         return b;
     }
     public static Border Badge(string text, string color = "Primary", string background = "PrimarySoft")
     {
         Border border = new()
         {
-            CornerRadius = new(6),
-            Padding = new(8, 5, 8, 5),
-            Child = Text(text, 10, color, true),
+            CornerRadius = new(999),
+            Padding = new(10, 4, 10, 4),
+            Child = Text(text, 11, color, true),
             VerticalAlignment = VerticalAlignment.Center
         };
         border.SetResourceReference(Border.BackgroundProperty, background);
@@ -176,7 +207,8 @@ internal static class C
         DockPanel.SetDock(graphic, Dock.Left);
         panel.Children.Add(graphic);
         panel.Children.Add(Stack(Text(title, 12, bold: true), Space(Text(detail, 11, "Muted"), 0, 5)));
-        Border border = Card(panel, 16);
+        Border border = Card(panel, 18);
+        border.CornerRadius = new(16);
         border.SetResourceReference(Border.BackgroundProperty, "PrimarySoft");
         return border;
     }
@@ -257,6 +289,7 @@ internal static class C
             "plus" => "M12,3 L12,21 M3,12 L21,12",
             "close" => "M5,5 L19,19 M19,5 L5,19",
             "arrow" => "M3,12 L21,12 M15,6 L21,12 L15,18",
+            "phone" => "M7,3 L17,3 L17,21 L7,21 Z M11,18 L13,18",
             "star" => "M12,2 L15,8 L22,9 L17,14 L18,22 L12,18 L6,22 L7,14 L2,9 L9,8 Z",
             _ => "M12,3 A9,9 0 1 1 11.99,3 M12,7 L12,13 M12,17 L12,18"
         };
