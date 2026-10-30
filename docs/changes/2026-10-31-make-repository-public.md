@@ -7,8 +7,13 @@ Owner's request: push the code to GitHub and make `namishkashyap/Lantoss` public
 - [x] 1. **Check the full history for secrets before it becomes visible.**
   - Private keys, access tokens, hard-coded passwords, `.pfx`/`.p12`/`.pem`/`.key`/`.env` files, committed installers or binaries.
   - Personal data: e-mail addresses, user names and local paths.
-- [ ] 2. **Push this record** to `release/2.0.2` (PR #6). Every other branch is already on GitHub.
-- [ ] 3. **Change the visibility to public** with `gh repo edit --visibility public`.
+- [x] 2. **Push this record** to `release/2.0.2` (PR #6). Every other branch is already on GitHub.
+- [x] 3. **Change the visibility to public** with `gh repo edit --visibility public`.
+
+## Verification
+
+- The history scan found no keys, tokens, passwords or personal paths. All 29 commits use the GitHub noreply address. `source/Explorer/Publisher.cer` is a public certificate with no private key. No installers or binaries are committed.
+- `gh repo view` reports `PUBLIC`. All four local branches match GitHub.
 
 ## Not in this change
 
