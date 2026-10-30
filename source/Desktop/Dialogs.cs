@@ -28,7 +28,7 @@ internal sealed class Dialogs(Shell app)
     }
     private async Task<T> ShowAsync<T>(Window dialog)
     {
-        // Approvals can arrive while the window is minimized; bring Lantoss forward so the request is seen.
+        // Approvals can arrive while the window is minimized; bring hopo forward so the request is seen.
         if (!app.Window.IsVisible || app.Window.WindowState == WindowState.Minimized)
             app.ShowWindow();
         return await dialog.ShowDialog<T>(pairingWindow is { IsVisible: true } ? pairingWindow : app.Window);
@@ -98,7 +98,7 @@ internal sealed class Dialogs(Shell app)
         {
             app.Engine.RefreshDiscovery();
             app.Navigate("Devices");
-            app.Tell("Choose the other device below and click Connect. Lantoss connects directly unless code protection is enabled.");
+            app.Tell("Choose the other device below and click Connect. hopo connects directly unless code protection is enabled.");
         }
         else if (candidate.SupportsDirectConnect || candidate.SupportsQuickPair)
             _ = ConnectNearbyAsync(candidate);
@@ -174,10 +174,10 @@ internal sealed class Dialogs(Shell app)
             MaxLength = 24,
             Margin = new(0, 7, 0, 15)
         };
-        TextBlock feedback = C.Text("Both devices need Lantoss. Browsers use the Phone & browser page instead.", 12, "Muted");
+        TextBlock feedback = C.Text("Both devices need hopo. Browsers use the Phone & browser page instead.", 12, "Muted");
         Button pair = C.AsyncButton("Connect and compare codes", async () =>
         {
-            feedback.Text = "Connecting securely. Keep Lantoss open on the other device…";
+            feedback.Text = "Connecting securely. Keep hopo open on the other device…";
             try
             {
                 Peer result = await app.Engine.PairAsync(address.Text ?? "", code.Text ?? "", CompareAsync, work.Token);
@@ -192,7 +192,7 @@ internal sealed class Dialogs(Shell app)
         Button rotate = C.Small("New code", app.Engine.PairingCode.Rotate);
         StackPanel local = C.Stack(C.Heading("This " + Shell.Platform), C.Space(localAddress, 9), C.Space(localCode, 6), C.Space(expiry, 14), C.Inline(copy, rotate));
         window.Content = Body(C.Stack(C.Space(C.Text("Connect when discovery is unavailable.", 21, bold: true), 10),
-            C.Space(C.Text("Normally, choose the other device in Devices and click Connect. Use these fields only if it does not appear, or it runs an older Lantoss version.", 12, "Muted"), 20),
+            C.Space(C.Text("Normally, choose the other device in Devices and click Connect. Use these fields only if it does not appear, or it runs an older version.", 12, "Muted"), 20),
             C.Space(C.Card(local), 22), C.Text("OTHER DEVICE ADDRESS", 10, "Muted", true), address, C.Text("OTHER DEVICE PAIRING CODE", 10, "Muted", true), code, C.Space(pair, 15), feedback));
         DispatcherTimer timer = new()
         {
@@ -332,7 +332,7 @@ internal sealed class Dialogs(Shell app)
             MinHeight = 200
         };
         string firewall = OperatingSystem.IsMacOS()
-            ? "macOS asks once to allow incoming connections and local network access for Lantoss. If you declined, open System Settings → Network → Firewall → Options, and Privacy & Security → Local Network, and allow Lantoss."
+            ? "macOS asks once to allow incoming connections and local network access for hopo. If you declined, open System Settings → Network → Firewall → Options, and Privacy & Security → Local Network, and allow hopo (listed as Lantoss)."
             : "If your Linux firewall is on, allow TCP 48585 and 48586 (and 80 if used) plus UDP 5353 and 48587 on your home network, for example: sudo ufw allow from 192.168.0.0/16 to any port 48585:48587 proto tcp";
         window.Content = Body(C.Stack(C.Space(C.Text("Make the connection visible.", 23, bold: true), 15), C.Space(details, 18), C.Space(C.Text(firewall, 12, "Muted"), 18),
             C.Inline(C.Button("Copy diagnostics", () => _ = app.CopyAsync(details.Text ?? "", "Diagnostics copied."), true), C.Button("Close", () => window.Close()))));
