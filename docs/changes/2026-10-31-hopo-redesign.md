@@ -34,7 +34,7 @@ Owner's request:
   - Clicking a dot shows its card: status, address, trust, Send files, Text or Disconnect.
   - A dock at the bottom: Send files, Share a folder, Share text, Open on your phone.
 - [ ] 4. **macOS/Linux app.** The same shell, menu, page headings, glass, glows, radar Home and dock, in Avalonia.
-- [ ] 5. **Phone page.** The same look in both themes: hopo mark, glass cards, glows, amber buttons, mint status.
+- [x] 5. **Phone page.** The same look in both themes: hopo mark, glass cards, glows, amber buttons, mint status.
 - [ ] 6. **Rename the visible name to hopo.** Window titles, tray, dialogs, notifications, page text, the phone page and the macOS/Linux app name shown in the window.
   - Kept as Lantoss for compatibility, like the legacy `flowshare` names:
     - the executable, data folders, install paths, pipe and lock names, CSRF header and cookie names, namespaces
