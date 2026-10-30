@@ -5,12 +5,14 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        if (args.Length == 1 && args[0] is "--install-integration" or "--trust-explorer-publisher" or "--remove-explorer-package")
+        if (args.Length == 1 && args[0] is "--install-integration" or "--trust-explorer-publisher" or "--untrust-explorer-publisher" or "--remove-explorer-package")
         {
             try
             {
                 if (args[0] == "--trust-explorer-publisher")
                     ExplorerPackage.TrustPublisher();
+                else if (args[0] == "--untrust-explorer-publisher")
+                    ExplorerPackage.UntrustPublisher();
                 else if (args[0] == "--remove-explorer-package")
                     ExplorerPackage.Remove();
                 else

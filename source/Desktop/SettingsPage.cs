@@ -64,12 +64,14 @@ internal sealed class SettingsPage : IPage
         };
         CheckBox automatic = Check("Start the sharing server automatically when Lantoss opens", saved.StartReceivingOnOpen),
             tray = Check("Keep receiving and syncing when I close the window", saved.CloseToTray),
-            autoConnect = Check("Connect automatically to discoverable computers without code protection", saved.AutoConnect),
+            autoConnect = Check("Connect automatically to new computers (only when approval is off)", saved.AutoConnect),
             notifications = Check("Show notifications for incoming and finished transfers", saved.Notifications),
             senderFolders = Check("Save received files in a folder named after the sender", saved.SenderFolders),
             discovery = Check("Let nearby computers discover this one", saved.Discoverable),
             protection = Check("Require an access code for new connections", saved.RequireConnectionCode),
-            browser = Check("Enable phone/browser sharing on this Wi-Fi", saved.BrowserSharingEnabled);
+            browser = Check("Enable phone/browser sharing on this Wi-Fi", saved.BrowserSharingEnabled),
+            approve = Check("Ask before a new PC or phone connects", saved.ApproveNewDevices),
+            https = Check("Encrypt the phone page (HTTPS)", saved.BrowserHttps);
         string folder = saved.ReceiveFolder;
         TextBlock folderText = C.Text(folder, 12, "Muted");
         Button folderPicker = C.AsyncButton("Choose receive folder", async () =>
@@ -92,6 +94,8 @@ internal sealed class SettingsPage : IPage
                 StartReceivingOnOpen = automatic.IsChecked == true,
                 RequireConnectionCode = protection.IsChecked == true,
                 BrowserSharingEnabled = browser.IsChecked == true,
+                ApproveNewDevices = approve.IsChecked == true,
+                BrowserHttps = https.IsChecked == true,
                 AutoConnect = autoConnect.IsChecked == true,
                 CloseToTray = tray.IsChecked == true,
                 SenderFolders = senderFolders.IsChecked == true,
@@ -131,9 +135,9 @@ internal sealed class SettingsPage : IPage
             C.AsyncButton("Connection diagnostics", app.Dialogs.DiagnosticsAsync));
         TextBlock key = C.Text(app.Engine.Fingerprint, 11, "Muted");
         key.FontFamily = new FontFamily("monospace");
-        StackPanel security = C.Stack(C.Heading("Security & access"), C.Space(protection, 4), C.Space(browser, 14),
+        StackPanel security = C.Stack(C.Heading("Security & access"), C.Space(approve, 4), C.Space(protection, 4), C.Space(browser, 4), C.Space(https, 2), C.Space(C.Text("Phones show a one-time certificate warning; accept it once.", 11, "Muted"), 14),
             C.Space(C.Text("Code protection is off by default. Open Phone & browser to view the current code when it is on. Codes expire after five minutes and one use, and both screens confirm a matching code.", 12, "Muted"), 16),
-            C.Space(C.Note("Native TLS · browser HTTP", "Computer-to-computer transfers use TLS and saved public keys. The phone page uses local HTTP; an access code controls access without encrypting that browser link."), 18),
+            C.Space(C.Note(saved.BrowserHttps ? "Native TLS · browser HTTPS" : "Native TLS · browser HTTP", saved.BrowserHttps ? "Computer-to-computer transfers use TLS and saved public keys. The phone page uses HTTPS with this computer's own certificate." : "Computer-to-computer transfers use TLS and saved public keys. The phone page uses local HTTP; an access code controls access without encrypting that browser link."), 18),
             C.Space(C.Text("This device's public-key fingerprint", 12, bold: true), 9), C.Space(key, 13), C.Small("Copy fingerprint", () => app.CopyAsync(app.Engine.Fingerprint, "Fingerprint copied.")));
         StackPanel advanced = C.Stack(C.Heading("Advanced & storage"), C.Space(C.Text("Local data: " + app.Store.Root, 11, "Muted"), 11),
             C.Text("History keeps up to 300 recent jobs. Clearing history never deletes received files. The device key is stored in this folder, readable only by your user account.", 12, "Muted"));

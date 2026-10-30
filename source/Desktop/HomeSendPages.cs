@@ -81,7 +81,12 @@ internal sealed class HomePage : IPage
 
 internal sealed class SendPage : IPage
 {
+    private sealed record Recipient(string Label, Peer? Peer, BrowserDevice? Browser)
+    {
+        public override string ToString() => Label;
+    }
     private readonly Shell app;
+    private string? browserHandle;
     private readonly StackPanel files = new(), recipient = new();
     private readonly TextBlock totals = C.Text("", 12, "Muted");
     public Control View
@@ -130,7 +135,8 @@ internal sealed class SendPage : IPage
         recipient.Children.Clear();
         recipient.Children.Add(C.Heading("Send to"));
         Peer[] paired = app.Engine.Peers.Where(p => p.Paired && !p.Blocked).ToArray();
-        if (paired.Length == 0)
+        Recipient[] targets = paired.Select(p => new Recipient(p.Name, p, null)).Concat(app.Engine.Browser.Running ? app.Engine.Browser.Devices.Where(d => d.Approved).Select(d => new Recipient(d.Label + " · Phone / browser", null, d)) : []).ToArray();
+        if (targets.Length == 0)
         {
             recipient.Children.Add(C.Space(C.Text("Connect another computer once, then it will be remembered for future transfers.", 12, "Muted"), 18));
             recipient.Children.Add(C.Button("Connect a device", () => app.Dialogs.Pair(), true, "pair"));
@@ -138,15 +144,43 @@ internal sealed class SendPage : IPage
         }
         ComboBox picker = new()
         {
-            ItemsSource = paired,
+            ItemsSource = targets,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new(0, 0, 0, 14),
-            SelectedItem = paired.FirstOrDefault(p => p.Fingerprint == app.SelectedPeerKey) ?? paired[0]
+            SelectedItem = targets.FirstOrDefault(t => t.Browser?.Handle == browserHandle && browserHandle != null) ?? targets.FirstOrDefault(t => t.Peer?.Fingerprint == app.SelectedPeerKey) ?? targets[0]
         };
-        picker.SelectionChanged += (_, _) => app.SelectedPeerKey = (picker.SelectedItem as Peer)?.Fingerprint;
+        TextBlock hint = C.Text("", 11, "Muted");
+        void Describe()
+        {
+            Recipient? chosen = picker.SelectedItem as Recipient;
+            hint.Text = chosen?.Browser != null ? "Files are listed on that phone's page only, under Files from your PC. Other phones do not see them." : "The public key is checked again when connecting. Offline devices may need receiving switched on.";
+        }
+        picker.SelectionChanged += (_, _) =>
+        {
+            Recipient? chosen = picker.SelectedItem as Recipient;
+            browserHandle = chosen?.Browser?.Handle;
+            if (chosen?.Peer != null)
+                app.SelectedPeerKey = chosen.Peer.Fingerprint;
+            Describe();
+        };
+        Describe();
         recipient.Children.Add(picker);
-        recipient.Children.Add(C.Space(C.Text("The public key is checked again when connecting. Offline devices may need receiving switched on.", 11, "Muted"), 20));
-        Button send = C.Button("Send securely", () => { if (picker.SelectedItem is Peer peer) app.SendSelected(peer); }, true, "send");
+        recipient.Children.Add(C.Space(hint, 20));
+        Button send = C.AsyncButton("Send securely", async () =>
+        {
+            if (picker.SelectedItem is not Recipient chosen)
+                return;
+            if (chosen.Peer != null)
+            {
+                app.SendSelected(chosen.Peer);
+                return;
+            }
+            if (chosen.Browser is not BrowserDevice device || app.Selection.Count == 0)
+                return;
+            string[] paths = app.Selection.Select(item => item.Path).ToArray();
+            await Task.Run(() => app.Engine.Browser.ShareAsync(paths, default, device.Handle));
+            app.Tell("Sent to " + device.Label + ". It appears on that phone's page under Files from your PC.");
+        }, true, "send");
         send.IsEnabled = app.Selection.Count > 0;
         send.HorizontalAlignment = HorizontalAlignment.Stretch;
         recipient.Children.Add(send);

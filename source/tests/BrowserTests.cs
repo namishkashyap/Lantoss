@@ -7,7 +7,7 @@ using Lantoss.Networking;
 
 internal static partial class Program
 {
-    private static HttpClient BrowserClient(string url) => new(new HttpClientHandler { CookieContainer = new CookieContainer(), UseProxy = false }) { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(30) };
+    private static HttpClient BrowserClient(string url) => new(new HttpClientHandler { CookieContainer = new CookieContainer(), UseProxy = false, ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator }) { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(30) };
     private static async Task<JsonElement> Body(HttpResponseMessage response) => JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
     private static async Task<string> ConnectBrowser(HttpClient client)
     {
@@ -32,7 +32,7 @@ internal static partial class Program
         string csrf = await ConnectBrowser(client);
         Check(csrf.Length == 64, "Opening the browser page connects directly without entering a code");
         string html = await client.GetStringAsync("/");
-        Check(html.Contains("portal.js", StringComparison.Ordinal) && html.Contains("Local sharing · HTTP", StringComparison.Ordinal), "Browser assets are served locally and disclose the actual HTTP transport");
+        Check(html.Contains("portal.js", StringComparison.Ordinal) && html.Contains("Local sharing · private to your Wi-Fi", StringComparison.Ordinal) && html.Contains("security", StringComparison.Ordinal), "Browser assets are served locally and show whether the page is encrypted");
         byte[] original = RandomNumberGenerator.GetBytes(256 * 1024);
         string source = Path.Combine(store.Root, "Selected PC file.bin");
         await File.WriteAllBytesAsync(source, original);
@@ -167,7 +167,7 @@ internal static partial class Program
         Check((await client.GetAsync("/api/download/" + id)).StatusCode == HttpStatusCode.Conflict, "Changed source files must be shared again before browser download");
         portal.Remove(id);
         Check((await client.GetAsync("/api/download/" + id)).StatusCode == HttpStatusCode.NotFound && File.Exists(source), "Removing a browser share revokes downloads without deleting the original");
-        Check(registry.Records.Where(record => record.PeerFingerprint == "browser").All(record => record.Transport == "Browser · HTTP" && record.VerifiedFiles == 0), "Browser history never claims native TLS or source-checksum verification");
+        Check(registry.Records.Where(record => record.PeerFingerprint == "browser").All(record => record.Transport == "Browser · HTTPS" && record.VerifiedFiles == 0), "Browser history labels the encrypted browser transport and never claims source-checksum verification");
         portal.Stop();
         await portal.WhenStopped;
         await registry.FlushAsync();
@@ -188,9 +188,10 @@ internal static partial class Program
             throw new IOException("Deliberate browser disconnect test.");
         }
     }
-    private static async Task BrowserPreviewServerAsync()
+    private static async Task BrowserPreviewServerAsync(bool waiting)
     {
-        MetadataStore store = Store("Browser preview fixture");
+        // --waiting keeps the default approval on, so the page shows the Allow step.
+        MetadataStore store = waiting ? SecureStore("Browser waiting fixture") : Store("Browser preview fixture");
         TransferRegistry registry = new(store);
         using BrowserPortal portal = new(store, registry, new PairingCode(), true);
         portal.ApproveReceive = (request, _) => Task.FromResult(new ReceiveDecision(true, request.DefaultFolder));

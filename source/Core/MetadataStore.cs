@@ -16,7 +16,17 @@ public sealed class MetadataStore
         public void Write(string filename, byte[] bytes)
         {
             string temp = filename + ".new";
-            using (FileStream file = new(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            // A leftover temporary file is replaced, never reused, so it cannot keep wider permissions.
+            File.Delete(temp);
+            FileStreamOptions options = new()
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None
+            };
+            if (!OperatingSystem.IsWindows())
+                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            using (FileStream file = new(temp, options))
             {
                 file.Write(bytes);
                 file.Flush(true);
@@ -56,6 +66,7 @@ public sealed class MetadataStore
         Root = Path.GetFullPath(root);
         Directory.CreateDirectory(Root);
         FileCatalog.CheckSafeDirectory(Root);
+        RestrictToUser(Root);
         filename = Path.Combine(Root, "metadata.json");
         try
         {
@@ -98,7 +109,36 @@ public sealed class MetadataStore
         Document doc = JsonSerializer.Deserialize<Document>(File.ReadAllBytes(path), Json) ?? throw new InvalidDataException("Metadata is empty.");
         if (doc.Version != 1)
             throw new InvalidDataException("This metadata version requires a newer Lantoss app.");
+        // A tampered or damaged file must not smuggle in records the app would refuse to save.
+        doc.Peers = (doc.Peers ?? []).Where(p => p is { Fingerprint.Length: 64, Name: not null, Address: not null } && p.Fingerprint.All(char.IsAsciiHexDigit) && Valid(p.Name)).DistinctBy(p => p.Fingerprint).TakeLast(256).ToList();
+        doc.Spaces = (doc.Spaces ?? []).Where(s => s is { Name: not null, Folder: not null } && Guid.TryParseExact(s.Id, "N", out _) && Enum.IsDefined(s.Access) && Valid(s.Name) && Path.IsPathFullyQualified(s.Folder)).DistinctBy(s => s.Id).Take(32).ToList();
+        doc.History = (doc.History ?? []).Where(h => h != null).Take(300).ToList();
+        doc.Preferences ??= new();
+        if (!Valid(doc.Preferences.DeviceName ?? "") || doc.Preferences.Theme is not ("Light" or "Dark" or "System") || string.IsNullOrEmpty(doc.Preferences.ReceiveFolder) || !Path.IsPathFullyQualified(doc.Preferences.ReceiveFolder))
+            doc.Preferences = new();
         return doc;
+        static bool Valid(string name)
+        {
+            try
+            {
+                ValidateName(name);
+                return true;
+            }
+            catch (InvalidDataException) { return false; }
+        }
+    }
+    /// <summary>On macOS and Linux the data folder is 0700 and its files 0600, so other local users cannot read history, keys or shared text.</summary>
+    public static void RestrictToUser(string root)
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+        try
+        {
+            File.SetUnixFileMode(root, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            foreach (string path in Directory.EnumerateFileSystemEntries(root, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint }))
+                File.SetUnixFileMode(path, Directory.Exists(path) ? UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute : UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
     }
     public Preferences Preferences
     {
@@ -153,7 +193,7 @@ public sealed class MetadataStore
             throw new InvalidDataException("Up to 32 distinct shared folders are supported.");
         foreach (SharedSpace space in selected)
         {
-            if (!Guid.TryParseExact(space.Id, "N", out _) || !Enum.IsDefined(space.Access))
+            if (!Guid.TryParseExact(space.Id, "N", out _) || !Enum.IsDefined(space.Access) || space.AllowedPeers is { Length: > 256 } || space.AllowedPeers?.Any(key => key is not { Length: 64 } || !key.All(char.IsAsciiHexDigit)) == true)
                 throw new InvalidDataException("Invalid shared-space settings.");
             ValidateName(space.Name);
             if (!Path.IsPathFullyQualified(space.Folder))
@@ -181,9 +221,15 @@ public sealed class MetadataStore
     public static string ValidateName(string name)
     {
         name = name.Trim();
-        if (name.Length is < 1 or > 64 || name.Any(char.IsControl))
-            throw new InvalidDataException("Use a device name between 1 and 64 characters without control characters.");
+        if (name.Length is < 1 or > 64 || name.Any(FileCatalog.Hidden))
+            throw new InvalidDataException("Use a device name between 1 and 64 characters without control or hidden formatting characters.");
         return name;
+    }
+    /// <summary>True when another saved device already shows this name, so approval windows can warn about look-alikes.</summary>
+    public bool NameInUse(string name, string fingerprint)
+    {
+        lock (gate)
+            return data.Peers.Any(p => p.Fingerprint != fingerprint && !p.Blocked && string.Equals(p.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase));
     }
     public Peer? Trusted(string fingerprint)
     {
@@ -199,10 +245,13 @@ public sealed class MetadataStore
     {
         lock (gate)
         {
-            data.Peers.RemoveAll(p => p.Fingerprint == peer.Fingerprint);
-            data.Peers.Add(peer);
-            if (data.Peers.Count > 256)
-                throw new InvalidDataException("Up to 256 local device records are supported.");
+            // The limit is checked before anything changes: a full list keeps working, giving up its oldest unverified, non-favourite record first.
+            List<Peer> next = data.Peers.Where(p => p.Fingerprint != peer.Fingerprint).Append(peer).ToList();
+            if (next.Count > 256 && next.Where(p => p != peer && !p.KeyVerified && !p.Favorite && !p.Blocked).MinBy(p => p.LastSeenUtc) is Peer oldest)
+                next.Remove(oldest);
+            if (next.Count > 256)
+                throw new InvalidDataException("Up to 256 local device records are supported. Forget unused devices first.");
+            data.Peers = next;
         }
         Save();
     }

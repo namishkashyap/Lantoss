@@ -72,8 +72,20 @@ internal sealed class SpacesPage : IPage
                     storage = Format.Bytes(drive.AvailableFreeSpace) + " free on the host drive";
                 }
                 catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException) { }
+            Button choose = C.Small("Choose PCs…", async () =>
+            {
+                string[]? peers = await app.Dialogs.ChoosePeersAsync("Who can open " + space.Name, space.AllowedPeers);
+                if (peers == null)
+                    return;
+                app.Engine.Browser.Spaces.SetAllowed(space.Id, peers.Length == 0 ? null : peers);
+                Refresh();
+                app.Tell(peers.Length == 0 ? "Every paired PC can open this space." : "Only the chosen PCs can open this space.");
+            });
+            int allowed = space.AllowedPeers?.Length ?? 0;
+            TextBlock who = C.Text("Who can open: " + (allowed == 0 ? "All paired PCs" : allowed == 1 ? "1 PC" : allowed + " PCs"), 12, "Muted");
+            who.VerticalAlignment = VerticalAlignment.Center;
             StackPanel body = C.Stack(C.Heading(space.Name, C.Badge(status, space.Enabled && available ? "Success" : "Muted", space.Enabled && available ? "SuccessSoft" : "Background"), 17),
-                C.Space(C.Text("Host: " + app.Store.Preferences.DeviceName, 12, "Muted"), 6), C.Space(C.Text(space.Folder, 11, "Muted"), 8), C.Text(storage, 11, "Muted"), access, C.Wrap(open, reveal, toggle, remove));
+                C.Space(C.Text("Host: " + app.Store.Preferences.DeviceName, 12, "Muted"), 6), C.Space(C.Text(space.Folder, 11, "Muted"), 8), C.Text(storage, 11, "Muted"), access, C.Space(C.Inline(who, choose), 12), C.Wrap(open, reveal, toggle, remove));
             spaces.Children.Add(C.Space(C.Card(body), 16));
         }
     }

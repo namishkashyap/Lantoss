@@ -24,6 +24,10 @@ public sealed record Preferences
     }
     /// <summary>The phone page name, published as http://LocalName.local.</summary>
     public string LocalName { get; init; } = "share-wollvo";
+    /// <summary>A new computer or phone waits for approval on this PC; already paired PCs reconnect without asking.</summary>
+    public bool ApproveNewDevices { get; init; } = true;
+    /// <summary>The phone page is served over HTTPS with this PC's own certificate.</summary>
+    public bool BrowserHttps { get; init; } = true;
 }
 
 public sealed record Peer
@@ -87,7 +91,11 @@ public enum SpaceAccess
 {
     ReadOnly, ReadAndUpload
 }
-public sealed record SharedSpace(string Id, string Name, string Folder, SpaceAccess Access = SpaceAccess.ReadOnly, bool Enabled = true);
+/// <summary>AllowedPeers empty means every paired PC; otherwise only the listed device keys can open the space.</summary>
+public sealed record SharedSpace(string Id, string Name, string Folder, SpaceAccess Access = SpaceAccess.ReadOnly, bool Enabled = true, string[]? AllowedPeers = null)
+{
+    public bool Allows(string fingerprint) => AllowedPeers is not { Length: > 0 } || AllowedPeers.Contains(fingerprint, StringComparer.Ordinal);
+}
 public sealed record SpaceEntry(string Name, string Path, bool Directory, long Size);
 public sealed record RemoteSpace(string Id, string Name, bool CanUpload, bool Available);
 public sealed record SyncGrant(string Id, string PeerKey, string SpaceId);

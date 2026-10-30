@@ -109,8 +109,8 @@ internal sealed class HomePage : IPage
             }, icon: peer.Paired ? "send" : "pair");
             devices.Children.Add(C.Space(C.Card(Row(C.Person(peer.Name, null, peer.Online ? "On your network" : "Offline · open Lantoss on this PC", 40, peer.Online ? "Success" : "Muted"), action), 16), 8));
         }
-        foreach (BrowserDevice browser in app.Engine.Browser.Devices.Where(b => b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(3))
-            devices.Children.Add(C.Space(C.Card(Row(C.Person(browser.Label, browser.Picture, "Connected through the web · " + browser.Address, 40, "Success"), C.Button("Share with browser", () => app.Navigate("Phone & browser"), icon: "devices")), 16), 8));
+        foreach (BrowserDevice browser in app.Engine.Browser.Devices.Where(b => b.Approved && b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(3))
+            devices.Children.Add(C.Space(C.Card(Row(C.Person(browser.Label, browser.Picture, "Connected through the web · " + browser.Address, 40, "Success"), C.Button("Send files", () => app.Navigate("Send"), icon: "send")), 16), 8));
         double speed = app.Engine.Transfers.Records.Where(r => !r.Terminal).Sum(r => r.BytesPerSecond);
         status.Text = speed > 0 ? $"{speed / 1048576:0.0} MB/s transferring" : "";
         status.Visibility = speed > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -164,6 +164,26 @@ internal sealed class SendPage : IPage
         }
         recipient.Children.Clear();
         recipient.Children.Add(C.Heading("Send to"));
+        // Approved phones and browsers are recipients too: the files appear only on that phone's page.
+        BrowserDevice[] phones = app.Engine.Browser.Running ? app.Engine.Browser.Devices.Where(device => device.Approved).ToArray() : [];
+        if (phones.Length > 0)
+            recipient.Children.Add(C.Space(C.Text("Phones and browsers", 12, bold: true), 10));
+        foreach (BrowserDevice device in phones)
+        {
+            Button toPhone = C.Small("Send", () => SendToPhone(device));
+            toPhone.IsEnabled = app.Selection.Count > 0;
+            toPhone.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel line = new()
+            {
+                Margin = new(0, 0, 0, 10)
+            };
+            DockPanel.SetDock(toPhone, Dock.Right);
+            line.Children.Add(toPhone);
+            line.Children.Add(C.Person(device.Label, device.Picture, "Phone / browser · " + device.Address, 34, "Success"));
+            recipient.Children.Add(line);
+        }
+        if (phones.Length > 0)
+            recipient.Children.Add(C.Space(C.Text("Computers", 12, bold: true), 8, 10));
         Peer[] paired = app.Engine.Peers.Where(p => p.Paired && !p.Blocked).ToArray();
         if (paired.Length == 0)
         {
@@ -187,5 +207,15 @@ internal sealed class SendPage : IPage
         send.HorizontalAlignment = HorizontalAlignment.Stretch;
         recipient.Children.Add(send);
         recipient.Children.Add(C.Space(C.Text("Duplicate handling is chosen by the recipient. Existing files are never silently overwritten.", 11, "Muted"), 0, 18));
+    }
+    private async void SendToPhone(BrowserDevice device)
+    {
+        try
+        {
+            string[] paths = app.Selection.Select(item => item.Path).ToArray();
+            await Task.Run(() => app.Engine.Browser.ShareAsync(paths, default, device.Handle));
+            app.Tell("Sent to " + device.Label + ". The files appear on that phone's page under Get files from your PC.");
+        }
+        catch (Exception error) { app.Error(error); }
     }
 }

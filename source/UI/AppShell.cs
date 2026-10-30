@@ -101,7 +101,8 @@ internal sealed class AppShell : IDisposable
         Engine.Sync.Changed += () => Ui(() => { if (CurrentPage == "Sync") page?.Refresh(); });
         Engine.Status += message => Ui(() => Tell(message));
         Engine.PeersChanged += () => Ui(() => { RefreshExplorerMenu(); if (CurrentPage is "Home" or "Devices" or "Send" or "Shared Spaces") page?.Refresh(); });
-        Engine.Browser.Changed += () => Ui(() => { if (CurrentPage is "Phone & browser" or "Shared Spaces" or "Devices" or "Home") page?.Refresh(); if (!preview && Engine.Running) _ = Firewall.EnsureAsync(); });
+        Engine.Browser.Changed += () => Ui(() => { if (CurrentPage is "Phone & browser" or "Shared Spaces" or "Devices" or "Home") page?.Refresh(); if (CurrentPage is "Send") page?.Refresh(); if (!preview && Engine.Running) _ = Firewall.EnsureAsync(); });
+        Engine.Browser.ApprovalRequested += device => Ui(() => NotifyWaiting(device));
         Engine.Transfers.Changed += record => Ui(() => { if (CurrentPage is "Home" or "Transfers" or "History") page?.Refresh(); });
         Engine.Transfers.PersistenceFailed += _ => Ui(() => Tell("History could not be saved. Check free space and permissions in the app's local metadata folder."));
         Engine.Completed += record => Ui(() =>
@@ -350,6 +351,15 @@ internal sealed class AppShell : IDisposable
         catch (Exception error) when (error is IOException or System.Net.Sockets.SocketException or InvalidOperationException) { Tell("Waiting for home-network access. " + TransferEngine.HumanError(error)); }
     }
     /// <summary>Raised as soon as a PC or browser asks to send, before the approval window, so a hidden or minimized app is noticed.</summary>
+    private void NotifyWaiting(BrowserDevice device)
+    {
+        if (notifications == null || !Store.Preferences.Notifications)
+            return;
+        notifications.BalloonTipTitle = device.Label + " wants to connect";
+        notifications.BalloonTipText = device.Address + ". Open Lantoss and choose Allow in Phone & browser or Devices.";
+        notifications.BalloonTipIcon = Forms.ToolTipIcon.Info;
+        notifications.ShowBalloonTip(10000);
+    }
     private void NotifyIncoming(ReceiveRequest request)
     {
         if (notifications == null || !Store.Preferences.Notifications)

@@ -37,7 +37,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...options, headers: { 'X-Lantoss-CSRF': csrf, ...options.headers } });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (response.status === 401 && path !== '/api/session' && path !== '/api/login') { $('sharing').hidden = true; void connect(); }
+    if ((response.status === 401 || (response.status === 403 && body.waiting)) && path !== '/api/session' && path !== '/api/login') { $('sharing').hidden = true; void connect(); }
     throw new Error(body.error || (response.status === 429 ? 'Too many requests. Wait one minute and try again.' : 'This request could not finish. Check Lantoss on your PC.'));
   }
   return body;
@@ -68,15 +68,24 @@ $('profile-form').addEventListener('submit', async event => {
   catch (error) { notice(error.message, true); }
   finally { $('profile-save').disabled = false; }
 });
+let waitTimer = 0, knownPersonal = new Set();
 async function connect() {
   try {
     const session = await request('/api/session');
     $('device').textContent = session.name;
-    $('login').hidden = session.connected;
+    $('login').hidden = session.connected || session.waiting || !session.requiresCode;
+    $('waiting').hidden = !session.waiting;
     $('sharing').hidden = !session.connected;
+    $('security').textContent = session.encrypted ? 'Encrypted (HTTPS)' + (session.certificate ? ' · certificate ' + session.certificate : '') : 'Not encrypted · use only on trusted Wi-Fi';
+    if (session.waiting) {
+      csrf = session.csrf; $('waiting-host').textContent = session.name;
+      if (profile.name || profile.picture) { try { await sendProfile(); } catch { } }
+      clearTimeout(waitTimer); waitTimer = setTimeout(() => void connect(), 3000);
+      return;
+    }
     if (session.connected) {
       csrf = session.csrf;
-      $('connection-label').textContent = session.requiresCode ? 'Connected · code protection on' : 'Connected · no code needed';
+      $('connection-label').textContent = (session.encrypted ? 'Encrypted · ' : 'Not encrypted · ') + (session.requiresCode ? 'code protection on' : 'allowed by the PC');
       $('host-picture').hidden = !session.hasPicture;
       if (session.hasPicture) $('host-picture').src = '/api/picture?' + Date.now();
       showProfile();
@@ -99,6 +108,9 @@ $('login-form').addEventListener('submit', async event => {
 });
 async function refreshFiles() {
   const files = await request('/api/files');
+  const fresh = files.filter(file => file.personal && !knownPersonal.has(file.id));
+  if (fresh.length) notice(`${$('device').textContent} sent you ${fresh.length} ${fresh.length === 1 ? 'file' : 'files'}. Find ${fresh.length === 1 ? 'it' : 'them'} under Get files from your PC.`);
+  for (const file of fresh) knownPersonal.add(file.id);
   $('downloads').replaceChildren();
   if (!files.length) {
     const empty = document.createElement('div'); empty.className = 'empty';
@@ -109,7 +121,7 @@ async function refreshFiles() {
     const row = document.createElement('div'); row.className = 'file-row';
     const details = document.createElement('div');
     const name = document.createElement('div'); name.className = 'file-name'; name.textContent = file.name;
-    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = bytes(file.size);
+    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = bytes(file.size) + (file.personal ? ' · sent to you' : '');
     details.append(name, meta);
     const download = document.createElement('a'); download.className = 'download'; download.href = '/api/download/' + encodeURIComponent(file.id); download.textContent = 'Download ↓';
     row.append(details, download); $('downloads').append(row);
@@ -199,6 +211,8 @@ $('note-form').addEventListener('submit', async event => {
   } catch (error) { notice(error.message, true); }
   finally { $('note-send').disabled = false; }
 });
+async function pollFiles() { try { if (!$('sharing').hidden && !document.hidden && !busy) await refreshFiles(); } catch { } finally { setTimeout(pollFiles, 8000); } }
+setTimeout(pollFiles, 8000);
 async function pollNotes() { try { if (!$('sharing').hidden && !document.hidden) await refreshNotes(); } catch { } finally { setTimeout(pollNotes, 5000); } }
 setTimeout(pollNotes, 5000);
 async function refreshBrowserDevices() {

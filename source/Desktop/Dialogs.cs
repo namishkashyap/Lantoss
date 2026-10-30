@@ -57,6 +57,34 @@ internal sealed class Dialogs(Shell app)
         window.Content = Body(C.Stack(C.Text(label, 17, bold: true), input, C.Inline(C.Button("Cancel", () => window.Close(null)), C.Button("Save", () => window.Close(input.Text ?? ""), true))));
         return await ShowAsync<string?>(window);
     }
+    /// <summary>Returns the chosen device keys, an empty array for every paired PC, or null when cancelled.</summary>
+    public async Task<string[]?> ChoosePeersAsync(string title, string[]? current)
+    {
+        Window window = Create(title, 480);
+        Peer[] peers = app.Store.Peers.Where(p => p.Paired && !p.Blocked).ToArray();
+        CheckBox all = new()
+        {
+            Content = "All paired PCs",
+            IsChecked = current is not { Length: > 0 },
+            Margin = new(0, 3, 0, 10)
+        };
+        CheckBox[] boxes = peers.Select(p => new CheckBox { Content = p.Name + " · " + Format.ShortKey(p.Fingerprint), IsChecked = current?.Contains(p.Fingerprint) == true, Tag = p.Fingerprint, Margin = new(18, 3, 0, 3) }).ToArray();
+        Button save = C.Button("Save", () => window.Close(all.IsChecked == true ? Array.Empty<string>() : boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Tag!).ToArray()), true);
+        void Update()
+        {
+            foreach (CheckBox box in boxes)
+                box.IsEnabled = all.IsChecked != true;
+            save.IsEnabled = all.IsChecked == true || boxes.Any(b => b.IsChecked == true);
+        }
+        all.IsCheckedChanged += (_, _) => Update();
+        foreach (CheckBox box in boxes)
+            box.IsCheckedChanged += (_, _) => Update();
+        Update();
+        StackPanel list = C.Stack(boxes);
+        window.Content = Body(C.Stack(C.Space(C.Text(title, 20, bold: true), 8), C.Space(C.Text("Only the chosen paired PCs can open this space. Phones and browsers are not affected.", 12, "Muted"), 14), all,
+            C.Space<Control>(peers.Length == 0 ? C.Text("No paired PCs yet. Pair a computer in Devices first.", 12, "Muted") : list, 20), C.Inline(C.Button("Cancel", () => window.Close(null)), save)));
+        return await ShowAsync<string[]?>(window);
+    }
     public void Pair(Peer? candidate = null)
     {
         if (pairingWindow is { IsVisible: true })
@@ -191,7 +219,8 @@ internal sealed class Dialogs(Shell app)
                 window.Content = Body(C.Stack(C.Space(C.Text("Connect to " + request.Name + "?", 23, bold: true), 12),
                     C.Text("Compare this code with the other device's screen. Approve only if you expected this connection and the codes match exactly.", 13, "Muted"), comparison,
                     C.Space(C.Note("Both devices must approve", "This step verifies the public keys, rather than trusting a device name or IP address."), 20),
-                    C.Space(C.Text("Peer public key: " + Format.ShortKey(request.Fingerprint), 11, "Muted"), 22),
+                    C.Space(C.Text("Peer public key: " + Format.ShortKey(request.Fingerprint), 11, "Muted"), app.Store.NameInUse(request.Name, request.Fingerprint) ? 8 : 22),
+                    app.Store.NameInUse(request.Name, request.Fingerprint) ? C.Space(C.Text("Another saved device uses this name. Check the key.", 12, "Danger", true), 22) : new Control(),
                     C.Inline(C.Button("Decline", () => window.Close(false)), C.Button("Codes match — approve", () => window.Close(true), true))));
                 using CancellationTokenRegistration cancel = token.Register(() => Dispatcher.UIThread.Post(() => window.Close(false)));
                 return await ShowAsync<bool?>(window) == true && !token.IsCancellationRequested;
@@ -251,11 +280,18 @@ internal sealed class Dialogs(Shell app)
                 if (request.Manifest.Entries.Count > 8)
                     names.Children.Add(C.Text("+ " + (request.Manifest.Entries.Count - 8) + " more items", 11, "Muted"));
                 string sender = (request.Browser ? "Web browser" : "Computer") + (request.Address.Length > 0 ? " · " + request.Address : "") + " · asked at " + DateTime.Now.ToString("HH:mm");
-                window.Content = Body(C.Stack(C.Space(C.Text("Incoming files", 23, bold: true), 14), C.Space(C.Card(C.Person(request.PeerName, request.Picture, sender, 48), 16), 14),
+                StackPanel warnings = C.Stack();
+                if (!request.Browser)
+                    warnings.Children.Add(C.Space(C.Text("Key " + Format.ShortKey(request.Fingerprint), 11, "Muted"), 8));
+                if (!request.Browser && app.Store.NameInUse(request.PeerName, request.Fingerprint))
+                    warnings.Children.Add(C.Space(C.Text("Another saved device uses this name. Check the key.", 12, "Danger", true), 8));
+                if (FileCatalog.Risky(request.Manifest))
+                    warnings.Children.Add(C.Space(C.Text("Contains programs, scripts or shortcuts. Open them only if you trust the sender.", 12, "Danger", true), 8));
+                window.Content = Body(C.Stack(C.Space(C.Text("Incoming files", 23, bold: true), 14), C.Space(C.Card(C.Person(request.PeerName, request.Picture, sender, 48), 16), warnings.Children.Count > 0 ? 8 : 14), C.Space(warnings, warnings.Children.Count > 0 ? 8 : 0),
                     C.Space(C.Text($"{request.Manifest.FileCount} files · {request.Manifest.FolderCount} folders · {Format.Bytes(request.Manifest.TotalBytes)}", 13, "Muted"), 18), C.Space(C.Card(names), 18),
-                    C.Space(C.Badge(request.Browser ? "Phone/browser · local HTTP" : request.KeyVerified ? "Paired device · public key verified" : "Connected device · saved public key", "Success", "SuccessSoft"), 16),
+                    C.Space(C.Badge(request.Browser ? "Phone/browser · " + (app.Engine.Browser.Https ? "HTTPS" : "local HTTP") : request.KeyVerified ? "Paired device · public key verified" : "Connected device · saved public key", "Success", "SuccessSoft"), 16),
                     C.Text("SAVE TO", 10, "Muted", true), C.Space(location, 10, 7), C.Space(choose, 10), C.Space(free, 18), C.Text("IF FILES ALREADY EXIST", 10, "Muted", true), duplicates,
-                    C.Space(C.Text(request.FixedFolder ? "Files are saved into this shared folder and become visible to its connected devices. Existing files are kept." : request.Browser ? "Browser uploads keep both copies. Files are saved atomically and never opened or shared automatically. Local HTTP is not encrypted." : "Files are checksum-verified before saving. Received files are never opened or shared automatically.", 11, "Muted"), 20),
+                    C.Space(C.Text(request.FixedFolder ? "Files are saved into this shared folder and become visible to its connected devices. Existing files are kept." : request.Browser ? "Browser uploads keep both copies. Files are saved atomically and never opened or shared automatically." + (app.Engine.Browser.Https ? "" : " Local HTTP is not encrypted.") : "Files are checksum-verified before saving. Received files are never opened or shared automatically.", 11, "Muted"), 20),
                     C.Inline(C.Button("Decline", () => window.Close(false)), accept)));
                 CheckSpace();
                 using CancellationTokenRegistration cancel = token.Register(() => Dispatcher.UIThread.Post(() => window.Close(false)));

@@ -177,7 +177,8 @@ internal sealed class Dialogs(AppShell app)
                 comparison.Margin = new(0, 22, 0, 22);
                 Button decline = C.Button("Decline", window.Close), confirm = C.Button("Codes match — approve", () => { accepted = true; window.Close(); }, true);
                 confirm.Margin = new(10, 0, 0, 0);
-                StackPanel body = C.Stack(C.Space(C.Text("Connect to " + request.Name + "?", 23, bold: true), 12), C.Text("Compare this code with the other PC’s screen. Approve only if you expected this connection and the codes match exactly. You do not need to type it.", 13, "Muted"), comparison,
+                TextBlock lookalike = C.Text(app.Store.NameInUse(request.Name, request.Fingerprint) ? "Another saved device already uses this name. Approve only if the codes match." : "", 12, "Danger", true);
+                StackPanel body = C.Stack(C.Space(C.Text("Connect to " + request.Name + "?", 23, bold: true), 12), lookalike, C.Text("Compare this code with the other PC’s screen. Approve only if you expected this connection and the codes match exactly. You do not need to type it.", 13, "Muted"), comparison,
                     C.Space(C.Note("Both PCs must approve", "This step verifies the public keys, rather than trusting a device name or IP address."), 20), C.Space(C.Text("Peer public key: " + Format.ShortKey(request.Fingerprint), 11, "Muted"), 22), C.Inline(decline, confirm));
                 body.Margin = new(28);
                 window.Content = body;
@@ -234,10 +235,16 @@ internal sealed class Dialogs(AppShell app)
                     names.Children.Add(C.Text("+ " + (request.Manifest.Entries.Count - 8) + " more items", 11, "Muted"));
                 Button decline = C.Button("Decline", window.Close);
                 accept.Margin = new(10, 0, 0, 0);
-                string sender = (request.Browser ? "Web browser" : "Windows PC") + (request.Address.Length > 0 ? " · " + request.Address : "") + " · asked at " + DateTime.Now.ToString("HH:mm");
+                string sender = (request.Browser ? "Web browser" : "PC · key " + Format.ShortKey(request.Fingerprint)) + (request.Address.Length > 0 ? " · " + request.Address : "") + " · asked at " + DateTime.Now.ToString("HH:mm");
+                // Warnings appear for programs and scripts, and for a PC whose name matches another saved device.
+                StackPanel warnings = C.Stack();
+                if (FileCatalog.Risky(request.Manifest))
+                    warnings.Children.Add(C.Space(C.Text("Contains programs, scripts or shortcuts. Open them only if you trust the sender. Shortcut files are saved with .txt added.", 12, "Danger", true), 10));
+                if (!request.Browser && app.Store.NameInUse(request.PeerName, request.Fingerprint))
+                    warnings.Children.Add(C.Space(C.Text("Another saved device uses this name. Check the key before accepting.", 12, "Danger", true), 10));
                 StackPanel body = C.Stack(C.Space(C.Text("Incoming files", 23, bold: true), 14), C.Space(C.Card(C.Person(request.PeerName, request.Picture, sender, 48), 16), 14),
-                    C.Space(C.Text($"{request.Manifest.FileCount} files · {request.Manifest.FolderCount} folders · {Format.Bytes(request.Manifest.TotalBytes)}", 13, "Muted"), 18), C.Space(C.Card(names), 18),
-                    C.Space(C.Badge(request.Browser ? "Phone/browser · local HTTP" : request.KeyVerified ? "Paired device · public key verified" : "Connected PC · saved public key", "Success", "SuccessSoft"), 16), C.Space(C.Text("SAVE TO", 10, "Muted", true), 7), C.Space(location, 10), C.Space(choose, 10), C.Space(free, 18), C.Text("IF FILES ALREADY EXIST", 10, "Muted", true), duplicates,
+                    C.Space(C.Text($"{request.Manifest.FileCount} files · {request.Manifest.FolderCount} folders · {Format.Bytes(request.Manifest.TotalBytes)}", 13, "Muted"), 18), warnings, C.Space(C.Card(names), 18),
+                    C.Space(C.Badge(request.Browser ? "Phone/browser · approved on this PC" : request.KeyVerified ? "Paired device · public key verified" : "Connected PC · saved public key", "Success", "SuccessSoft"), 16), C.Space(C.Text("SAVE TO", 10, "Muted", true), 7), C.Space(location, 10), C.Space(choose, 10), C.Space(free, 18), C.Text("IF FILES ALREADY EXIST", 10, "Muted", true), duplicates,
                     C.Space(C.Text(request.FixedFolder ? "Files are saved into this shared folder and become visible to its connected devices. Existing files are kept. Browser transfers use HTTP; native PC transfers use TLS." : request.Browser ? "Browser uploads keep both copies. Files are saved atomically and never opened or shared automatically. Local HTTP is not encrypted." : "Files are checksum-verified before saving. Received files are never opened or shared automatically.", 11, "Muted"), 20), C.Inline(decline, accept));
                 body.Margin = new(28);
                 window.Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };

@@ -11,7 +11,8 @@ public sealed class DesktopInstance : IDisposable
 {
     public const int MaxMessageBytes = 98304;
     public static string Key(string dataRoot) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(dataRoot).ToUpperInvariant())))[..20];
-    public static string PipeName(string dataRoot) => "Lantoss-" + Key(dataRoot);
+    // The Windows session ID keeps another signed-in user from pre-creating this name and blocking the hand-off.
+    public static string PipeName(string dataRoot) => "Lantoss-" + System.Diagnostics.Process.GetCurrentProcess().SessionId + "-" + Key(dataRoot);
     private readonly CancellationTokenSource stopped = new();
     private readonly string name;
     private readonly Action<LaunchRequest> receive;
@@ -31,6 +32,7 @@ public sealed class DesktopInstance : IDisposable
     }
     private async Task ListenAsync()
     {
+        int failures = 0;
         while (!stopped.IsCancellationRequested)
         {
             try
@@ -53,9 +55,13 @@ public sealed class DesktopInstance : IDisposable
             }
             catch (Exception error) when (error is IOException or OperationCanceledException or JsonException or InvalidDataException or UnauthorizedAccessException)
             {
+                // A squatted or failing pipe backs off instead of spinning.
+                failures = error is UnauthorizedAccessException or IOException ? Math.Min(failures + 1, 50) : 0;
                 if (!stopped.IsCancellationRequested)
-                    await Task.Delay(100);
+                    await Task.Delay(100 * Math.Max(1, failures));
+                continue;
             }
+            failures = 0;
         }
     }
     public static async Task ForwardAsync(string dataRoot, LaunchRequest request, CancellationToken token = default)

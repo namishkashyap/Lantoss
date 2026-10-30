@@ -170,10 +170,10 @@ public sealed class TransferRegistry
         {
             // Direction is included so a loopback test cannot collide with its sender record.
             string key = record.Id + record.Direction;
-            if (jobs.ContainsKey(key))
+            if (jobs.TryGetValue(key, out TransferJob? active) && !active.Snapshot.Terminal)
                 throw new InvalidDataException("This transfer is already active.");
             TransferJob job = new(record);
-            jobs.Add(key, job);
+            jobs[key] = job;
             history[key] = record;
             job.Changed += OnChanged;
             Save();
@@ -186,6 +186,12 @@ public sealed class TransferRegistry
         lock (gate)
         {
             history[record.Id + record.Direction] = record;
+            // Finished jobs leave memory; only the bounded history keeps their record.
+            if (record.Terminal)
+                jobs.Remove(record.Id + record.Direction);
+            if (history.Count > 400)
+                foreach (string old in history.Where(p => p.Value.Terminal).OrderBy(p => p.Value.CreatedUtc).Take(history.Count - 300).Select(p => p.Key).ToArray())
+                    history.Remove(old);
             if (record.Terminal || DateTime.UtcNow - lastSave >= TimeSpan.FromSeconds(2))
                 Save();
         }

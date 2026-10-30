@@ -39,6 +39,7 @@ public static class SyncFiles
         Directory.CreateDirectory(path);
     }
     // Existing copies are retained by File.Replace so an edit is recoverable.
+    public const int KeptVersions = 5;
     public static async Task CommitAsync(string temporary, string root, string relative, string expectedHash, CancellationToken token)
     {
         string target = PathIn(root, relative);
@@ -52,7 +53,14 @@ public static class SyncFiles
             string versions = Path.Combine(root, ".flowshare-versions", Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(relative.ToUpperInvariant())))[..24]);
             FileCatalog.CheckSafeDirectory(versions);
             Directory.CreateDirectory(versions);
-            File.Replace(temporary, target, Path.Combine(versions, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N") + ".bak"));
+            File.Replace(temporary, target, Path.Combine(versions, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N") + ".bak"));
+            // The newest five versions are kept, so repeated rewrites cannot fill the disk.
+            foreach (string old in Directory.EnumerateFiles(versions, "*.bak").Order(StringComparer.Ordinal).SkipLast(KeptVersions))
+                try
+                {
+                    File.Delete(old);
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
         }
         else
             File.Move(temporary, target, false);

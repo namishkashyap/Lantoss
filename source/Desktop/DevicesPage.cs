@@ -22,8 +22,8 @@ internal sealed class DevicesPage : IPage
             app.Engine.RefreshDiscovery();
             Refresh();
         }
-        View = C.Stack(C.Space(C.Text("Your devices, connected automatically.", 26, bold: true), 9),
-            C.Space(C.Text("Open Lantoss on your other computers. Discovery uses mDNS and LAN broadcast, and direct connections are automatic unless code protection is enabled.", 13, "Muted"), 22),
+        View = C.Stack(C.Space(C.Text("Your devices, approved once.", 26, bold: true), 9),
+            C.Space(C.Text("Open Lantoss on your other computers. Discovery uses mDNS and LAN broadcast, and a new device is approved once on both screens. Paired devices reconnect automatically.", 13, "Muted"), 22),
             C.Space(C.Wrap(C.Button("Find nearby devices", Scan, true, "sync"), C.AsyncButton("Manual connection…", () => app.Dialogs.PairManuallyAsync(), icon: "pair"), C.AsyncButton("Connection diagnostics", app.Dialogs.DiagnosticsAsync)), 10),
             C.Space(status, 22), list,
             C.Space(C.Note("Using your phone?", "Open Phone & browser in the sidebar and scan its QR code. Phones use the browser page, so no app is needed.", "phone"), 0, 20));
@@ -69,13 +69,25 @@ internal sealed class DevicesPage : IPage
         list.Children.Add(C.Space(C.Heading("Connected through the web", C.Badge(browsers.Length + " active", browsers.Length > 0 ? "Success" : "Muted", browsers.Length > 0 ? "SuccessSoft" : "Background")), 12, 14));
         if (browsers.Length == 0)
             list.Children.Add(C.Space(C.Text("No phone or browser is connected. Open Phone & browser to share the page link or QR code.", 12, "Muted"), 14));
-        foreach (BrowserDevice browser in browsers)
+        foreach (BrowserDevice browser in browsers.Where(b => !b.Approved))
+            list.Children.Add(C.Space(Waiting(app, browser), 14));
+        foreach (BrowserDevice browser in browsers.Where(b => b.Approved))
         {
             string seen = DateTime.UtcNow - browser.LastSeenUtc < TimeSpan.FromMinutes(1) ? "active now" : "active " + browser.LastSeenUtc.ToLocalTime().ToString("HH:mm");
             Button disconnect = C.Small("Disconnect", async () => { if (await app.Dialogs.ConfirmAsync("Disconnect browser", "Disconnect " + browser.Label + "? Its pending uploads stop and the page must connect again.", "Disconnect")) app.Engine.Browser.Disconnect(browser.Handle); });
-            disconnect.HorizontalAlignment = HorizontalAlignment.Left;
             list.Children.Add(C.Space(C.Card(C.Stack(C.Space(C.Person(browser.Label, browser.Picture, browser.Address + " · connected " + browser.ConnectedUtc.ToLocalTime().ToString("HH:mm") + " · " + seen, 44), 12),
-                C.Space(C.Text(browser.Name.Length > 0 ? "Name and picture are chosen on that device." : "This browser has not set a name yet.", 11, "Muted"), 12), disconnect)), 14));
+                C.Space(C.Text(browser.Name.Length > 0 ? "Name and picture are chosen on that device." : "This browser has not set a name yet.", 11, "Muted"), 12), C.Inline(disconnect, BlockButton(app, browser)))), 14));
         }
+        string[] blocked = app.Engine.Browser.BlockedAddresses;
+        if (blocked.Length == 0)
+            return;
+        StackPanel addresses = C.Stack(C.Space(C.Text("Blocked addresses", 13, bold: true), 4), C.Space(C.Text("Browsers from these addresses are refused until Lantoss restarts.", 11, "Muted"), 10));
+        foreach (string address in blocked)
+            addresses.Children.Add(C.Space(C.Heading(address, C.Small("Unblock", () => app.Engine.Browser.Unblock(address)), 12), 6));
+        list.Children.Add(C.Space(C.Card(addresses, 18), 14));
     }
+    /// <summary>A browser waiting for Allow, shared with the Phone page.</summary>
+    public static Border Waiting(Shell app, BrowserDevice browser) => C.Card(C.Stack(C.Space(C.Person(browser.Label, browser.Picture, browser.Address + " · asked " + browser.ConnectedUtc.ToLocalTime().ToString("HH:mm"), 44), 10),
+        C.Space(C.Badge("Waiting for Allow"), 12), C.Inline(C.Small("Allow", () => app.Engine.Browser.Approve(browser.Handle)), BlockButton(app, browser))));
+    private static Button BlockButton(Shell app, BrowserDevice browser) => C.Small("Block", async () => { if (await app.Dialogs.ConfirmAsync("Block browser", "Block " + browser.Label + "? It is disconnected and its address " + browser.Address + " is refused until Lantoss restarts.", "Block")) app.Engine.Browser.Block(browser.Handle); });
 }

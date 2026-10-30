@@ -7,6 +7,10 @@ namespace Lantoss.Desktop;
 
 internal sealed class App : Application
 {
+    internal static FileStream? Instance
+    {
+        get; private set;
+    }
     public override void Initialize() => Styles.Add(new FluentTheme());
     public override void OnFrameworkInitializationCompleted()
     {
@@ -19,6 +23,13 @@ internal sealed class App : Application
             {
                 string data = Option("--data-dir", preview ? Path.Combine(Environment.CurrentDirectory, "work", "lantoss", "desktop-preview") : AppDataPaths.DefaultRoot(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
                 Directory.CreateDirectory(data);
+                // One copy per data folder: two would overwrite each other's stores and compete for the ports.
+                if (!preview)
+                    try
+                    {
+                        Instance = new FileStream(Path.Combine(data, ".lantoss.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                    }
+                    catch (IOException) { throw new IOException("Lantoss is already running. Use its open window or tray icon."); }
                 MetadataStore store = new(data);
                 Identity identity;
                 if (preview)

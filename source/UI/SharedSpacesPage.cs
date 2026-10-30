@@ -71,9 +71,53 @@ internal sealed class SharedSpacesPage : IPage
                 catch (IOException) { }
             }
             StackPanel body = C.Stack(C.Heading(space.Name, C.Badge(status, space.Enabled && available ? "Success" : "Muted", space.Enabled && available ? "SuccessSoft" : "Background"), 17),
-                C.Space(C.Text("Host: " + app.Store.Preferences.DeviceName, 12, "Muted"), 6), C.Space(C.Text(space.Folder, 11, "Muted"), 8), C.Text(storage, 11, "Muted"), access, C.Inline(open, reveal, toggle, remove));
+                C.Space(C.Text("Host: " + app.Store.Preferences.DeviceName, 12, "Muted"), 6), C.Space(C.Text(space.Folder, 11, "Muted"), 8), C.Text(storage, 11, "Muted"), access, C.Space(Audience(space), 15), C.Inline(open, reveal, toggle, remove));
             spaces.Children.Add(C.Space(C.Card(body), 16));
         }
+    }
+    /// <summary>Who can open the space: every paired PC, or only the ticked ones. Phones need Allow on this PC first.</summary>
+    private Expander Audience(SharedSpace space)
+    {
+        Peer[] paired = app.Store.Peers.Where(peer => peer.Paired && !peer.Blocked).OrderBy(peer => peer.Name).ToArray();
+        CheckBox everyone = new()
+        {
+            Content = "All paired PCs",
+            IsChecked = space.AllowedPeers is not { Length: > 0 },
+            Margin = new(0, 8, 0, 6)
+        };
+        CheckBox[] choices = paired.Select(peer => new CheckBox { Content = peer.Name + " · " + Format.ShortKey(peer.Fingerprint), Tag = peer.Fingerprint, IsChecked = space.AllowedPeers?.Contains(peer.Fingerprint) == true, IsEnabled = space.AllowedPeers is { Length: > 0 }, Margin = new(18, 0, 0, 6) }).ToArray();
+        void Save()
+        {
+            foreach (CheckBox choice in choices)
+                choice.IsEnabled = everyone.IsChecked != true;
+            string[] keys = everyone.IsChecked == true ? [] : choices.Where(choice => choice.IsChecked == true).Select(choice => (string)choice.Tag).ToArray();
+            if (everyone.IsChecked != true && keys.Length == 0)
+            {
+                app.Tell("Tick at least one PC, or choose All paired PCs.");
+                return;
+            }
+            try
+            {
+                app.Engine.Browser.Spaces.SetAllowed(space.Id, keys);
+                app.Tell("Space access updated. PCs that are no longer allowed lose access now.");
+            }
+            catch (Exception error) { app.Error(error); }
+        }
+        everyone.Click += (_, _) => Save();
+        foreach (CheckBox choice in choices)
+            choice.Click += (_, _) => Save();
+        StackPanel list = C.Stack(everyone);
+        foreach (CheckBox choice in choices)
+            list.Children.Add(choice);
+        if (paired.Length == 0)
+            list.Children.Add(C.Text("No paired PCs yet.", 11, "Muted"));
+        Expander expander = new()
+        {
+            Header = "Who can open · " + (space.AllowedPeers is { Length: > 0 } chosen ? chosen.Length + (chosen.Length == 1 ? " PC" : " PCs") : "All paired PCs"),
+            Content = list
+        };
+        expander.SetResourceReference(Control.ForegroundProperty, "Text");
+        return expander;
     }
     private void RefreshActivity()
     {

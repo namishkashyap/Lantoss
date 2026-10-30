@@ -98,6 +98,7 @@ internal sealed class Shell : IDisposable
         Engine.Status += message => Ui(() => Tell(message));
         Engine.PeersChanged += () => Ui(() => { if (CurrentPage is "Home" or "Devices" or "Send" or "Shared Spaces" or "Text & links") page?.Refresh(); });
         Engine.Browser.Changed += () => Ui(() => { if (CurrentPage is "Phone & browser" or "Shared Spaces" or "Devices" or "Home") page?.Refresh(); });
+        Engine.Browser.ApprovalRequested += device => Ui(() => { string text = device.Label + " wants to connect. Open Lantoss to allow it."; Tell(text); if (Store.Preferences.Notifications) Notify("New phone or browser", text); });
         Engine.Transfers.Changed += _ => Ui(() => { if (CurrentPage is "Home" or "Transfers" or "History") page?.Refresh(); });
         Engine.Transfers.PersistenceFailed += _ => Ui(() => Tell("History could not be saved. Check free space and permissions in the app's data folder."));
         Engine.Completed += record => Ui(() =>

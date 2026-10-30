@@ -26,7 +26,7 @@ internal sealed class NotesPage : IPage
             if (target.SelectedItem is Destination { Peer: { } peer })
                 await app.Engine.SendNoteAsync(peer, content);
             else
-                app.Engine.Browser.Notes.Add(content, "This PC");
+                app.Engine.Browser.Notes.Add(content, "This PC", local: true);
             if (draft.Text.Trim() == content)
                 draft.Clear();
             Refresh();
@@ -58,7 +58,7 @@ internal sealed class NotesPage : IPage
             StackPanel actions = C.Inline(copy, remove);
             if (note.Kind == "link")
             {
-                Button open = C.Small("Open link", () => Process.Start(new ProcessStartInfo(note.Content) { UseShellExecute = true }));
+                Button open = C.Small("Open link", () => { if (SharedNote.Link(note.Content) is Uri link && MessageBox.Show(app.Window, SharedNote.OpenPrompt(link, note.Sender), "Open link", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) Process.Start(new ProcessStartInfo(link.AbsoluteUri) { UseShellExecute = true })?.Dispose(); });
                 open.Margin = new(8, 0, 0, 0);
                 actions.Children.Add(open);
             }

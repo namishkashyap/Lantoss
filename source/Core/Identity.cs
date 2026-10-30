@@ -77,7 +77,9 @@ public sealed class Identity : IDisposable
         byte[] pfx = ephemeral.Certificate.Export(X509ContentType.Pkcs12, "");
         try
         {
-            using (FileStream file = new(path + ".tmp", new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }))
+            // CreateNew after deleting a leftover: UnixCreateMode only applies to a newly created file.
+            File.Delete(path + ".tmp");
+            using (FileStream file = new(path + ".tmp", new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }))
                 file.Write(pfx);
             File.Move(path + ".tmp", path, true);
             X509Certificate2 persistent = X509CertificateLoader.LoadPkcs12(pfx, "", flags);
@@ -111,6 +113,16 @@ public sealed class Identity : IDisposable
         string hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("FlowShare pairing v1\n" + keys[0] + "\n" + keys[1] + "\n" + nonce)));
         return $"{hash[..4]} {hash[4..8]} {hash[8..12]}";
     }
+    /// <summary>Pairing v2: the client commits to its nonce before the server picks one, so an attacker in the middle gets a single 1-in-2^48 guess instead of an offline search.</summary>
+    public static string Comparison(string first, string second, string clientNonce, string serverNonce)
+    {
+        string[] keys = [first, second];
+        Array.Sort(keys, StringComparer.Ordinal);
+        string hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join((char)10, "Lantoss pairing v2", keys[0], keys[1], clientNonce, serverNonce))));
+        return $"{hash[..4]} {hash[4..8]} {hash[8..12]}";
+    }
+    public static string Commit(string nonce) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join((char)10, "Lantoss pairing commit", nonce))));
+    public bool ExpiresSoon => Certificate.NotAfter.ToUniversalTime() < DateTime.UtcNow.AddDays(30);
     public void Dispose() => Certificate.Dispose();
 }
 

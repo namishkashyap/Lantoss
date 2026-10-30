@@ -142,8 +142,18 @@ internal sealed class SettingsPage : IPage
         };
         CheckBox autoConnect = new()
         {
-            Content = "Connect automatically to discoverable PCs without code protection",
+            Content = "Connect automatically to new PCs (only when approval is off)",
             IsChecked = saved.AutoConnect
+        };
+        CheckBox approve = new()
+        {
+            Content = "Ask before a new PC or phone connects",
+            IsChecked = saved.ApproveNewDevices
+        };
+        CheckBox https = new()
+        {
+            Content = "Encrypt the phone page (HTTPS)",
+            IsChecked = saved.BrowserHttps
         };
         CheckBox browser = new()
         {
@@ -176,6 +186,8 @@ internal sealed class SettingsPage : IPage
                 RequireConnectionCode = protection.IsChecked == true,
                 BrowserSharingEnabled = browser.IsChecked == true,
                 AutoConnect = autoConnect.IsChecked == true,
+                ApproveNewDevices = approve.IsChecked == true,
+                BrowserHttps = https.IsChecked == true,
                 AutoConfigureFirewall = firewall.IsChecked == true,
                 CloseToTray = tray.IsChecked == true,
                 SenderFolders = senderFolders.IsChecked == true,
@@ -205,10 +217,21 @@ internal sealed class SettingsPage : IPage
             C.Text("Discovery uses multicast DNS plus LAN broadcast. Connections recover automatically when adapters change.", 12, "Muted"), C.Space(firewall, 8, 12), C.Text("Windows may ask for administrator approval once for this app's Private-network access. Public and Domain profiles are not opened.", 11, "Muted"), C.Space(C.Button("Connection diagnostics", () => NetworkDiagnostics.Show(app)), 0, 17));
         TextBlock key = C.Text(app.Engine.Fingerprint, 11, "Muted");
         key.FontFamily = new("Consolas");
-        StackPanel security = C.Stack(C.Heading("Security & access"), C.Space(protection, 8), C.Space(browser, 14), C.Space(C.Text("Code protection is off by default. Open Phone & browser to view a current code when enabled. Codes expire after five minutes and one use; remembered PCs stay connected.", 12, "Muted"), 16),
-            C.Space(C.Note("Native TLS · browser HTTP", "PC-to-PC transfers use TLS and saved public keys. Direct first connections trust the selected device without code comparison. The phone page uses local HTTP; an access code controls access without encrypting that browser link."), 18), C.Space(C.Text("This PC’s public-key fingerprint", 12, bold: true), 9), C.Space(key, 13), C.Small("Copy public fingerprint", () => { Clipboard.SetText(app.Engine.Fingerprint); app.Tell("Public fingerprint copied."); }));
+        StackPanel security = C.Stack(C.Heading("Security & access"), C.Space(approve, 8), C.Space(C.Text("A new PC is confirmed on both screens and a new phone waits for Allow. Paired PCs reconnect without asking. Turn this off only on a network where you trust every device.", 11, "Muted"), 12), C.Space(protection, 8), C.Space(browser, 8), C.Space(https, 8), C.Space(C.Text("Phones show a certificate warning once; check the code shown in Phone & browser, then continue.", 11, "Muted"), 12), C.Space(C.Text("Codes expire after five minutes and one use. The access code also approves the phone that enters it.", 12, "Muted"), 16),
+            C.Space(C.Note("Native TLS · phone HTTPS", "PC-to-PC transfers use TLS and saved public keys. The phone page is encrypted with this PC's own certificate; plain HTTP and the .local name only redirect to it. Received files are marked as coming from another device."), 18), C.Space(C.Text("This PC’s public-key fingerprint", 12, bold: true), 9), C.Space(key, 13), C.Small("Copy public fingerprint", () => { Clipboard.SetText(app.Engine.Fingerprint); app.Tell("Public fingerprint copied."); }));
         StackPanel advanced = C.Stack(C.Heading("Advanced & storage"), C.Space(C.Text("Local metadata: " + app.Store.Root, 11, "Muted"), 11), C.Space(C.Text("History retains up to 300 recent jobs within a 16 MB metadata budget. Clearing history never deletes received files. Preferences and transfer metadata use atomic JSON snapshots; file contents stay in the chosen local destinations.", 12, "Muted"), 13),
-            C.Text("Shared Spaces supports native browsing and optional approved two-way sync. Conflict copies and previous versions are retained. Team roles, global auto-accept, compression, and internet links are not implemented. Source symlinks, junctions, cloud placeholders, and NAS roots are rejected rather than followed.", 11, "Muted"));
+            C.Space(C.Text("Shared Spaces supports native browsing and optional approved two-way sync. Conflict copies and previous versions are retained. Team roles, global auto-accept, compression, and internet links are not implemented. Source symlinks, junctions, cloud placeholders, and NAS roots are rejected rather than followed.", 11, "Muted"), 13),
+            C.Small("Remove Explorer menu trust", () =>
+            {
+                if (MessageBox.Show(app.Window, "Stop this PC trusting the “Lantoss Development” publisher for app packages? Windows will ask for administrator approval.\n\nThe Windows 11 sharing menu will ask for this trust again the next time it is turned on.", "Remove Explorer menu trust", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+                    return;
+                try
+                {
+                    ExplorerPackage.RemovePublisherTrust();
+                    app.Tell("Explorer menu publisher trust removed from this PC.");
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Security.Cryptography.CryptographicException) { app.Tell("Publisher trust was not removed. " + error.Message); }
+            }));
         View = C.Stack(C.Space(C.Text("Make Lantoss feel at home.", 24, bold: true), 9), C.Space(C.Text("Local preferences, clear permissions, and security that stays on.", 13, "Muted"), 24), C.Space(C.Columns(C.Card(general), C.Card(transfers), 390), 20), C.Space(C.Columns(C.Card(network), C.Card(security), 390), 20), C.Card(advanced));
     }
     public void Refresh()

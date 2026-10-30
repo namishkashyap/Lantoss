@@ -17,7 +17,7 @@ internal static partial class Program
             catch (InvalidDataException) { return true; }
         }
         Check(Profiles.CleanName("  Priya's phone ") == "Priya's phone" && Rejects(() => Profiles.CleanName("Ana\u202Eenohp")) && Rejects(() => Profiles.CleanName(new string('a', 41))) && Rejects(() => Profiles.CleanName("a\nb")), "Visitor names are trimmed, bounded and reject control and bidi formatting characters");
-        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1];
         Check(Profiles.FromDataUrl("data:image/png;base64," + Convert.ToBase64String(png))!.SequenceEqual(png) && Rejects(() => Profiles.FromDataUrl("data:image/svg+xml;base64,PHN2Zz4=")) && Rejects(() => Profiles.FromDataUrl("data:image/png;base64," + Convert.ToBase64String(new byte[12]))) && Rejects(() => Profiles.FromDataUrl("data:image/jpeg;base64,!!")), "Profile pictures accept only small PNG or JPEG data");
         string inbox = Path.Combine(Path.GetTempPath(), "Lantoss Inbox");
         Check(Profiles.SenderFolder(inbox, "Ana (iPhone · Safari)") == Path.Combine(inbox, "Ana (iPhone · Safari)") && Profiles.SenderFolder(inbox, "..") == Path.Combine(inbox, "Unknown sender") && Profiles.SenderFolder(inbox, "CON") == Path.Combine(inbox, "Unknown sender") && Profiles.SenderFolder(inbox, "a/b\\c:d") == Path.Combine(inbox, "a_b_c_d"), "Sender folders stay one safe folder below the inbox");

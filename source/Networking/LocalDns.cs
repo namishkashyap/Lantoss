@@ -258,10 +258,13 @@ public sealed class LocalNameClaim(IPAddress address, string key, string alias =
             {
                 if (Ready)
                     actions.Add(new(Host, false, 0));
-                Host = baseName + "-" + ++suffix + ".local";
+                // Spoofed conflicts can never make the PC give up for good: after the last suffix it waits 30 seconds and starts over.
+                bool wrapped = suffix >= 32;
+                suffix = wrapped ? 2 : suffix + 1;
+                Host = baseName + "-" + suffix + ".local";
                 Ready = false;
                 uniqueProbes = 0;
-                uniqueDue = now.AddMilliseconds(250);
+                uniqueDue = now.AddMilliseconds(wrapped ? 30000 : 250);
                 if (OwnsAlias)
                 {
                     OwnsAlias = false;

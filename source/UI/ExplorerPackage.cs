@@ -35,6 +35,47 @@ internal static class ExplorerPackage
         people.Open(OpenFlags.ReadWrite);
         people.Add(certificate);
     }
+    private static X509Certificate2Collection DevelopmentTrust(X509Store people) => people.Certificates.Find(X509FindType.FindBySubjectDistinguishedName, "CN=Lantoss Development", false);
+    public static bool PublisherTrusted
+    {
+        get
+        {
+            using X509Store people = new(StoreName.TrustedPeople, StoreLocation.LocalMachine);
+            people.Open(OpenFlags.ReadOnly);
+            return DevelopmentTrust(people).Count > 0;
+        }
+    }
+    public static void UntrustPublisher()
+    {
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        if (!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
+            throw new UnauthorizedAccessException("Windows administrator approval is required.");
+        // Removes only certificates whose exact subject is CN=Lantoss Development. Other trusted people are left alone.
+        using X509Store people = new(StoreName.TrustedPeople, StoreLocation.LocalMachine);
+        people.Open(OpenFlags.ReadWrite);
+        X509Certificate2Collection found = DevelopmentTrust(people);
+        try
+        {
+            people.RemoveRange(found);
+        }
+        finally { foreach (X509Certificate2 certificate in found) certificate.Dispose(); }
+    }
+    /// <summary>Removes this PC's machine-wide trust in the Lantoss development publisher after Windows administrator approval.</summary>
+    public static void RemovePublisherTrust()
+    {
+        if (!PublisherTrusted)
+            return;
+        ProcessStartInfo untrust = new(Environment.ProcessPath!, "--untrust-explorer-publisher")
+        {
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        using Process process = Process.Start(untrust) ?? throw new IOException("Windows could not open publisher setup.");
+        process.WaitForExit();
+        if (process.ExitCode != 0 || PublisherTrusted)
+            throw new IOException("Publisher trust was not removed. Windows administrator approval is required.");
+    }
     public static void Install(bool prompt = true)
     {
         if (!Supported)

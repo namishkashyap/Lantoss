@@ -126,12 +126,33 @@ public static class FileCatalog
     }
     public static void ValidateSegment(string name)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Length > 180 || name != name.Trim() || name.EndsWith('.') || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.Any(char.IsControl) || name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Unsupported Windows filename: " + name);
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 180 || name != name.Trim() || name.EndsWith('.') || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.Any(Hidden) || name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Unsupported filename (hidden, control or reserved characters): " + new string(name.Where(c => !Hidden(c)).ToArray()));
         string stem = name.Split('.')[0].TrimEnd(' ').ToUpperInvariant();
         string[] reserved = ["CON", "PRN", "AUX", "NUL", "CLOCK$", "CONIN$", "CONOUT$"];
         if (reserved.Contains(stem) || System.Text.RegularExpressions.Regex.IsMatch(stem, "^(COM|LPT)[1-9¹²³]$"))
             throw new InvalidDataException("Reserved Windows filename: " + name);
+    }
+    /// <summary>Control and format characters (bidi overrides, zero-width spaces) can make one name display as another. ZWNJ and ZWJ stay allowed for Indic scripts and emoji.</summary>
+    public static bool Hidden(char c) => char.IsControl(c) || (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format && c is not (char)0x200C and not (char)0x200D);
+    private static readonly string[] shellControl = [".url", ".lnk", ".scf", ".library-ms", ".searchconnector-ms"];
+    private static readonly string[] risky = [".exe", ".com", ".scr", ".pif", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".msi", ".msix", ".appx", ".appinstaller", ".jar", ".reg", ".cpl", ".dll", ".sh", ".command", ".pkg", ".dmg", ".deb", ".rpm", ".docm", ".xlsm", ".pptm", ".iso", ".img", ".vhd", ".vhdx"];
+    /// <summary>Files Windows Explorer acts on when a folder is only viewed (an icon on a UNC path leaks sign-in hashes).</summary>
+    public static bool ShellControl(string name) => name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) || shellControl.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase));
+    /// <summary>Received shell-control files are kept as inert text; the owner can rename one back deliberately.</summary>
+    public static string Defuse(string path) => ShellControl(Path.GetFileName(path)) ? path + ".txt" : path;
+    public static bool Risky(string name) => risky.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase)) || ShellControl(name);
+    public static bool Risky(Manifest manifest) => manifest.Entries.Any(e => !e.Directory && Risky(Path.GetFileName(e.RelativePath)));
+    /// <summary>Adds the Windows Mark-of-the-Web so SmartScreen and Office Protected View treat the file as from another device. Drives without streams (FAT, exFAT) are skipped.</summary>
+    public static void MarkReceived(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+        try
+        {
+            File.WriteAllLines(path + ":Zone.Identifier", ["[ZoneTransfer]", "ZoneId=3"]);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException) { }
     }
     public static void CheckSafeDirectory(string path)
     {
@@ -204,6 +225,8 @@ public sealed class ReceivePlan
         {
             int slash = entry.RelativePath.LastIndexOf('/');
             string path = slash < 0 ? FileCatalog.Within(Root, entry.RelativePath) : Path.Combine(mapped[entry.RelativePath[..slash]], entry.RelativePath[(slash + 1)..]);
+            if (!entry.Directory)
+                path = FileCatalog.Defuse(path);
             FileCatalog.CheckSafePath(path);
             bool exists = File.Exists(path) || Directory.Exists(path);
             bool skip = !entry.Directory && exists && duplicates == DuplicatePolicy.Skip;
@@ -248,6 +271,7 @@ public sealed class ReceivePlan
                 catch (IOException) { if (!File.Exists(target) && !Directory.Exists(target)) throw; }
             }
         }
+        FileCatalog.MarkReceived(target);
         return target;
     }
 }

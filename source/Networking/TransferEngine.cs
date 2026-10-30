@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
+using System.Text;
 using Lantoss.Core;
 
 namespace Lantoss.Networking;
@@ -16,7 +17,7 @@ public sealed partial class TransferEngine : IDisposable
     private readonly Identity identity;
     private readonly bool allowLoopback;
     private readonly bool automaticSync;
-    private readonly SemaphoreSlim connections = new(8, 8), sending = new(2, 2), receiving = new(2, 2), pairing = new(1, 1);
+    private readonly SemaphoreSlim connections = new(16, 16), sending = new(2, 2), receiving = new(2, 2), pairing = new(1, 1);
     private readonly ConcurrentDictionary<TcpClient, string> sockets = new();
     private readonly ConcurrentDictionary<string, Peer> nearby = new();
     private readonly ConcurrentDictionary<long, Task> workers = new();
@@ -24,6 +25,10 @@ public sealed partial class TransferEngine : IDisposable
     private Task acceptLoop = Task.CompletedTask;
     private readonly Dictionary<string, (int Count, DateTime Start)> attempts = [];
     private readonly Queue<DateTime> nearbyPairAttempts = new();
+    // One address may hold four connections before it signs in, so a LAN host cannot take every slot.
+    private const int AddressConnections = 4;
+    private readonly ConcurrentDictionary<string, int> inbound = new();
+    private readonly Dictionary<string, (DateTime Start, int Count)> textPosts = [];
     private readonly object gate = new();
     private TcpListener? listener; private CancellationTokenSource? lifetime; private MdnsDiscovery? discovery;
     private int disposed;
@@ -85,7 +90,8 @@ public sealed partial class TransferEngine : IDisposable
         this.automaticSync = automaticSync;
         Transfers = new(store);
         Browser = new(store, Transfers, PairingCode, allowLoopback, identity.Fingerprint);
-        Browser.AvailableBrowserDevices = () => Peers.Where(peer => peer.Online && !peer.Blocked && LocalNameClaim.DeviceUrlAllowed(peer.BrowserUrl, peer.Fingerprint))
+        // Only paired PCs are listed: an unverified announcement could point phones at a look-alike page.
+        Browser.AvailableBrowserDevices = () => Peers.Where(peer => peer.Online && peer.Paired && !peer.Blocked && LocalNameClaim.DeviceUrlAllowed(peer.BrowserUrl, peer.Fingerprint))
             .Select(peer => (object)new { name = peer.Name, url = peer.BrowserUrl }).ToArray();
         Browser.Changed += () => { string url = Browser.DeviceUrl; if (Interlocked.Exchange(ref advertisedBrowserUrl, url) != url) discovery?.Publish(); };
         Sync = new SyncStore(store.Root);
@@ -128,6 +134,8 @@ public sealed partial class TransferEngine : IDisposable
             }
         }
         Status?.Invoke("Receiving is on. Approvals are required for every transfer.");
+        if (identity.ExpiresSoon)
+            Status?.Invoke("This PC's device certificate expires on " + identity.Certificate.NotAfter.ToShortDateString() + ". After that date, pair the other PCs again.");
         StartLanDiscovery();
         ApplyBrowserSettings();
         RefreshDiscovery();
@@ -216,8 +224,11 @@ public sealed partial class TransferEngine : IDisposable
             Browser.Stop();
             return;
         }
-        if (Browser.Running)
+        // Switching HTTPS on or off restarts the page on its new address.
+        if (Browser.Running && Browser.Https == store.Preferences.BrowserHttps)
             return;
+        if (Browser.Running)
+            Browser.Stop();
         try
         {
             Browser.StartAsync(Adapter, allowLoopback ? 0 : 80).GetAwaiter().GetResult();
@@ -233,8 +244,14 @@ public sealed partial class TransferEngine : IDisposable
             return;
         if (peer.Fingerprint.Length != 64 || !peer.Fingerprint.All(char.IsAsciiHexDigit) || !IPAddress.TryParse(peer.Address, out IPAddress? source) || !receiveNetworks.Any(network => network.Contains(source)) || peer.Port is < 1 or > 65535)
             return;
+        // Stale announcements leave the list, so spoofed ones cannot keep real new PCs out.
         if (nearby.Count >= 128 && !nearby.ContainsKey(peer.Fingerprint))
-            return;
+        {
+            foreach (Peer stale in nearby.Values.Where(p => !p.Online))
+                nearby.TryRemove(stale.Fingerprint, out _);
+            if (nearby.Count >= 128 && nearby.Values.MinBy(p => p.LastSeenUtc) is Peer oldest)
+                nearby.TryRemove(oldest.Fingerprint, out _);
+        }
         nearby[peer.Fingerprint] = peer;
         AutoConnectPeer(peer);
         PeersChanged?.Invoke();
@@ -315,22 +332,35 @@ public sealed partial class TransferEngine : IDisposable
             throw new InvalidDataException("This is this computer. Use the address shown on the other PC.");
         if (store.Blocked(channel.Fingerprint))
             throw new InvalidDataException("This device is blocked. Unblock it in Devices before pairing.");
+        // Pairing v2: only a commitment to this nonce is sent until the other PC has chosen its own nonce.
         string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         await Wire.WriteAsync(channel.Stream, new()
         {
             Kind = direct ? "pair-direct" : expectedKey == null ? "pair" : "pair-nearby",
             Name = store.Preferences.DeviceName,
             Code = code,
-            Nonce = nonce,
+            Commit = Identity.Commit(nonce),
             ListenPort = Running ? Port : 48585
         }, timeout.Token);
-        WireMessage challenge = await Wire.ReadAsync(channel.Stream, timeout.Token, 120);
+        WireMessage challenge;
+        try
+        {
+            challenge = await Wire.ReadAsync(channel.Stream, timeout.Token, 120);
+        }
+        catch (ProtocolException error) when (error.Message.EndsWith("The pairing request is invalid.", StringComparison.Ordinal)) { throw new ProtocolException(OlderPeer); }
         if (challenge.Kind == "code-required")
             throw new CodeRequiredException("This PC requires an access code. Enter the code shown in its Phone & browser screen.");
         Wire.Require(challenge, "pair-challenge");
-        string comparison = Identity.Comparison(Fingerprint, channel.Fingerprint, nonce);
-        if (challenge.Fingerprint != channel.Fingerprint || challenge.Comparison != comparison)
+        if (challenge.Nonce.Length != 64 || !challenge.Nonce.All(char.IsAsciiHexDigit))
+            throw new ProtocolException(OlderPeer);
+        if (challenge.Fingerprint != channel.Fingerprint)
             throw new AuthenticationException("Pairing verification did not match the encrypted connection.");
+        await Wire.WriteAsync(channel.Stream, new()
+        {
+            Kind = "pair-reveal",
+            Nonce = nonce
+        }, timeout.Token);
+        string comparison = Identity.Comparison(Fingerprint, channel.Fingerprint, nonce, challenge.Nonce);
         string name = MetadataStore.ValidateName(challenge.Name);
         if (direct && !challenge.Direct)
             throw new ProtocolException("Update Lantoss on both PCs for direct connection.");
@@ -375,9 +405,22 @@ public sealed partial class TransferEngine : IDisposable
                 client.Dispose();
                 continue;
             }
+            string address = remote.ToString();
+            if (inbound.AddOrUpdate(address, 1, (_, count) => count + 1) > AddressConnections && !(allowLoopback && IPAddress.IsLoopback(remote)))
+            {
+                ReleaseInbound(address);
+                connections.Release();
+                client.Dispose();
+                continue;
+            }
             sockets[client] = "";
-            RunWorker(() => ServeAsync(client, token));
+            RunWorker(async () => { try { await ServeAsync(client, token); } finally { ReleaseInbound(address); } });
         }
+    }
+    private void ReleaseInbound(string address)
+    {
+        if (inbound.AddOrUpdate(address, 0, (_, count) => count - 1) <= 0)
+            inbound.TryRemove(new KeyValuePair<string, int>(address, 0));
     }
     private async Task ServeAsync(TcpClient client, CancellationToken serverToken)
     {
@@ -392,7 +435,7 @@ public sealed partial class TransferEngine : IDisposable
             sockets[client] = fingerprint;
             if (store.Blocked(fingerprint))
                 throw new AuthenticationException("This device is blocked.");
-            WireMessage hello = await Wire.ReadAsync(ssl, serverToken);
+            WireMessage hello = await Wire.ReadAsync(ssl, serverToken, 10);
             if (hello.Kind is "pair" or "pair-nearby" or "pair-direct")
             {
                 await ReceivePairAsync(ssl, client, fingerprint, hello, serverToken);
@@ -410,6 +453,15 @@ public sealed partial class TransferEngine : IDisposable
             }
             if (hello.Kind == "text-post")
             {
+                lock (gate)
+                {
+                    (DateTime Start, int Count) quota = textPosts.GetValueOrDefault(fingerprint, (DateTime.UtcNow, 0));
+                    if (DateTime.UtcNow - quota.Start >= TimeSpan.FromMinutes(10))
+                        quota = (DateTime.UtcNow, 0);
+                    if (quota.Count >= BrowserPortal.NotesPerWindow)
+                        throw new ProtocolException("Too many notes from this PC. Try again in a few minutes.");
+                    textPosts[fingerprint] = (quota.Start, quota.Count + 1);
+                }
                 Browser.Notes.Add(hello.NoteContent, peer.Name, hello.NoteId);
                 await Wire.WriteAsync(ssl, new()
                 {
@@ -540,7 +592,9 @@ public sealed partial class TransferEngine : IDisposable
             if (attempts.Count > 128)
                 throw new ProtocolException("Pairing is busy. Try again shortly.");
         }
-        if (hello.Nonce.Length != 64 || !hello.Nonce.All(char.IsAsciiHexDigit) || hello.Code.Length > 32)
+        if (hello.Commit.Length == 0 && hello.Nonce.Length == 64)
+            throw new ProtocolException(OlderPeer);
+        if (hello.Commit.Length != 64 || !hello.Commit.All(char.IsAsciiHexDigit) || hello.Code.Length > 32)
             throw new ProtocolException("The pairing request is invalid.");
         string name = MetadataStore.ValidateName(hello.Name);
         if (!await pairing.WaitAsync(0, token))
@@ -560,24 +614,29 @@ public sealed partial class TransferEngine : IDisposable
                 throw new ProtocolException("This PC requires an access code. Update both apps or use Manual connection.");
             if (!direct && !nearbyPair && !PairingCode.Consume(hello.Code))
                 throw new ProtocolException("That pairing code is incorrect, expired, or already used. Read the current code on the receiving PC.");
-            // A relayed access code must not bind silently: code-protected direct pairing is confirmed on both screens.
-            bool confirm = direct && store.Preferences.RequireConnectionCode;
+            // A relayed access code must not bind silently, and new devices are approved on this PC: direct pairing is then confirmed on both screens.
+            bool confirm = direct && (store.Preferences.RequireConnectionCode || store.Preferences.ApproveNewDevices);
             if ((!direct || confirm) && ApprovePair == null)
                 throw new ProtocolException("The receiving PC cannot show a pairing dialog.");
             pairingTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             pairingTimeout.CancelAfter(TimeSpan.FromMinutes(2));
             CancellationTokenSource timeout = pairingTimeout;
-            string comparison = Identity.Comparison(Fingerprint, fingerprint, hello.Nonce);
-            Task<bool> localDecision = direct && !confirm ? Task.FromResult(true) : ApprovePair!(new(name, fingerprint, comparison, true), timeout.Token);
+            string serverNonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
             await Wire.WriteAsync(ssl, new()
             {
                 Kind = "pair-challenge",
                 Name = store.Preferences.DeviceName,
                 Fingerprint = Fingerprint,
-                Comparison = comparison,
+                Nonce = serverNonce,
                 Direct = direct,
                 Confirm = confirm
             }, timeout.Token);
+            WireMessage reveal = await Wire.ReadAsync(ssl, timeout.Token, 120);
+            Wire.Require(reveal, "pair-reveal");
+            if (reveal.Nonce.Length != 64 || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(Identity.Commit(reveal.Nonce)), Encoding.ASCII.GetBytes(hello.Commit.ToUpperInvariant())))
+                throw new AuthenticationException("The pairing commitment did not match. No access was granted.");
+            string comparison = Identity.Comparison(Fingerprint, fingerprint, reveal.Nonce, serverNonce);
+            Task<bool> localDecision = direct && !confirm ? Task.FromResult(true) : ApprovePair!(new(name, fingerprint, comparison, true), timeout.Token);
             WireMessage decision = await Wire.ReadAsync(ssl, timeout.Token, 120);
             Wire.Require(decision, "pair-decision");
             bool accepted = decision.Accepted && await localDecision;
@@ -836,13 +895,14 @@ public sealed partial class TransferEngine : IDisposable
         ObjectDisposedException => "The connection closed. Receiving may have stopped or access may have been revoked.",
         _ => error.Message.Length <= 300 ? error.Message : "The transfer could not finish. Check the files and retry."
     };
+    private const string OlderPeer = "Update Lantoss on the other PC to 2.0.2 or later to pair. PCs that are already paired keep working.";
     private static string PeerError(Exception error) => error switch
     {
-        ProtocolException => HumanError(error),
+        ProtocolException => BrowserPortal.PublicError(error),
         InvalidDataException => "The incoming filenames, folder paths, or manifest are not valid for Windows.",
         IOException when error.Message.Contains("enough free space", StringComparison.OrdinalIgnoreCase) => "The destination does not have enough free disk space. Choose another receive folder.",
         IOException => "The recipient could not finish the file operation. Check its disk, permissions, and available files.",
-        _ => HumanError(error)
+        _ => BrowserPortal.PublicError(error)
     };
     public void Dispose()
     {

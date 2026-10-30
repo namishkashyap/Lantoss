@@ -11,7 +11,7 @@ internal sealed class PhonePage : IPage
 {
     private readonly Shell app;
     private bool nameQr;
-    private readonly StackPanel connection = new(), shared = new();
+    private readonly StackPanel connection = new(), shared = new(), waiting = new();
     private readonly TextBlock accessCode = C.Text("", 23, "Primary", true), transferSpeed = C.Text("", 12, "Muted");
     private readonly StackPanel codeActions;
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -43,20 +43,27 @@ internal sealed class PhonePage : IPage
         codeActions = C.Inline(C.Small("Copy current code", () => app.CopyAsync(app.Engine.PairingCode.Value, "Access code copied. It expires after five minutes and one use.")),
             C.Small("New code", () => { app.Engine.PairingCode.Rotate(); app.Engine.Browser.ResetConnections(); Refresh(); }));
         StackPanel protection = C.Stack(C.Heading("Optional protection"), C.Space(requireCode, 8),
-            C.Space(C.Text("Off by default: nearby computers connect directly and phones open the page without a code. Turn it on to require a code for new devices and browser sessions.", 12, "Muted"), 13), C.Space(accessCode, 12), codeActions);
+            C.Space(C.Text("Off by default: new computers and phones are approved on this screen instead. Turn it on to require a code; entering it also approves the phone.", 12, "Muted"), 13), C.Space(accessCode, 12), codeActions);
         StackPanel selected = C.Stack(C.Heading("Files your phone can download", C.Small("Remove all", app.Engine.Browser.ClearFiles)),
             C.Space(C.Text("Only files you select here are listed. Uploads from a phone go to your receive folder after your approval.", 12, "Muted"), 18),
             C.Space(C.Inline(C.AsyncButton("Share files with browser", PickFilesAsync, true, "plus"), C.AsyncButton("Add a folder", PickFolderAsync, icon: "folder")), 18), shared);
         View = C.Stack(C.Space(C.Text("Your phone. No extra app.", 28, bold: true), 9),
             C.Space(C.Text("Use the same Wi-Fi, scan the QR code with your phone's camera, and open the page. Send photos and files to this computer, or download the files you share below.", 13, "Muted"), 23),
-            C.Space(transferSpeed, 18), C.Space(C.Columns(C.Card(connection), C.Card(protection), 370), 20), C.Space(C.Card(selected), 20),
-            C.Note("Browser sharing uses local HTTP", "The phone page is not encrypted. Use your trusted home Wi-Fi. The optional code controls access; it does not add transport encryption. Computer-to-computer transfers continue to use TLS.", "phone"));
+            waiting, C.Space(transferSpeed, 18), C.Space(C.Columns(C.Card(connection), C.Card(protection), 370), 20), C.Space(C.Card(selected), 20),
+            app.Store.Preferences.BrowserHttps ? C.Note("Browser sharing uses HTTPS", "The phone page is encrypted with this computer's own certificate. Phones show a warning the first time because no public authority signed it. Computer-to-computer transfers continue to use TLS.", "phone")
+                : C.Note("Browser sharing uses local HTTP", "The phone page is not encrypted. Use your trusted home Wi-Fi. The optional code controls access; it does not add transport encryption. Computer-to-computer transfers continue to use TLS.", "phone"));
         timer.Tick += (_, _) => { UpdateCode(); UpdateSpeed(); };
         View.AttachedToVisualTree += (_, _) => timer.Start();
         View.DetachedFromVisualTree += (_, _) => timer.Stop();
     }
     public void Refresh()
     {
+        waiting.Children.Clear();
+        BrowserDevice[] asking = app.Engine.Browser.Devices.Where(b => !b.Approved).ToArray();
+        if (asking.Length > 0)
+            waiting.Children.Add(C.Space(C.Text(asking.Length == 1 ? "A browser is waiting for your Allow" : asking.Length + " browsers are waiting for your Allow", 15, bold: true), 10));
+        foreach (BrowserDevice browser in asking)
+            waiting.Children.Add(C.Space(DevicesPage.Waiting(app, browser), 18));
         connection.Children.Clear();
         connection.Children.Add(C.Heading("Open on your phone", C.Badge(app.Engine.Browser.Running ? "Browser is on" : "Browser is off")));
         if (app.Engine.Browser.Running)
@@ -83,10 +90,14 @@ internal sealed class PhonePage : IPage
             if (hasName && url == ip)
                 connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + named, 12, bold: true), 8));
             connection.Children.Add(C.Space(C.Text(app.Engine.Browser.LocalAddressStatus, 12, "Muted"), 12));
+            string print = app.Engine.Browser.CertificateFingerprint;
+            if (app.Engine.Browser.Https)
+                connection.Children.Add(C.Space(C.Stack(C.Space(C.Text("Encrypted (HTTPS)" + (print.Length >= 16 ? " · certificate " + print[..8] + " " + print[8..16] : ""), 12, "Success", true), 4),
+                    C.Text("Phones show a certificate warning the first time; check this code in the browser's certificate details, then continue.", 11, "Muted")), 12));
             connection.Children.Add(C.Space(C.Inline(C.Small("Copy link", () => app.CopyAsync(url, "Browser link copied.")), C.Small("Open page", () => Shell.Open(url))), 14));
             Button change = C.Small("Change address", () => app.Navigate("Settings"));
             connection.Children.Add(C.Space(hasName ? C.Inline(C.Small(nameQr ? "Show IP QR (every phone)" : "Show name QR (iPhone, computers)", () => { nameQr = !nameQr; Refresh(); }), change) : C.Inline(change), 14));
-            connection.Children.Add(C.Text(app.Store.Preferences.RequireConnectionCode ? "Scan, then enter the access code shown alongside." : "Scan and connect directly. No password or code.", 12, "Muted"));
+            connection.Children.Add(C.Text(app.Store.Preferences.RequireConnectionCode ? "Scan, then enter the access code shown alongside." : app.Store.Preferences.ApproveNewDevices ? "Scan, then press Allow here when the phone appears." : "Scan and connect directly. No password or code.", 12, "Muted"));
         }
         else
         {
@@ -159,7 +170,7 @@ internal sealed class NotesPage : IPage
             if (target.SelectedItem is Destination { Peer: { } peer })
                 await app.Engine.SendNoteAsync(peer, content);
             else
-                app.Engine.Browser.Notes.Add(content, "This " + Shell.Platform);
+                app.Engine.Browser.Notes.Add(content, "This " + Shell.Platform, local: true);
             if ((draft.Text ?? "").Trim() == content)
                 draft.Text = "";
             Refresh();
@@ -186,7 +197,7 @@ internal sealed class NotesPage : IPage
             StackPanel actions = C.Inline(C.Small("Copy", () => app.CopyAsync(note.Content, "Copied.")), C.Small("Delete", () => app.Engine.Browser.Notes.Remove(note.Id)));
             // Only http/https notes get an explicit open action; text is never executed or opened automatically.
             if (note.Kind == "link")
-                actions.Children.Add(C.Small("Open link", () => Shell.Open(note.Content)));
+                actions.Children.Add(C.Small("Open link", async () => { if (SharedNote.Link(note.Content) is Uri link && await app.Dialogs.ConfirmAsync("Open link", SharedNote.OpenPrompt(link, note.Sender), "Open")) Shell.Open(link.AbsoluteUri); }));
             notes.Children.Add(C.Space(C.Card(C.Stack(C.Space(C.Text(note.Content, 14), 12), C.Space(C.Text(note.Sender + " · " + note.CreatedUtc.ToLocalTime().ToString("dd MMM, HH:mm"), 11, "Muted"), 12), actions), 18), 12));
         }
     }
