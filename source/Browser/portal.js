@@ -38,7 +38,7 @@ async function request(path, options = {}) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     if ((response.status === 401 || (response.status === 403 && body.waiting)) && path !== '/api/session' && path !== '/api/login') { $('sharing').hidden = true; void connect(); }
-    throw new Error(body.error || (response.status === 429 ? 'Too many requests. Wait one minute and try again.' : 'This request could not finish. Check Lantoss on your PC.'));
+    throw new Error(body.error || (response.status === 429 ? 'Too many requests. Wait one minute and try again.' : 'This request could not finish. Check hopo on your PC.'));
   }
   return body;
 }

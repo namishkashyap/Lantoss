@@ -853,7 +853,7 @@ public sealed partial class BrowserPortal : IDisposable
     {
         string message = TransferEngine.HumanError(error);
         return message.IndexOf((char)92) >= 0 || message.Contains("/Users/", StringComparison.Ordinal) || message.Contains("/home/", StringComparison.Ordinal) || message.Contains("/Volumes/", StringComparison.Ordinal) || message.Contains("/media/", StringComparison.Ordinal)
-            ? error is FileNotFoundException or DirectoryNotFoundException ? "That file is no longer available on the PC." : "The PC could not read or save this file. Check Lantoss on the PC." : message;
+            ? error is FileNotFoundException or DirectoryNotFoundException ? "That file is no longer available on the PC." : "The PC could not read or save this file. Check hopo on the PC." : message;
     }
     private async Task OfferAsync(HttpContext context, Session session)
     {

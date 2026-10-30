@@ -195,7 +195,7 @@ internal static partial class Program
         TransferRegistry registry = new(store);
         using BrowserPortal portal = new(store, registry, new PairingCode(), true);
         portal.ApproveReceive = (request, _) => Task.FromResult(new ReceiveDecision(true, request.DefaultFolder));
-        string source = Path.Combine(store.Root, "Lantoss sample.txt");
+        string source = Path.Combine(store.Root, "hopo sample.txt");
         await File.WriteAllTextAsync(source, "A local browser test file. Production invents no shared files.");
         await portal.ShareAsync([source]);
         await portal.StartAsync(Loopback, 0);
