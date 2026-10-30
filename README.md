@@ -8,7 +8,7 @@ is optional.
 
 | Version | Platforms | Download | Source |
 |---|---|---|---|
-| **2.0.1** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.0.1](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.1) | `main` |
+| **2.0.2** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.0.2](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.2) | `main` |
 | 2.0.0 | Same platforms | [Release v2.0.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.0) | tag `v2.0.0` |
 | 1.9.0 (previous) | Windows (MSI) | [Release v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0) | `release/1.x` |
 
@@ -31,7 +31,7 @@ on the same network, and phones need no app.
 
 ## Install on Windows
 
-Download and double-click **Lantoss-Setup-2.0.1-x64.msi**. Close the older app
+Download and double-click **Lantoss-Setup-2.0.2-x64.msi**. Close the older app
 using **Exit Lantoss** in the Windows tray first. The installer installs for the
 current Windows account under LocalAppData/Programs/Lantoss, creates Start menu
 entries, and registers repair/uninstall in Windows Installed apps. The .NET
