@@ -1,18 +1,18 @@
-# Lantoss 2.0.2 screens
+# hopo screens
 
-This folder holds screenshots of every section for the UI redesign. They were rendered from the real
+This folder holds screenshots of every section in the hopo design. They were rendered from the real
 apps with sample data: "Family PC", the paired PCs "Studio PC" and "Priya's laptop", and one shared
 space, "Family photos".
 
 | Folder | What | Size |
 |---|---|---|
 | `windows/` | Windows app (WPF), 10 pages in Light and Dark. `-full` files show the whole page without scrolling. | 1440 × 900 and 1440 × 2000 |
-| `macos-linux/` | macOS / Linux app (Avalonia), the same 10 pages in Light and Dark | 1280 × 840 |
+| `macos-linux/` | macOS / Linux app (Avalonia), the same 10 pages plus the open menu in Light and Dark | 1280 × 840 |
 | `phone/` | The phone page in a mobile browser: connected, and waiting for the PC to allow it | 500 wide |
 
 ## Pages
 
-1. **Home:** status, nearby PCs and phones, quick send.
+1. **Home:** a nearby radar with this PC in the middle, paired PCs (mint) and phones (purple) around it, and a dock with Send files, Share a folder, Share text and Open on your phone. The top bar holds the hopo mark, the Receiving chip and the menu button; the menu groups the Share and Manage pages.
 2. **Send:** the chosen files and folders, plus the recipient.
    - PCs come from a list.
    - Approved phones appear under "Phones and browsers", each with its own Send button.
