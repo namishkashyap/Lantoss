@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile><NuGetAudit>true</NuGetAudit><NuGetAuditMode>all</NuGetAuditMode><NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>
   <ItemGroup><Compile Include="../Networking/*.cs" Link="Networking/%(Filename)%(Extension)" /></ItemGroup>
   <ItemGroup><PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" /></ItemGroup>

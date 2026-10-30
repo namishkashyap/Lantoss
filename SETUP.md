@@ -91,6 +91,7 @@ Create a private development signing key once, then reuse it. This command
 creates files only; it does not trust the certificate on the build PC:
 
 ```powershell
+$env:LANTOSS_PFX_PASSWORD = Read-Host 'PFX password'
 .\source\Explorer\New-DevelopmentCertificate.ps1 -OutputPath .\work\signing-private.pfx
 .\installer\build-installer.ps1 -CompilerPath 'C:\tools\w64devkit\bin\g++.exe' -SdkToolsPath 'C:\tools\sdk\bin\10.0.26100.0\x64' -SigningCertificatePath .\work\signing-private.pfx
 ```
@@ -98,7 +99,9 @@ creates files only; it does not trust the certificate on the build PC:
 The builder compiles/signs the native DLL and sparse package, embeds the matching
 public certificate, publishes the app and builds the MSI. Keep the PFX private;
 never include it in Git or a source ZIP. Source includes only Publisher.cer.
-SigningPassword, DotnetPath and BuildRoot parameters are supported. For a public
+The PFX password is read only from LANTOSS_PFX_PASSWORD, never a parameter.
+Signatures are SHA-256 with an RFC 3161 timestamp; pass -NoTimestamp for an
+offline build. DotnetPath and BuildRoot parameters are supported. For a public
 release, replace the development publisher subject in AppxManifest.xml,
 RegisterPackage.ps1 and the build check, and use a trusted publisher certificate.
 

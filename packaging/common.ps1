@@ -54,7 +54,9 @@ function Get-LantossRcodesign {
     New-Item -ItemType Directory -Force -Path $tools | Out-Null
     if (-not (Test-Path $zip)) { Invoke-WebRequest -Uri $LantossRcodesignUrl -OutFile $zip }
     if ((Get-FileHash -Algorithm SHA256 -Path $zip).Hash -ne $LantossRcodesignSha256) { Remove-Item -Force $zip; throw 'rcodesign download does not match the pinned SHA-256' }
-    if (-not (Test-Path $exe)) { Expand-Archive -Path $zip -DestinationPath (Join-Path $tools 'rcodesign') -Force }
+    # Always extract afresh from the verified zip so a modified earlier extraction is never reused.
+    Reset-LantossDirectory (Join-Path $tools 'rcodesign')
+    Expand-Archive -Path $zip -DestinationPath (Join-Path $tools 'rcodesign') -Force
     $exe
 }
 

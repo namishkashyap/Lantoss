@@ -2,11 +2,13 @@ param(
     [Parameter(Mandatory)][string]$CompilerPath,
     [Parameter(Mandatory)][string]$SdkToolsPath,
     [Parameter(Mandatory)][string]$SigningCertificatePath,
-    [string]$SigningPassword = '',
     [string]$BuildRoot = '',
-    [switch]$RunTests
+    [switch]$RunTests,
+    [switch]$NoTimestamp
 )
 $ErrorActionPreference = 'Stop'
+# The PFX password comes only from LANTOSS_PFX_PASSWORD (empty for an unprotected PFX) and is never logged.
+$SigningPassword = [string]$env:LANTOSS_PFX_PASSWORD
 $release = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not $BuildRoot) { $BuildRoot = Join-Path $release 'work/explorer' }
 $build = [IO.Path]::GetFullPath($BuildRoot)
@@ -28,11 +30,13 @@ try {
 $windres = Join-Path (Split-Path -Parent $CompilerPath) 'windres.exe'
 $resource = Join-Path $build 'explorer-resource.o'
 Invoke-Checked $windres @((Join-Path $PSScriptRoot 'LantossExplorer.rc'),'-O','coff','-o',$resource)
-$common = @('-O2','-std=c++17','-Wall','-Wextra','-Werror','-static-libgcc','-static-libstdc++','-lole32','-lshell32','-lshlwapi','-luuid','-ladvapi32')
+$common = @('-O2','-std=c++17','-Wall','-Wextra','-Werror','-Wl,--dynamicbase','-Wl,--nxcompat','-Wl,--high-entropy-va','-static-libgcc','-static-libstdc++','-lole32','-lshell32','-lshlwapi','-luuid','-ladvapi32')
 $dll = Join-Path $app 'LantossExplorer.dll'
 Invoke-Checked $CompilerPath (@((Join-Path $PSScriptRoot 'LantossExplorer.cpp'),(Join-Path $PSScriptRoot 'LantossExplorer.def'),$resource,'-shared') + $common + @('-o',$dll))
 $sign = Join-Path $SdkToolsPath 'signtool.exe'
 $signing = @('sign','/fd','SHA256','/f',[IO.Path]::GetFullPath($SigningCertificatePath))
+if (-not $NoTimestamp) { $signing += @('/tr','http://timestamp.digicert.com','/td','SHA256') }
+# signtool has no other way to unlock a PFX file; /p takes the variable's value and Invoke-Checked never echoes arguments.
 if ($SigningPassword) { $signing += @('/p',$SigningPassword) }
 Invoke-Checked $sign ($signing + @($dll))
 

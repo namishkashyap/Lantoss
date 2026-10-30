@@ -5,7 +5,8 @@
 # Lantoss is not signed with an Apple Developer ID, so this script:
 #   1. copies Lantoss.app to /Applications,
 #   2. removes the download quarantine flag,
-#   3. signs the app ad hoc on this Mac, because Apple Silicon refuses to run unsigned arm64 code.
+#   3. checks the build-time ad hoc seal, and re-signs ad hoc on this Mac only if you agree after a
+#      failed check (a broken seal means the app was modified or the download is damaged).
 set -eu
 
 APP_ARCH="@ARCH@"
@@ -47,9 +48,25 @@ $run /bin/rm -rf "$dest"
 $run /usr/bin/ditto "$src" "$dest"
 $run /bin/chmod 755 "$dest/Contents/MacOS/Lantoss"
 $run /usr/bin/xattr -dr com.apple.quarantine "$dest" 2>/dev/null || true
-echo "Signing Lantoss for this Mac (ad hoc)"
-$run /usr/bin/codesign --force --deep --sign - "$dest"
-/usr/bin/codesign --verify --deep "$dest"
+echo "Checking the Lantoss seal"
+if ! /usr/bin/codesign --verify --strict --deep "$dest" 2>/dev/null; then
+    echo >&2
+    echo "WARNING: the seal on Lantoss.app does not match its contents." >&2
+    echo "The app may have been modified after it was built, or the download is damaged." >&2
+    echo "The safe choice is to delete it and download Lantoss again." >&2
+    answer=""
+    if (: </dev/tty) 2>/dev/null; then
+        printf 'Re-sign it for this Mac anyway? [y/N] ' >/dev/tty
+        read -r answer </dev/tty || answer=""
+    fi
+    case "$answer" in
+        y|Y) ;;
+        *) echo "Not signed. Lantoss is in $dest but will not open until it is replaced or re-signed." >&2; exit 1 ;;
+    esac
+    echo "Signing Lantoss for this Mac (ad hoc)"
+    $run /usr/bin/codesign --force --deep --sign - "$dest"
+    /usr/bin/codesign --verify --strict --deep "$dest"
+fi
 
 echo
 echo "Lantoss is installed. Open it from Launchpad or the Applications folder."
