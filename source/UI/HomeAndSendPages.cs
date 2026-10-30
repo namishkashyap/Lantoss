@@ -26,14 +26,29 @@ internal sealed class HomePage : IPage
         dock.CornerRadius = new(20);
         dock.HorizontalAlignment = HorizontalAlignment.Center;
         status.HorizontalAlignment = HorizontalAlignment.Center;
-        Grid field = new() { MinHeight = 560 };
+        Grid field = new()
+        {
+            MinHeight = 560
+        };
         field.Children.Add(new Viewbox { Child = radar, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, MaxHeight = Stage });
         field.Children.Add(empty);
-        Grid layout = new() { AllowDrop = true };
+        Grid layout = new()
+        {
+            AllowDrop = true
+        };
         layout.Background = Brushes.Transparent;
-        layout.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
-        layout.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        layout.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new()
+        {
+            Height = new(1, GridUnitType.Star)
+        });
+        layout.RowDefinitions.Add(new()
+        {
+            Height = GridLength.Auto
+        });
+        layout.RowDefinitions.Add(new()
+        {
+            Height = GridLength.Auto
+        });
         layout.Children.Add(field);
         Grid.SetRow(dock, 1);
         layout.Children.Add(C.Space(dock, 10, 12));
@@ -93,14 +108,31 @@ internal sealed class HomePage : IPage
         empty.Children.Clear();
         foreach (double size in new[] { 600.0, 470, 340 })
         {
-            Ellipse ring = new() { Width = size, Height = size, StrokeThickness = 1 };
+            Ellipse ring = new()
+            {
+                Width = size,
+                Height = size,
+                StrokeThickness = 1
+            };
             ring.SetResourceReference(Shape.StrokeProperty, "GlassBorder");
             Place(ring, Middle - size / 2, Middle - size / 2);
         }
-        Border self = new() { Width = 150, Height = 150, CornerRadius = new(75), BorderThickness = new(1) };
+        Border self = new()
+        {
+            Width = 150,
+            Height = 150,
+            CornerRadius = new(75),
+            BorderThickness = new(1)
+        };
         self.SetResourceReference(Border.BackgroundProperty, "Glass");
         self.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
-        Ellipse beacon = new() { Width = 9, Height = 9, Margin = new(0, 0, 0, 6), HorizontalAlignment = HorizontalAlignment.Center };
+        Ellipse beacon = new()
+        {
+            Width = 9,
+            Height = 9,
+            Margin = new(0, 0, 0, 6),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
         beacon.SetResourceReference(Shape.FillProperty, "Accent");
         TextBlock name = C.Text(app.Store.Preferences.DeviceName, 14, bold: true), label = C.Text("This PC", 11, "Muted");
         name.TextAlignment = label.TextAlignment = TextAlignment.Center;
@@ -144,29 +176,67 @@ internal sealed class HomePage : IPage
         // Alternate the inner and middle rings so neighbours never overlap their name tags.
         double radius = index % 2 == 0 ? 235 : 170, angle = (-140 + index * 360.0 / Math.Max(count, 1)) * Math.PI / 180;
         double x = Middle + radius * Math.Cos(angle), y = Middle + radius * Math.Sin(angle);
-        Grid dot = new() { Width = 28, Height = 28 };
-        Ellipse halo = new() { Width = 28, Height = 28, Opacity = 0.22 }, core = new() { Width = 11, Height = 11 };
+        Grid dot = new()
+        {
+            Width = 28,
+            Height = 28
+        };
+        Ellipse halo = new()
+        {
+            Width = 28,
+            Height = 28,
+            Opacity = 0.22
+        }, core = new()
+        {
+            Width = 11,
+            Height = 11
+        };
         halo.SetResourceReference(Shape.FillProperty, color);
         core.SetResourceReference(Shape.FillProperty, color);
         dot.Children.Add(halo);
         dot.Children.Add(core);
         if (!app.Preview && SystemParameters.ClientAreaAnimation)
             halo.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0.32, 0.06, TimeSpan.FromSeconds(1.6)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(index * 400) });
-        Border tag = new() { CornerRadius = new(999), Padding = new(10, 4, 10, 4), BorderThickness = new(1), Margin = new(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = C.Text(name, 12, "Text") };
+        Border tag = new()
+        {
+            CornerRadius = new(999),
+            Padding = new(10, 4, 10, 4),
+            BorderThickness = new(1),
+            Margin = new(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = C.Text(name, 12, "Text")
+        };
         ((TextBlock)tag.Child).TextWrapping = TextWrapping.NoWrap;
         ((TextBlock)tag.Child).MaxWidth = 150;
         ((TextBlock)tag.Child).TextTrimming = TextTrimming.CharacterEllipsis;
         tag.SetResourceReference(Border.BackgroundProperty, "Menu");
         tag.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
-        Button blip = new() { Style = (Style)app.Window.FindResource("Plain"), Content = C.Inline(dot, tag), Padding = new(2), ToolTip = automation };
+        Button blip = new()
+        {
+            Style = (Style)app.Window.FindResource("Plain"),
+            Content = C.Inline(dot, tag),
+            Padding = new(2),
+            ToolTip = automation
+        };
         AutomationProperties.SetName(blip, automation);
-        Popup card = new() { PlacementTarget = blip, Placement = PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true, Child = details, VerticalOffset = 6 };
+        Popup card = new()
+        {
+            PlacementTarget = blip,
+            Placement = PlacementMode.Bottom,
+            StaysOpen = false,
+            AllowsTransparency = true,
+            Child = details,
+            VerticalOffset = 6
+        };
         blip.Click += (_, _) => card.IsOpen = !card.IsOpen;
         Place(blip, x - 16, y - 16);
     }
     private static Border Details(string name, string state, bool online, string address, string trust, Button first, Button? second)
     {
-        DockPanel top = new() { Margin = new(0, 0, 0, 8) };
+        DockPanel top = new()
+        {
+            Margin = new(0, 0, 0, 8)
+        };
         Border chip = C.Badge(state, online ? "Success" : "Muted", online ? "SuccessSoft" : "Glass");
         DockPanel.SetDock(chip, Dock.Right);
         top.Children.Add(chip);
@@ -177,7 +247,14 @@ internal sealed class HomePage : IPage
             second.Margin = new(6, 0, 0, 0);
             actions.Children.Add(second);
         }
-        Border card = new() { Width = 250, Padding = new(14), CornerRadius = new(16), BorderThickness = new(1), Child = C.Stack(top, C.Text(address, 12, "Muted"), C.Space(C.Text(trust, 12, "Muted"), 12, 2), actions) };
+        Border card = new()
+        {
+            Width = 250,
+            Padding = new(14),
+            CornerRadius = new(16),
+            BorderThickness = new(1),
+            Child = C.Stack(top, C.Text(address, 12, "Muted"), C.Space(C.Text(trust, 12, "Muted"), 12, 2), actions)
+        };
         card.SetResourceReference(Border.BackgroundProperty, "Surface");
         card.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
         return card;

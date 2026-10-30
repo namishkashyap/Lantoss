@@ -140,13 +140,25 @@ internal sealed class AppShell : IDisposable
             {
                 if (menu.Children.Count > 0)
                 {
-                    Border divider = new() { Height = 1, Margin = new(10, 8, 10, 8) };
+                    Border divider = new()
+                    {
+                        Height = 1,
+                        Margin = new(10, 8, 10, 8)
+                    };
                     divider.SetResourceReference(Border.BackgroundProperty, "GlassBorder");
                     menu.Children.Add(divider);
                 }
                 menu.Children.Add(C.Eyebrow(group, new(10, 6, 10, 6)));
             }
-            Button button = new() { Style = (Style)Window.FindResource("Plain"), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new(10, 6, 10, 6), MinHeight = detail.Length > 0 ? 52 : 46, Margin = new(0, 0, 0, 2) };
+            Button button = new()
+            {
+                Style = (Style)Window.FindResource("Plain"),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Padding = new(10, 6, 10, 6),
+                MinHeight = detail.Length > 0 ? 52 : 46,
+                Margin = new(0, 0, 0, 2)
+            };
             System.Windows.Automation.AutomationProperties.SetName(button, label);
             button.Click += (_, _) => { try { Navigate(name); } catch (Exception e) { Error(e); } };
             navigationIcons[name] = (icon, label, detail, group == "Share");
@@ -258,7 +270,15 @@ internal sealed class AppShell : IDisposable
     private UIElement NavigationContent(string name, bool active)
     {
         (string icon, string label, string detail, bool share) = navigationIcons[name];
-        Border tile = new() { Width = 36, Height = 36, CornerRadius = new(10), BorderThickness = new(1), Margin = new(0, 0, 14, 0), Child = C.Icon(icon, 18, share || active ? "Primary" : "Text") };
+        Border tile = new()
+        {
+            Width = 36,
+            Height = 36,
+            CornerRadius = new(10),
+            BorderThickness = new(1),
+            Margin = new(0, 0, 14, 0),
+            Child = C.Icon(icon, 18, share || active ? "Primary" : "Text")
+        };
         tile.SetResourceReference(Border.BackgroundProperty, share || active ? "PrimarySoft" : "Glass");
         tile.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
         StackPanel text = C.Stack(C.Text(label, 13, "Text", active));
@@ -293,7 +313,10 @@ internal sealed class AppShell : IDisposable
         Border panel = Find<Border>("MenuPanel");
         if (!preview && SystemParameters.ClientAreaAnimation)
         {
-            System.Windows.Media.Animation.CubicEase ease = new() { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            System.Windows.Media.Animation.CubicEase ease = new()
+            {
+                EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut
+            };
             panel.RenderTransform.BeginAnimation(TranslateTransform.XProperty, new System.Windows.Media.Animation.DoubleAnimation(48, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
             panel.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
         }

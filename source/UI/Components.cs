@@ -31,7 +31,10 @@ internal static class C
     /// <summary>Page opening: eyebrow, 24 px title and one muted line, with an optional action on the right.</summary>
     public static DockPanel Hero(string eyebrow, string title, string subtitle, UIElement? action = null)
     {
-        DockPanel panel = new() { Margin = new(0, 0, 0, 28) };
+        DockPanel panel = new()
+        {
+            Margin = new(0, 0, 0, 28)
+        };
         if (action != null)
         {
             action.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Bottom);
