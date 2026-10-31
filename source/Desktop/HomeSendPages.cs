@@ -12,16 +12,15 @@ using Path = Avalonia.Controls.Shapes.Path;
 namespace Lantoss.Desktop;
 
 /// <summary>
-/// The nearby field: this computer in the middle, paired PCs (mint) and phones or browsers (violet) blinking on the rings, twelve glowing wave
+/// The nearby field: this computer in the middle, paired PCs (mint) and phones or browsers (violet) blinking on the rings, seven glowing wave
 /// rings and two water ripples around them, and a dock whose buttons raise the Send files, Folder, Text and Phone panels.
 /// </summary>
 internal sealed class HomePage : IPage
 {
     private const double Size = 640, Middle = 320, CardWidth = 232;
     private static readonly double[] Orbits = [170, 235];
-    // The design's twelve wave rings: radius, wave height, lobes, colour, spin period in seconds (negative turns the other way), morph period, and how much the pointer swells or shrinks it.
-    private static readonly (double Radius, double Height, int Lobes, string Color, double Spin, double Morph, double Pull)[] Waves = [(268, 9, 14, "#B57CFF", 90, 7, 14), (273, 10, 18, "#3FE0FF", -130, 9, 8), (277, 8, 22, "#3DF5A0", 110, 6, 12), (282, 11, 12, "#FF6AD5", -160, 10, 6), (286, 7, 26, "#8C9BFF", 75, 6.5, 16), (290, 9, 16, "#D49BFF", -190, 9.5, 9),
-        (280, 12, 10, "#7DF7C0", 145, 11, 11), (296, 6, 30, "#9AE6FF", -220, 8, 7), (271, 7, 24, "#C9A6FF", -100, 5.5, 13), (284, 10, 20, "#5CF0D0", 175, 8.5, 10), (292, 8, 13, "#FF9BE6", 120, 12, 5), (299, 5, 28, "#A7B6FF", -240, 7.5, 15)];
+    // Seven of the design's wave rings: radius, wave height, lobes, colour, spin period in seconds (negative turns the other way), morph period, and how much the pointer swells or shrinks it.
+    private static readonly (double Radius, double Height, int Lobes, string Color, double Spin, double Morph, double Pull)[] Waves = [(268, 9, 14, "#B57CFF", 90, 7, 14), (273, 10, 18, "#3FE0FF", -130, 9, 8), (277, 8, 22, "#3DF5A0", 110, 6, 12), (282, 11, 12, "#FF6AD5", -160, 10, 6), (290, 9, 16, "#D49BFF", -190, 9.5, 9), (284, 10, 20, "#5CF0D0", 175, 8.5, 10), (299, 5, 28, "#A7B6FF", -240, 7.5, 15)];
     // Each ring morphs through three shapes (A, 1.35 A and 0.5 A with shifted phase), kept as radii sampled every 2°.
     private static readonly double[][][] Shapes = [.. Waves.Select((wave, index) => new[] { Wave(wave.Radius, wave.Height, wave.Lobes, index * .7), Wave(wave.Radius, wave.Height * 1.35, wave.Lobes, index * .7 + Math.PI * .66), Wave(wave.Radius, wave.Height * .5, wave.Lobes, index * .7 + Math.PI * 1.33) })];
     private sealed record Spot(string Key, string Name, string Color, Peer? Peer, BrowserDevice? Browser);
@@ -41,7 +40,7 @@ internal sealed class HomePage : IPage
     private string? open, sheet, folder, noteKey, deviceSignature;
     private SpaceAccess access = SpaceAccess.ReadAndUpload;
     private Action? fillSheet;
-    private double clock, pull, nearness, last;
+    private double clock, smooth, nearness, last;
     public Control View
     {
         get;
@@ -49,13 +48,13 @@ internal sealed class HomePage : IPage
     public HomePage(Shell app)
     {
         this.app = app;
-        // Wave rings sit outside the two inner rings; a blurred copy of every ring under its 0.55 px stroke is the glow.
+        // Wave rings sit outside the two inner rings; a 1.6 px copy of every ring at .35 under its 0.5 px stroke is the glow (no blur: the layer changes every frame).
         Canvas glowLayer = new()
         {
             Width = Size,
             Height = Size,
             IsHitTestVisible = false,
-            Effect = new BlurEffect { Radius = 6 }
+            Opacity = .35
         }, lineLayer = new()
         {
             Width = Size,
@@ -65,8 +64,8 @@ internal sealed class HomePage : IPage
         for (int index = 0; index < Waves.Length; index++)
         {
             IBrush color = Theme.Brush(Waves[index].Color);
-            glowLayer.Children.Add(glows[index] = new Path { Stroke = color, StrokeThickness = 2, StrokeJoin = PenLineJoin.Round });
-            lineLayer.Children.Add(lines[index] = new Path { Stroke = color, StrokeThickness = .55, StrokeJoin = PenLineJoin.Round });
+            glowLayer.Children.Add(glows[index] = new Path { Stroke = color, StrokeThickness = 1.6, StrokeJoin = PenLineJoin.Round });
+            lineLayer.Children.Add(lines[index] = new Path { Stroke = color, StrokeThickness = .5, StrokeJoin = PenLineJoin.Round });
         }
         stage.Children.Add(glowLayer);
         stage.Children.Add(lineLayer);
@@ -135,8 +134,7 @@ internal sealed class HomePage : IPage
         Grid.SetRow(foot, 1);
         Grid.SetRowSpan(clickAway, 2);
         clickAway.PointerPressed += (_, _) => Open(null);
-        // Faint outer rings continue the field to the window edges behind the stage; the stage itself may overflow its box when the rings swell.
-        layout.Children.Add(new Border { Child = C.Rings(360, 820, "Ring", 364), Opacity = 0.55, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false });
+        // The shell's faint rings continue the field to the window edges behind the stage; the stage itself may overflow its box when the rings swell.
         layout.Children.Add(new Viewbox { Child = stage, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Margin = new(16, 8, 16, 12), ClipToBounds = false });
         layout.Children.Add(clickAway);
         layout.Children.Add(sheetHost);
@@ -177,13 +175,13 @@ internal sealed class HomePage : IPage
     private static Ellipse Ring(double radius, string stroke) => Place(new Ellipse { Width = radius * 2, Height = radius * 2, Stroke = Theme.Brush(stroke), StrokeThickness = 1, IsHitTestVisible = false }, Middle - radius, Middle - radius);
     private static double[] Wave(double radius, double height, int lobes, double phase) => [.. Enumerable.Range(0, 181).Select(step => step * Math.PI / 90).Select(angle => radius + height * Math.Sin(lobes * angle + phase) + height * .35 * Math.Sin(Math.Floor(lobes / 2.0 + .5) * angle - phase * 1.3))];
     private static string Pc(Peer peer) => peer.Online ? Theme.Dark ? "#3DF5A0" : "Mint" : "Muted";
-    /// <summary>One step per frame while Home is on screen: the field clock runs at 1 − .75 × proximity, eased so the rings settle smoothly.</summary>
+    /// <summary>One step per frame while Home is on screen: proximity eases over 0.5 s at any frame rate and the field clock runs at 1 − .75 × that.</summary>
     private void Step(double time)
     {
         double step = Math.Clamp(time - last, 0, .1);
         last = time;
-        pull += (nearness - pull) * (1 - Math.Exp(-step / .3));
-        clock += step * (1 - .75 * pull);
+        smooth += (nearness - smooth) * (1 - Math.Exp(-step / .5));
+        clock += step * (1 - .75 * smooth);
         Draw();
     }
     /// <summary>Draws the rings, ripples and device beats at the field clock; without motion this is the settled state.</summary>
@@ -193,8 +191,8 @@ internal sealed class HomePage : IPage
         for (int index = 0; index < Waves.Length; index++)
         {
             var wave = Waves[index];
-            double cycle = Motion.Cycle(clock / wave.Morph), start = cycle < .33 ? 0 : cycle < .66 ? .33 : .66, blend = Motion.Morph.Ease((cycle - start) / ((start == .66 ? 1 : start + .33) - start));
-            double turn = clock / wave.Spin * 2 * Math.PI, scale = 1 + pull * wave.Pull * (index % 3 == 1 ? -1 : 1) * .0045;
+            double cycle = Motion.Cycle(clock / (wave.Morph * 1.6)), start = cycle < .33 ? 0 : cycle < .66 ? .33 : .66, blend = Motion.Morph.Ease((cycle - start) / ((start == .66 ? 1 : start + .33) - start));
+            double turn = clock / (wave.Spin * 1.5) * 2 * Math.PI, scale = 1 + smooth * wave.Pull * (index % 3 == 1 ? -1 : 1) * .0045;
             double[] from = Shapes[index][(int)Math.Round(start / .33)], to = Shapes[index][((int)Math.Round(start / .33) + 1) % 3];
             StreamGeometry geometry = new();
             using (StreamGeometryContext context = geometry.Open())
@@ -628,7 +626,7 @@ internal sealed class HomePage : IPage
                 code = placeholder;
             }
             code.Margin = new(0, 0, 16, 0);
-            TextBlock hint = C.Text("Same Wi‑Fi, then scan with your camera.", 13, "Muted"), address = C.Text(on ? url : "Browser sharing is off", 12, "Muted");
+            TextBlock hint = C.Text("Same Wi‑Fi, then scan with your camera.", 13, "Muted"), address = C.Text(on ? C.Bare(url) : "Browser sharing is off", 12, "Muted");
             address.FontFamily = new FontFamily("monospace");
             StackPanel text = C.Stack(C.Space(hint, 8), address);
             text.VerticalAlignment = VerticalAlignment.Center;
