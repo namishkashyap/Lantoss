@@ -1,21 +1,47 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using Path = Avalonia.Controls.Shapes.Path;
 
 namespace Lantoss.Desktop;
 
-/// <summary>The nearby radar: this computer in the middle, paired PCs (mint) and phones or browsers (purple) as dots on the rings.</summary>
+/// <summary>
+/// The nearby field: this computer in the middle, paired PCs (mint) and phones or browsers (violet) blinking on the rings, twelve glowing wave
+/// rings and two water ripples around them, and a dock whose buttons raise the Send files, Folder, Text and Phone panels.
+/// </summary>
 internal sealed class HomePage : IPage
 {
-    private const double Size = 640, Middle = 320, CardWidth = 236;
-    private static readonly double[] Orbits = [170, 235, 300];
+    private const double Size = 640, Middle = 320, CardWidth = 232;
+    private static readonly double[] Orbits = [170, 235];
+    // The design's twelve wave rings: radius, wave height, lobes, colour, spin period in seconds (negative turns the other way), morph period, and how much the pointer swells or shrinks it.
+    private static readonly (double Radius, double Height, int Lobes, string Color, double Spin, double Morph, double Pull)[] Waves = [(268, 9, 14, "#B57CFF", 90, 7, 14), (273, 10, 18, "#3FE0FF", -130, 9, 8), (277, 8, 22, "#3DF5A0", 110, 6, 12), (282, 11, 12, "#FF6AD5", -160, 10, 6), (286, 7, 26, "#8C9BFF", 75, 6.5, 16), (290, 9, 16, "#D49BFF", -190, 9.5, 9),
+        (280, 12, 10, "#7DF7C0", 145, 11, 11), (296, 6, 30, "#9AE6FF", -220, 8, 7), (271, 7, 24, "#C9A6FF", -100, 5.5, 13), (284, 10, 20, "#5CF0D0", 175, 8.5, 10), (292, 8, 13, "#FF9BE6", 120, 12, 5), (299, 5, 28, "#A7B6FF", -240, 7.5, 15)];
+    // Each ring morphs through three shapes (A, 1.35 A and 0.5 A with shifted phase), kept as radii sampled every 2°.
+    private static readonly double[][][] Shapes = [.. Waves.Select((wave, index) => new[] { Wave(wave.Radius, wave.Height, wave.Lobes, index * .7), Wave(wave.Radius, wave.Height * 1.35, wave.Lobes, index * .7 + Math.PI * .66), Wave(wave.Radius, wave.Height * .5, wave.Lobes, index * .7 + Math.PI * 1.33) })];
     private sealed record Spot(string Key, string Name, string Color, Peer? Peer, BrowserDevice? Browser);
+    private sealed record Target(string Label, string Color, Peer? Peer, BrowserDevice? Browser);
+    private sealed record Blink(Border Dot, ScaleTransform Beat, Ellipse Ping, ScaleTransform Spread, double Offset);
     private readonly Shell app;
     private readonly Canvas stage = new() { Width = Size, Height = Size, Background = Brushes.Transparent }, devices = new() { Width = Size, Height = Size };
     private readonly ContentControl activity = new() { HorizontalAlignment = HorizontalAlignment.Center };
-    private string? open;
+    private readonly Path[] lines = new Path[Waves.Length], glows = new Path[Waves.Length];
+    private readonly (Border Ripple, ScaleTransform Scale)[] ripples = new (Border, ScaleTransform)[2];
+    private readonly List<Blink> blinks = [];
+    private readonly List<Action> cards = [];
+    private readonly Dictionary<string, Button> dock = [];
+    private readonly Panel sheetHost = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(16, 0, 16, 12) };
+    private readonly Border clickAway = new() { Background = Brushes.Transparent, IsVisible = false };
+    private readonly TextBox message = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 84, MaxHeight = 160, MaxLength = SharedNotes.MaxCharacters, PlaceholderText = "Paste a note or a link…", CornerRadius = new(12) };
+    private string? open, sheet, folder, noteKey, deviceSignature;
+    private SpaceAccess access = SpaceAccess.ReadOnly;
+    private Action? fillSheet;
+    private double clock, pull, nearness, last;
     public Control View
     {
         get;
@@ -23,10 +49,48 @@ internal sealed class HomePage : IPage
     public HomePage(Shell app)
     {
         this.app = app;
-        stage.Children.Add(Ring(300, "Text/7"));
+        // Wave rings sit outside the two inner rings; a blurred copy of every ring under its 0.55 px stroke is the glow.
+        Canvas glowLayer = new()
+        {
+            Width = Size,
+            Height = Size,
+            IsHitTestVisible = false,
+            Effect = new BlurEffect { Radius = 6 }
+        }, lineLayer = new()
+        {
+            Width = Size,
+            Height = Size,
+            IsHitTestVisible = false
+        };
+        for (int index = 0; index < Waves.Length; index++)
+        {
+            IBrush color = Theme.Brush(Waves[index].Color);
+            glowLayer.Children.Add(glows[index] = new Path { Stroke = color, StrokeThickness = 2, StrokeJoin = PenLineJoin.Round });
+            lineLayer.Children.Add(lines[index] = new Path { Stroke = color, StrokeThickness = .55, StrokeJoin = PenLineJoin.Round });
+        }
+        stage.Children.Add(glowLayer);
+        stage.Children.Add(lineLayer);
         stage.Children.Add(Ring(235, "Text/9"));
         stage.Children.Add(Ring(170, "Text/11"));
-        stage.Children.Add(Ring(100, "Text/14", "Text/3"));
+        // Water ripples: two glass circles grow from the centre, 6 s apart.
+        for (int index = 0; index < ripples.Length; index++)
+        {
+            ScaleTransform scale = new();
+            Border ripple = new()
+            {
+                Width = 200,
+                Height = 200,
+                CornerRadius = new(100),
+                BorderThickness = new(1),
+                BorderBrush = Theme.Brush(Theme.Dark ? "#FFFFFF/22" : "Text/14"),
+                Background = new RadialGradientBrush { Center = new RelativePoint(.5, .28, RelativeUnit.Relative), GradientOrigin = new RelativePoint(.5, .28, RelativeUnit.Relative), RadiusX = new RelativeScalar(.875, RelativeUnit.Relative), RadiusY = new RelativeScalar(.875, RelativeUnit.Relative), GradientStops = [new(Theme.Color("#FFFFFF/9"), 0), new(Theme.Color("#FFFFFF/1.5"), .62), new(Theme.Color("#B57CFF/5"), 1)] },
+                BoxShadow = new BoxShadows(new BoxShadow { Blur = 26, Color = Theme.Color("#B57CFF/12") }),
+                RenderTransform = scale,
+                IsHitTestVisible = false
+            };
+            ripples[index] = (ripple, scale);
+            stage.Children.Add(Place(ripple, Middle - 100, Middle - 100));
+        }
         Border glow = new()
         {
             Width = 9,
@@ -46,10 +110,11 @@ internal sealed class HomePage : IPage
         label.VerticalAlignment = VerticalAlignment.Center;
         stage.Children.Add(Place(new Border { Width = 150, Height = 150, CornerRadius = new(75), Background = Theme.Brush("Glass"), BorderBrush = Theme.Brush("Text/18"), BorderThickness = new(1), BoxShadow = new BoxShadows(new BoxShadow { Blur = 60, Color = Theme.Color(Theme.Dark ? "GlowA/35" : "GlowA/25") }), Child = label, IsHitTestVisible = false }, Middle - 75, Middle - 75));
         stage.Children.Add(devices);
-        StackPanel buttons = C.Inline(C.Button("Send files", () => app.Navigate("Send"), true, "send"), C.Button("Share a folder", () => app.Navigate("Shared Spaces"), icon: "folder"), C.Button("Share text", () => app.Navigate("Text & links"), icon: "text"), C.Button("Open on your phone", () => app.Navigate("Phone & browser"), icon: "phone"));
-        Border dock = new()
+        foreach ((string key, string text, string icon) in new[] { ("send", "Send files", "send"), ("folder", "Folder", "folder"), ("text", "Text", "text"), ("phone", "Phone", "phone") })
+            dock[key] = C.Button(text, () => Open(sheet == key ? null : key), key == "send", icon);
+        Border bar = new()
         {
-            Child = buttons,
+            Child = C.Inline([.. dock.Values]),
             Padding = new(8),
             CornerRadius = new(18),
             Background = Theme.Brush(Theme.Dark ? "#0C0C14/50" : "Glass"),
@@ -58,7 +123,7 @@ internal sealed class HomePage : IPage
             BoxShadow = Theme.Shadow(24, 60, 0.45),
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        StackPanel foot = C.Stack(activity, dock);
+        StackPanel foot = C.Stack(activity, bar);
         foot.Spacing = 12;
         foot.Margin = new(16, 0, 16, 24);
         foot.HorizontalAlignment = HorizontalAlignment.Center;
@@ -68,20 +133,40 @@ internal sealed class HomePage : IPage
             Background = Brushes.Transparent
         };
         Grid.SetRow(foot, 1);
-        // Faint outer rings continue the radar to the window edges; the Viewbox would clip them, so they sit behind it.
+        Grid.SetRowSpan(clickAway, 2);
+        clickAway.PointerPressed += (_, _) => Open(null);
+        // Faint outer rings continue the field to the window edges behind the stage; the stage itself may overflow its box when the rings swell.
         layout.Children.Add(new Border { Child = C.Rings(360, 820, "Ring", 364), Opacity = 0.55, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false });
-        layout.Children.Add(new Viewbox { Child = stage, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Margin = new(16, 8, 16, 12) });
+        layout.Children.Add(new Viewbox { Child = stage, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Margin = new(16, 8, 16, 12), ClipToBounds = false });
+        layout.Children.Add(clickAway);
+        layout.Children.Add(sheetHost);
         layout.Children.Add(foot);
-        // Clicking empty space closes an open device card.
+        // Clicking empty space unpins a device card.
         layout.PointerPressed += (_, e) =>
         {
             if (open != null && (ReferenceEquals(e.Source, stage) || ReferenceEquals(e.Source, layout)))
+                Pin(null);
+        };
+        // The pointer near the wave rings slows the field and swells or shrinks each ring: 1 at radius 284, 0 at ±110 px.
+        layout.PointerMoved += (_, e) =>
+        {
+            Point point = e.GetPosition(stage);
+            nearness = Math.Max(0, 1 - Math.Abs(Math.Sqrt((point.X - Middle) * (point.X - Middle) + (point.Y - Middle) * (point.Y - Middle)) - 284) / 110);
+        };
+        layout.PointerExited += (_, _) => nearness = 0;
+        layout.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape && sheet != null)
             {
-                open = null;
-                Refresh();
+                Open(null);
+                e.Handled = true;
             }
         };
+        layout.AttachedToVisualTree += (_, _) => last = 0;
+        Motion.Every(layout, Step);
+        Motion.Rise(bar, 26, .9, .15);
         View = layout;
+        Draw();
     }
     private static T Place<T>(T control, double x, double y) where T : Control
     {
@@ -89,12 +174,77 @@ internal sealed class HomePage : IPage
         Canvas.SetTop(control, y);
         return control;
     }
-    private static Ellipse Ring(double radius, string stroke, string? fill = null) => Place(new Ellipse { Width = radius * 2, Height = radius * 2, Stroke = Theme.Brush(stroke), StrokeThickness = 1, Fill = fill == null ? null : Theme.Brush(fill), IsHitTestVisible = false }, Middle - radius, Middle - radius);
+    private static Ellipse Ring(double radius, string stroke) => Place(new Ellipse { Width = radius * 2, Height = radius * 2, Stroke = Theme.Brush(stroke), StrokeThickness = 1, IsHitTestVisible = false }, Middle - radius, Middle - radius);
+    private static double[] Wave(double radius, double height, int lobes, double phase) => [.. Enumerable.Range(0, 181).Select(step => step * Math.PI / 90).Select(angle => radius + height * Math.Sin(lobes * angle + phase) + height * .35 * Math.Sin(Math.Floor(lobes / 2.0 + .5) * angle - phase * 1.3))];
+    private static string Pc(Peer peer) => peer.Online ? Theme.Dark ? "#3DF5A0" : "Mint" : "Muted";
+    /// <summary>One step per frame while Home is on screen: the field clock runs at 1 − .75 × proximity, eased so the rings settle smoothly.</summary>
+    private void Step(double time)
+    {
+        double step = Math.Clamp(time - last, 0, .1);
+        last = time;
+        pull += (nearness - pull) * (1 - Math.Exp(-step / .3));
+        clock += step * (1 - .75 * pull);
+        Draw();
+    }
+    /// <summary>Draws the rings, ripples and device beats at the field clock; without motion this is the settled state.</summary>
+    private void Draw()
+    {
+        bool moving = Motion.Enabled;
+        for (int index = 0; index < Waves.Length; index++)
+        {
+            var wave = Waves[index];
+            double cycle = Motion.Cycle(clock / wave.Morph), start = cycle < .33 ? 0 : cycle < .66 ? .33 : .66, blend = Motion.Morph.Ease((cycle - start) / ((start == .66 ? 1 : start + .33) - start));
+            double turn = clock / wave.Spin * 2 * Math.PI, scale = 1 + pull * wave.Pull * (index % 3 == 1 ? -1 : 1) * .0045;
+            double[] from = Shapes[index][(int)Math.Round(start / .33)], to = Shapes[index][((int)Math.Round(start / .33) + 1) % 3];
+            StreamGeometry geometry = new();
+            using (StreamGeometryContext context = geometry.Open())
+            {
+                for (int step = 0; step <= 180; step++)
+                {
+                    double radius = (from[step] + (to[step] - from[step]) * blend) * scale, angle = step * Math.PI / 90 + turn;
+                    Point point = new(Middle + radius * Math.Cos(angle), Middle + radius * Math.Sin(angle));
+                    if (step == 0)
+                        context.BeginFigure(point, false);
+                    else
+                        context.LineTo(point);
+                }
+                context.EndFigure(true);
+            }
+            lines[index].Data = glows[index].Data = geometry;
+            // Shimmer between .55 and 1 every 7 s, each ring 0.6 s ahead of the previous one.
+            lines[index].Opacity = glows[index].Opacity = moving ? .55 + .45 * Motion.InOut.Ease(Motion.Triangle(Motion.Cycle((clock + .6 * index) / 7))) : 1;
+        }
+        for (int index = 0; index < ripples.Length; index++)
+        {
+            double cycle = Motion.Cycle((clock + 6 * index) / 12), grow = moving ? .6 + 1.5 * Motion.Ripple.Ease(cycle) : 1;
+            ripples[index].Scale.ScaleX = ripples[index].Scale.ScaleY = grow;
+            ripples[index].Ripple.Opacity = !moving ? index == 0 ? .55 : 0 : cycle < .18 ? .55 * Motion.Ripple.Ease(cycle / .18) : .55 * (1 - Motion.Ripple.Ease((cycle - .18) / .82));
+        }
+        // Dots blink (.4 to 1, scale .85 to 1) with a radar ping on the same 3.8 s beat; each device starts at a different point.
+        foreach (Blink blink in blinks)
+        {
+            double cycle = Motion.Cycle((clock + blink.Offset) / 3.8), beat = Motion.InOut.Ease(Motion.Triangle(cycle)), ping = Motion.EaseOut.Ease(Math.Min(1, cycle / .7));
+            blink.Dot.Opacity = moving ? .4 + .6 * beat : 1;
+            blink.Beat.ScaleX = blink.Beat.ScaleY = moving ? .85 + .15 * beat : 1;
+            blink.Ping.Opacity = !moving ? .45 : cycle < .7 ? .65 * (1 - ping) : 0;
+            blink.Spread.ScaleX = blink.Spread.ScaleY = moving ? .6 + 2 * ping : 1.2;
+        }
+    }
     public void Refresh()
     {
-        devices.Children.Clear();
-        List<Spot> spots = [.. app.Engine.Peers.Where(p => !p.Blocked && (p.Paired || p.Online)).OrderByDescending(p => p.Paired).ThenByDescending(p => p.Online).ThenBy(p => p.Name).Take(8).Select(p => new Spot(p.Fingerprint, p.Name, p.Online ? "Mint" : "Muted", p, null)),
+        double speed = app.Engine.Transfers.Records.Where(r => !r.Terminal).Sum(r => r.BytesPerSecond);
+        activity.Content = speed > 0 ? C.Small($"{speed / 1048576:0.0} MB/s transferring · View", () => app.Navigate("Transfers")) : null;
+        fillSheet?.Invoke();
+        List<Spot> spots = [.. app.Engine.Peers.Where(p => !p.Blocked && (p.Paired || p.Online)).OrderByDescending(p => p.Paired).ThenByDescending(p => p.Online).ThenBy(p => p.Name).Take(8).Select(p => new Spot(p.Fingerprint, p.Name, Pc(p), p, null)),
             .. app.Engine.Browser.Devices.Take(6).Select(b => new Spot("browser:" + b.Handle, b.Label, "Phone", null, b))];
+        // Transfers refresh Home many times a second; the devices are rebuilt only when they change, so hover cards and beats carry on.
+        string signature = string.Join("|", spots.Select(s => $"{s.Key}/{s.Name}/{s.Color}/{s.Peer?.Paired}/{s.Peer?.Address}/{s.Browser?.Approved}/{s.Browser?.Address}/{s.Browser?.ConnectedUtc.Ticks}"));
+        if (signature == deviceSignature)
+            return;
+        deviceSignature = signature;
+        devices.Children.Clear();
+        blinks.Clear();
+        cards.Clear();
         if (spots.Count == 0)
         {
             TextBlock title = C.Text("Open hopo on your other computer", 14, bold: true), detail = C.Text("Use the same home Wi-Fi. It will appear here automatically.", 12, "Muted");
@@ -108,41 +258,41 @@ internal sealed class HomePage : IPage
         }
         for (int index = 0; index < spots.Count; index++)
         {
-            double radius = Orbits[index % 3], angle = (-140 + index * 360.0 / spots.Count + index % 3 * 11) * Math.PI / 180;
-            Blip(spots[index], Middle + radius * Math.Cos(angle), Middle + radius * Math.Sin(angle));
+            double radius = Orbits[index % 2], angle = (-140 + index * 360.0 / spots.Count + index % 2 * 11) * Math.PI / 180;
+            Blip(spots[index], index, Middle + radius * Math.Cos(angle), Middle + radius * Math.Sin(angle));
         }
-        // The open card is drawn last so it sits above every other dot and name.
-        if (devices.Children.OfType<Border>().FirstOrDefault(child => child.Tag is "detail") is { } detailCard)
-        {
-            devices.Children.Remove(detailCard);
-            devices.Children.Add(detailCard);
-        }
-        double speed = app.Engine.Transfers.Records.Where(r => !r.Terminal).Sum(r => r.BytesPerSecond);
-        activity.Content = speed > 0 ? C.Small($"{speed / 1048576:0.0} MB/s transferring · View", () => app.Navigate("Transfers")) : null;
+        Draw();
     }
-    private void Blip(Spot spot, double x, double y)
+    private void Pin(string? key)
     {
-        bool shown = open == spot.Key, right = x >= Middle;
-        Panel glyph = new()
+        open = key;
+        foreach (Action update in cards)
+            update();
+    }
+    private void Blip(Spot spot, int index, double x, double y)
+    {
+        bool right = x >= Middle;
+        ScaleTransform beat = new(), spread = new(1.2, 1.2);
+        Ellipse ping = new()
         {
-            Width = 44,
-            Height = 44
+            Width = 20,
+            Height = 20,
+            Stroke = Theme.Brush(spot.Color),
+            StrokeThickness = 1,
+            RenderTransform = spread
         };
-        glyph.Children.Add(new Ellipse { Width = 24, Height = 24, Stroke = Theme.Brush(spot.Color + "/45"), StrokeThickness = 1 });
-        glyph.Children.Add(new Border { Width = 10, Height = 10, CornerRadius = new(5), Background = Theme.Brush(spot.Color), BoxShadow = new BoxShadows(new BoxShadow { Blur = 12, Spread = 1, Color = Theme.Color(spot.Color + "/70") }) });
-        Button blip = C.Ghost(new Button { Content = glyph, Width = 44, Height = 44, Padding = new(0), CornerRadius = new(22), BorderThickness = new(0) });
+        Border dot = new()
+        {
+            Width = 10,
+            Height = 10,
+            CornerRadius = new(5),
+            Background = Theme.Brush(spot.Color),
+            BoxShadow = new BoxShadows(new BoxShadow { Spread = 4, Color = Theme.Color(spot.Color + "/15") }, [new BoxShadow { Blur = 16, Color = Theme.Color(spot.Color + "/75") }]),
+            RenderTransform = beat
+        };
+        blinks.Add(new(dot, beat, ping, spread, index * 1.05));
+        Button blip = C.Ghost(new Button { Content = new Panel { Width = 44, Height = 44, Children = { ping, dot } }, Width = 44, Height = 44, Padding = new(0), CornerRadius = new(22), BorderThickness = new(0), Classes = { "plain" } });
         AutomationProperties.SetName(blip, spot.Name + (spot.Browser != null ? ", through the browser" : ", on your network"));
-        blip.Click += (_, _) =>
-        {
-            open = shown ? null : spot.Key;
-            Refresh();
-        };
-        devices.Children.Add(Place(blip, x - 22, y - 22));
-        if (shown)
-        {
-            devices.Children.Add(Detail(spot, x, y, right));
-            return;
-        }
         Border tag = new()
         {
             Child = C.Medium(spot.Name, 12),
@@ -159,9 +309,37 @@ internal sealed class HomePage : IPage
             Canvas.SetLeft(tag, x + 18);
         else
             Canvas.SetRight(tag, Size - x + 18);
+        // Hover or keyboard focus swaps the name tag for the device card, which rises 8 px from 97%. A click pins it for touch screens.
+        Border card = Detail(spot, x, y, right);
+        card.ZIndex = 10;
+        Motion.Ease(tag, .25);
+        Motion.Ease(card, .3, .45);
+        void Update()
+        {
+            bool shown = open == spot.Key || blip.IsPointerOver || card.IsPointerOver || blip.IsKeyboardFocusWithin || card.IsKeyboardFocusWithin;
+            card.Opacity = shown ? 1 : 0;
+            card.IsHitTestVisible = shown;
+            card.RenderTransform = Motion.Transform(shown ? "translateY(0px) scale(1)" : "translateY(8px) scale(0.97)");
+            tag.Opacity = shown ? 0 : 1;
+        }
+        // Leaving waits a moment, so the pointer can cross the gap between the dot and its card.
+        void Later() => DispatcherTimer.RunOnce(Update, TimeSpan.FromMilliseconds(160));
+        blip.PointerEntered += (_, _) => Update();
+        card.PointerEntered += (_, _) => Update();
+        blip.PointerExited += (_, _) => Later();
+        card.PointerExited += (_, _) => Later();
+        blip.GotFocus += (_, _) => Update();
+        card.GotFocus += (_, _) => Update();
+        blip.LostFocus += (_, _) => Dispatcher.UIThread.Post(Update);
+        card.LostFocus += (_, _) => Dispatcher.UIThread.Post(Update);
+        blip.Click += (_, _) => Pin(open == spot.Key ? null : spot.Key);
+        cards.Add(Update);
+        Update();
+        devices.Children.Add(Place(blip, x - 22, y - 22));
         devices.Children.Add(tag);
+        devices.Children.Add(card);
     }
-    /// <summary>The small glass card for one device, wired to the same actions as Devices and Send.</summary>
+    /// <summary>The small glass card for one device: name and status, address and trust, and its actions (Send files and Text open the Home panels).</summary>
     private Border Detail(Spot spot, double x, double y, bool right)
     {
         Peer? peer = spot.Peer;
@@ -174,19 +352,19 @@ internal sealed class HomePage : IPage
         actions.Spacing = 6;
         if (browser != null)
         {
-            actions.Children.Add(browser.Approved ? C.Small("Send files", () => { app.SelectedBrowserHandle = browser.Handle; app.Navigate("Send"); }, true) : C.Small("Allow", () => app.Engine.Browser.Approve(browser.Handle), true));
-            actions.Children.Add(C.Small("Disconnect", async () =>
+            actions.Children.Add(browser.Approved ? C.Small("Send files", () => { app.SelectedBrowserHandle = browser.Handle; Open("send"); }, true) : C.Small("Allow", () => app.Engine.Browser.Approve(browser.Handle), true));
+            actions.Children.Add(C.Ghost(C.Small("Disconnect", async () =>
             {
                 if (!await app.Dialogs.ConfirmAsync("Disconnect browser", "Disconnect " + browser.Label + "? Its pending uploads stop and the page must connect again.", "Disconnect"))
                     return;
                 open = null;
                 app.Engine.Browser.Disconnect(browser.Handle);
-            }));
+            })));
         }
         else if (peer!.Paired)
         {
-            actions.Children.Add(C.Small("Send files", () => { app.SelectedPeerKey = peer.Fingerprint; app.SelectedBrowserHandle = null; app.Navigate("Send"); }, true));
-            actions.Children.Add(C.Small("Text", () => { app.NotePeerKey = peer.Fingerprint; app.Navigate("Text & links"); }));
+            actions.Children.Add(C.Small("Send files", () => { app.SelectedPeerKey = peer.Fingerprint; app.SelectedBrowserHandle = null; Open("send"); }, true));
+            actions.Children.Add(C.Small("Text", () => { noteKey = peer.Fingerprint; Open("text"); }));
         }
         else
             actions.Children.Add(C.Small("Connect", () => app.Dialogs.Pair(peer), true));
@@ -201,19 +379,277 @@ internal sealed class HomePage : IPage
         DockPanel.SetDock(badge, Dock.Right);
         top.Children.Add(badge);
         top.Children.Add(name);
-        Border card = new()
-        {
-            Tag = "detail",
-            Width = CardWidth,
-            Padding = new(14),
-            CornerRadius = new(16),
-            Background = Theme.Brush("Menu"),
-            BorderBrush = Theme.Brush("GlassBorder"),
-            BorderThickness = new(1),
-            BoxShadow = Theme.Shadow(20, 50, 0.5),
-            Child = C.Stack(C.Space(top, 10), C.Space(C.Text(address, 11, "Muted"), 3), C.Space(C.Text(trust, 11, "Muted"), 12), actions)
-        };
+        Border card = C.Card(C.Stack(C.Space(top, 10), C.Space(C.Text(address, 11, "Muted"), 3), C.Space(C.Text(trust, 11, "Muted"), 12), actions), new Thickness(14), 16);
+        card.Width = CardWidth;
+        card.Background = Theme.Brush("Menu");
+        card.BoxShadow = Theme.Shadow(20, 50, 0.5);
         return Place(card, Math.Clamp(right ? x - 30 - CardWidth : x + 30, 0, Size - CardWidth), Math.Clamp(y - 26, 0, Size - 160));
+    }
+    /// <summary>Opens one dock panel (or closes it with null). It grows out of its button; the button shows its "on" state.</summary>
+    private void Open(string? key)
+    {
+        sheet = key;
+        Pin(null);
+        foreach ((string name, Button button) in dock)
+        {
+            bool on = name == key;
+            button.Classes.Set("on", on);
+            if (name == "send")
+                Theme.SetButton(button.Resources, on ? "#FFC567" : "Accent", "OnAccent", on ? "#FFC567" : "Accent", "#FFC567");
+            else
+                Theme.SetButton(button.Resources, on ? "Text/14" : "Glass", "Text", on ? "Text/26" : "GlassBorder", on ? "Text/14" : "Text/8");
+        }
+        clickAway.IsVisible = key != null;
+        sheetHost.Children.Clear();
+        fillSheet = null;
+        if (key == null)
+            return;
+        StackPanel body = key switch
+        {
+            "send" => SendSheet(),
+            "folder" => FolderSheet(),
+            "text" => TextSheet(),
+            _ => PhoneSheet()
+        };
+        body.Spacing = 14;
+        Border card = C.Card(body, new Thickness(18));
+        card.Width = 440;
+        card.Background = Theme.Brush(Theme.Dark ? "#0E0E18/92" : "Menu");
+        card.BoxShadow = Theme.Shadow(30, 80, 0.5);
+        card.RenderTransformOrigin = new RelativePoint(key switch
+        {
+            "send" => .14,
+            "folder" => .4,
+            "text" => .61,
+            _ => .84
+        }, 1.12, RelativeUnit.Relative);
+        if (key == "send")
+        {
+            // Files dropped on this panel join the selection and Home stays open.
+            DragDrop.SetAllowDrop(card, true);
+            card.AddHandler(DragDrop.DropEvent, async (_, e) =>
+            {
+                e.Handled = true;
+                string[] paths = e.DataTransfer.TryGetFiles()?.Select(item => item.TryGetLocalPath()).OfType<string>().ToArray() ?? [];
+                if (paths.Length > 0)
+                    await app.AddSelectionsAsync(paths, true);
+            });
+        }
+        sheetHost.Children.Add(card);
+        fillSheet?.Invoke();
+        Motion.Pop(card);
+        foreach (Control child in body.Children)
+            Motion.Rise(child, 6, .45, .14, Motion.EaseOut);
+    }
+    private StackPanel Sheet(string title, params Control[] parts)
+    {
+        Button close = C.IconButton("close", () => Open(null), "Close panel", true);
+        TextBlock heading = C.Text(title, 15, bold: true);
+        heading.VerticalAlignment = VerticalAlignment.Center;
+        DockPanel head = new();
+        DockPanel.SetDock(close, Dock.Right);
+        head.Children.Add(close);
+        head.Children.Add(heading);
+        return C.Stack([head, .. parts]);
+    }
+    private static StackPanel Labelled(string label, Control content) => C.Stack(C.Space(C.Text(label, 12, "Muted"), 8), content);
+    /// <summary>A "Send to" or access chip; the chosen one is violet.</summary>
+    private static Button Chip(string label, string? dot, bool chosen, Action choose)
+    {
+        TextBlock text = C.Medium(label, 13, chosen ? "Text" : "Text/80");
+        text.VerticalAlignment = VerticalAlignment.Center;
+        Button chip = new()
+        {
+            Content = dot == null ? text : C.Inline(C.Dot(dot, 7), text),
+            MinHeight = 40,
+            Padding = new(14, 0),
+            CornerRadius = new(10),
+            BorderThickness = new(1),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new(0, 0, 8, 8)
+        };
+        Theme.SetButton(chip.Resources, chosen ? "Phone/14" : "Text/4", "Text", chosen ? "Phone/70" : "Text/12", chosen ? "Phone/18" : "Text/8");
+        AutomationProperties.SetName(chip, label + (chosen ? ", selected" : ""));
+        chip.Click += (_, _) => choose();
+        return chip;
+    }
+    private static Grid Drop(TextBlock text, Button action)
+    {
+        text.VerticalAlignment = VerticalAlignment.Center;
+        text.TextTrimming = TextTrimming.CharacterEllipsis;
+        action.Margin = new(12, 0, 0, 0);
+        DockPanel row = new();
+        DockPanel.SetDock(action, Dock.Right);
+        row.Children.Add(action);
+        row.Children.Add(text);
+        Grid area = C.Dashed(row);
+        ((Border)area.Children[1]).Padding = new(16);
+        return area;
+    }
+    private Target[] Targets() => [.. app.Engine.Peers.Where(p => p.Paired && !p.Blocked).Select(p => new Target(p.Name, Pc(p), p, null)), .. app.Engine.Browser.Devices.Where(d => d.Approved && app.Engine.Browser.Running).Select(d => new Target(d.Label, "Phone", null, d))];
+    private Target? Chosen(Target[] targets) => targets.FirstOrDefault(t => t.Browser != null && t.Browser.Handle == app.SelectedBrowserHandle) ?? targets.FirstOrDefault(t => t.Peer != null && t.Peer.Fingerprint == app.SelectedPeerKey) ?? targets.FirstOrDefault();
+    private StackPanel SendSheet()
+    {
+        TextBlock summary = C.Text("", 13, "Muted");
+        WrapPanel targets = new();
+        Button send = C.AsyncButton("Send", async () =>
+        {
+            if (Chosen(Targets()) is not { } target || app.Selection.Count == 0)
+                return;
+            await app.SendToAsync(target.Peer, target.Browser, false);
+            Open(null);
+        }, true);
+        send.HorizontalAlignment = HorizontalAlignment.Stretch;
+        string shown = "";
+        fillSheet = () =>
+        {
+            int files = app.Selection.Sum(item => item.Files);
+            summary.Text = app.Selection.Count == 0 ? "Drop files here" : string.Join(", ", app.Selection.Take(2).Select(item => item.Name)) + (app.Selection.Count > 2 ? $" +{app.Selection.Count - 2}" : "") + $" · {files} file{(files == 1 ? "" : "s")} · {Format.Bytes(app.Selection.Sum(item => item.Size))}";
+            summary.Foreground = Theme.Brush(app.Selection.Count == 0 ? "Muted" : "Text");
+            Target[] all = Targets();
+            Target? chosen = Chosen(all);
+            send.IsEnabled = app.Selection.Count > 0 && chosen != null;
+            string next = string.Join("|", all.Select(t => t.Label + t.Color + (ReferenceEquals(t, chosen) ? "*" : "")));
+            if (next == shown)
+                return;
+            shown = next;
+            targets.Children.Clear();
+            if (all.Length == 0)
+                targets.Children.Add(C.Small("Connect a device", () => app.Dialogs.Pair(), true));
+            foreach (Target target in all)
+                targets.Children.Add(Chip(target.Label, target.Color, ReferenceEquals(target, chosen), () =>
+                {
+                    app.SelectedBrowserHandle = target.Browser?.Handle;
+                    if (target.Peer != null)
+                        app.SelectedPeerKey = target.Peer.Fingerprint;
+                    fillSheet?.Invoke();
+                }));
+        };
+        return Sheet("Send files", Drop(summary, C.AsyncButton("Choose files", async () => await app.AddSelectionsAsync(await app.PickFilesAsync("Choose files to send"), true), icon: "plus")), Labelled("Send to", targets), send);
+    }
+    private StackPanel FolderSheet()
+    {
+        TextBlock chosen = C.Text("", 13, "Muted");
+        WrapPanel options = new();
+        Button start = C.Button("Start sharing", () =>
+        {
+            if (folder == null)
+                return;
+            SharedSpace space = app.Engine.Browser.Spaces.Add(folder);
+            if (access == SpaceAccess.ReadAndUpload)
+                app.Engine.Browser.Spaces.Update(space.Id, access, true);
+            folder = null;
+            Open(null);
+            app.Tell(access == SpaceAccess.ReadAndUpload ? "Shared folder created with Read & upload. Paired computers can browse it and add files." : "Read-only shared folder created. Paired computers can browse it in Shared folders.");
+        }, true);
+        Button all = C.Link("All shared folders", () =>
+        {
+            app.Navigate("Shared Spaces");
+            return Task.CompletedTask;
+        });
+        all.VerticalAlignment = VerticalAlignment.Center;
+        DockPanel actions = new();
+        DockPanel.SetDock(start, Dock.Right);
+        actions.Children.Add(start);
+        actions.Children.Add(new Border { Child = all, HorizontalAlignment = HorizontalAlignment.Left });
+        SpaceAccess? shown = null;
+        fillSheet = () =>
+        {
+            chosen.Text = folder ?? "No folder chosen";
+            chosen.Foreground = Theme.Brush(folder == null ? "Muted" : "Text");
+            start.IsEnabled = folder != null;
+            if (shown == access)
+                return;
+            shown = access;
+            options.Children.Clear();
+            foreach ((SpaceAccess value, string label) in new[] { (SpaceAccess.ReadOnly, "Read only"), (SpaceAccess.ReadAndUpload, "Read & upload") })
+                options.Children.Add(Chip(label, null, access == value, () => { access = value; fillSheet?.Invoke(); }));
+        };
+        return Sheet("Share a folder", Drop(chosen, C.AsyncButton("Choose folder", async () =>
+        {
+            string[] picked = await app.PickFoldersAsync("Choose a folder to share");
+            if (picked.Length > 0)
+                folder = picked[0];
+            fillSheet?.Invoke();
+        }, icon: "folder")), Labelled("Access", options), actions);
+    }
+    private StackPanel TextSheet()
+    {
+        WrapPanel targets = new();
+        Peer[] Paired() => [.. app.Engine.Peers.Where(p => p.Paired && !p.Blocked)];
+        // A PC chosen on its device card comes first; otherwise the first paired PC, or this computer when none is paired.
+        noteKey ??= Paired().FirstOrDefault()?.Fingerprint ?? "";
+        Button share = C.AsyncButton("Share", async () =>
+        {
+            string content = SharedNotes.Validate(message.Text);
+            if (Paired().FirstOrDefault(p => p.Fingerprint == noteKey) is { } peer)
+                await app.Engine.SendNoteAsync(peer, content);
+            else
+                app.Engine.Browser.Notes.Add(content, "This " + Shell.Platform, local: true);
+            if ((message.Text ?? "").Trim() == content)
+                message.Text = "";
+            Open(null);
+            app.Tell("Text shared. Find it in Text & links on the receiving computer or its browser page.");
+        }, true);
+        share.HorizontalAlignment = HorizontalAlignment.Stretch;
+        string shown = "";
+        fillSheet = () =>
+        {
+            Peer[] peers = Paired();
+            string next = string.Join("|", peers.Select(p => p.Fingerprint + p.Name)) + "#" + noteKey;
+            if (next == shown)
+                return;
+            shown = next;
+            targets.Children.Clear();
+            foreach (Peer peer in peers)
+                targets.Children.Add(Chip(peer.Name, null, noteKey == peer.Fingerprint, () => { noteKey = peer.Fingerprint; fillSheet?.Invoke(); }));
+            targets.Children.Add(Chip("This " + Shell.Platform + " (for my phone)", null, !peers.Any(p => p.Fingerprint == noteKey), () => { noteKey = ""; fillSheet?.Invoke(); }));
+        };
+        return Sheet("Share text or a link", C.Stack(C.Space(C.Text("Message", 12, "Muted"), 6), message), Labelled("Send to", targets), share);
+    }
+    private StackPanel PhoneSheet()
+    {
+        ContentControl body = new();
+        string? shown = null;
+        fillSheet = () =>
+        {
+            bool on = app.Engine.Browser.Running;
+            string url = on ? app.Engine.Browser.IpUrl : "";
+            if (url == shown)
+                return;
+            shown = url;
+            Control code;
+            if (on)
+                code = PhonePage.Qr(url, 100);
+            else
+            {
+                Grid placeholder = C.Dashed(C.Icon("phone", 30, "Muted"));
+                placeholder.Width = placeholder.Height = 112;
+                code = placeholder;
+            }
+            code.Margin = new(0, 0, 16, 0);
+            TextBlock hint = C.Text("Same Wi‑Fi, then scan with your camera.", 13, "Muted"), address = C.Text(on ? url : "Browser sharing is off", 12, "Muted");
+            address.FontFamily = new FontFamily("monospace");
+            StackPanel text = C.Stack(C.Space(hint, 8), address);
+            text.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel row = new();
+            DockPanel.SetDock(code, Dock.Left);
+            row.Children.Add(code);
+            row.Children.Add(text);
+            if (on)
+            {
+                body.Content = row;
+                return;
+            }
+            Button start = C.Button("Start browser sharing", () =>
+            {
+                app.StartBrowserSharing();
+                fillSheet?.Invoke();
+            }, true, "phone");
+            start.HorizontalAlignment = HorizontalAlignment.Stretch;
+            body.Content = C.Stack(C.Space(row, 14), start);
+        };
+        return Sheet("Open on your phone", body);
     }
 }
 
@@ -295,19 +731,7 @@ internal sealed class SendPage : IPage
         foreach (Recipient target in targets)
             recipient.Children.Add(C.Space(Choice(target, ReferenceEquals(target, chosen)), 10));
         recipient.Children.Add(C.Space(C.Text(chosen.Browser != null ? "Files are listed on that phone's page only, under Files from your PC. Other phones do not see them." : "The public key is checked again when connecting. Offline devices may need receiving switched on.", 11, "Muted"), 14, 4));
-        Button send = C.AsyncButton("Send securely", async () =>
-        {
-            if (chosen.Peer != null)
-            {
-                app.SendSelected(chosen.Peer);
-                return;
-            }
-            if (chosen.Browser is not BrowserDevice device || app.Selection.Count == 0)
-                return;
-            string[] paths = app.Selection.Select(item => item.Path).ToArray();
-            await Task.Run(() => app.Engine.Browser.ShareAsync(paths, default, device.Handle));
-            app.Tell("Sent to " + device.Label + ". It appears on that phone's page under Files from your PC.");
-        }, true, "lock");
+        Button send = C.AsyncButton("Send securely", () => app.SendToAsync(chosen.Peer, chosen.Browser), true, "lock");
         send.IsEnabled = app.Selection.Count > 0;
         send.HorizontalAlignment = HorizontalAlignment.Stretch;
         send.MinHeight = 48;
