@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-Builds dist/lantoss-<version>-linux-<x64|arm64>.tar.gz and dist/lantoss_<version>_<amd64|arm64>.deb on Windows.
+Builds dist/hopo-<version>-linux-<x64|arm64>.tar.gz and dist/hopo_<version>_<amd64|arm64>.deb on Windows.
 .DESCRIPTION
 For each runtime: publishes a self-contained Lantoss, then writes
-  - a tarball holding lantoss-<version>/ with app/, lantoss.desktop, lantoss.png, install.sh and uninstall.sh;
-  - a .deb with /opt/lantoss, a /usr/bin/lantoss symlink, /usr/share/applications/lantoss.desktop, hicolor icons,
+  - a tarball holding lantoss-<version>/ with app/, hopo.desktop, hopo.png, install.sh and uninstall.sh;
+  - a .deb with /opt/hopo, a /usr/bin/hopo symlink, /usr/share/applications/hopo.desktop, hicolor icons,
     and postinst/postrm scripts that refresh the desktop and icon caches.
 Both are checked with verify.cjs and tar.exe. The version comes from <Version> in source/Desktop/Lantoss.Desktop.csproj.
 .PARAMETER Maintainer
@@ -43,19 +43,19 @@ foreach ($runtime in $Rid) {
 
     $stage = Join-Path $LantossWork "$runtime\linux"
     Reset-LantossDirectory $stage
-    $desktop = Join-Path $stage 'lantoss.desktop'
-    Expand-LantossTemplate -Template (Join-Path $PSScriptRoot 'linux\lantoss.desktop') -Destination $desktop
+    $desktop = Join-Path $stage 'hopo.desktop'
+    Expand-LantossTemplate -Template (Join-Path $PSScriptRoot 'linux\hopo.desktop') -Destination $desktop
     $install = Join-Path $stage 'install.sh'
     Expand-LantossTemplate -Template (Join-Path $PSScriptRoot 'linux\install.sh') -Destination $install -Values @{ ARCH = $machine }
     $uninstall = Join-Path $stage 'uninstall.sh'
     Expand-LantossTemplate -Template (Join-Path $PSScriptRoot 'linux\uninstall.sh') -Destination $uninstall
 
-    $top = "lantoss-$version"
-    $tarball = Join-Path $LantossDist "lantoss-$version-linux-$tarArch.tar.gz"
+    $top = "hopo-$version"
+    $tarball = Join-Path $LantossDist "hopo-$version-linux-$tarArch.tar.gz"
     Invoke-LantossNative node @($LantossPackJs, 'targz', $tarball,
         '--add', "$top/app=$publish",
-        '--add', "$top/lantoss.desktop=$desktop",
-        '--add', "$top/lantoss.png=$(Join-Path $LantossAssets 'lantoss-256.png')",
+        '--add', "$top/hopo.desktop=$desktop",
+        '--add', "$top/hopo.png=$(Join-Path $LantossAssets 'lantoss-256.png')",
         '--add', "$top/install.sh=$install",
         '--add', "$top/uninstall.sh=$uninstall")
     Invoke-LantossNative node @($LantossVerifyJs, $tarball, '--arch', $tarArch, '--version', $version)
@@ -67,13 +67,13 @@ foreach ($runtime in $Rid) {
     foreach ($script in @('postinst', 'postrm')) {
         Expand-LantossTemplate -Template (Join-Path $PSScriptRoot "linux\deb\$script") -Destination (Join-Path $control $script)
     }
-    $deb = Join-Path $LantossDist "lantoss_${debVersion}_$debArch.deb"
+    $deb = Join-Path $LantossDist "hopo_${debVersion}_$debArch.deb"
     $debArgs = @($LantossPackJs, 'deb', $deb, '--control', $control,
-        '--add', "opt/lantoss=$publish",
-        '--add', "usr/share/applications/lantoss.desktop=$desktop",
-        '--symlink', 'usr/bin/lantoss=/opt/lantoss/Lantoss')
+        '--add', "opt/hopo=$publish",
+        '--add', "usr/share/applications/hopo.desktop=$desktop",
+        '--symlink', 'usr/bin/hopo=/opt/hopo/hopo')
     foreach ($size in $hicolorSizes) {
-        $debArgs += @('--add', "usr/share/icons/hicolor/${size}x${size}/apps/lantoss.png=$(Join-Path $LantossAssets "lantoss-$size.png")")
+        $debArgs += @('--add', "usr/share/icons/hicolor/${size}x${size}/apps/hopo.png=$(Join-Path $LantossAssets "lantoss-$size.png")")
     }
     Invoke-LantossNative node $debArgs
     Invoke-LantossNative node @($LantossVerifyJs, $deb, '--arch', $tarArch, '--version', $version)

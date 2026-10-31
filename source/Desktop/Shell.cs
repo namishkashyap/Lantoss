@@ -89,7 +89,7 @@ internal sealed class Shell : IDisposable
     private ScrollViewer scroll = new();
     private Button receiveToggle = new();
     private Ellipse networkDot = new();
-    private Border header = new(), body = new(), menuPanel = new();
+    private Border header = new(), body = new(), menuPanel = new(), scrim = new();
     private Panel menu = new();
     private Control rings = new Panel();
     private IPage? page;
@@ -164,13 +164,14 @@ internal sealed class Shell : IDisposable
             settings.ColorValuesChanged += (_, _) => { if (Store.Preferences.Theme == "System") Ui(() => ApplyTheme("System")); };
         if (!preview)
             CreateTray();
+        Motion.Setup(preview);
         ApplyTheme(store.Preferences.Theme);
         if (store.RecoveryNotice != null)
             Tell(store.RecoveryNotice);
     }
     public static Stream? AppIcon()
     {
-        Uri uri = new("avares://Lantoss/Assets/lantoss-256.png");
+        Uri uri = new("avares://hopo/Assets/lantoss-256.png");
         return AssetLoader.Exists(uri) ? AssetLoader.Open(uri) : null;
     }
     public void Ui(Action action)
@@ -211,8 +212,12 @@ internal sealed class Shell : IDisposable
             IsHitTestVisible = false,
             ClipToBounds = true
         };
-        field.Children.Add(new Border { Background = Theme.Glow("GlowA", Theme.Dark ? 0.46 : 0.3, 0.225, 0.125, 0.625, 0.675) });
-        field.Children.Add(new Border { Background = Theme.Glow("GlowB", Theme.Dark ? 0.34 : 0.24, 0.775, 0.875, 0.625, 0.675) });
+        // They drift slowly: purple to (-14%, 10%) at 95% over 60 s, green to (18%, 12%) at 110% over 68 s, as shares of the design's 125% × 135% glow.
+        RadialGradientBrush violet = (RadialGradientBrush)Theme.Glow("GlowA", Theme.Dark ? 0.46 : 0.3, 0.225, 0.125, 0.625, 0.675), green = (RadialGradientBrush)Theme.Glow("GlowB", Theme.Dark ? 0.34 : 0.24, 0.775, 0.875, 0.625, 0.675);
+        field.Children.Add(new Border { Background = violet });
+        field.Children.Add(new Border { Background = green });
+        Motion.Drift(field, violet, -0.175, 0.135, 0.95, 60);
+        Motion.Drift(field, green, 0.225, 0.162, 1.1, 68);
         rings = new Border { Child = C.Rings(225, 612), Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 200, 200, 0) };
         field.Children.Add(rings);
         TextBlock brand = C.Text("hopo", 17, bold: true);
@@ -310,7 +315,7 @@ internal sealed class Shell : IDisposable
             BorderThickness = new(1),
             BoxShadow = Theme.Shadow(30, 80, 0.6)
         };
-        Border scrim = new()
+        scrim = new()
         {
             Background = Theme.Brush("Scrim")
         };
@@ -387,11 +392,19 @@ internal sealed class Shell : IDisposable
         menuPanel.Child = new ScrollViewer { Content = layout, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         UpdateStatus();
         menu.IsVisible = true;
+        // The scrim fades in, the panel grows from the menu button and the rows fade up one after another.
+        menuPanel.RenderTransformOrigin = new RelativePoint(menuPanel.Width - 36, 38, RelativeUnit.Absolute);
+        Motion.Fade(scrim, 0.4);
+        Motion.Open(menuPanel);
+        Button[] rows = items.Children.OfType<Button>().Where(button => button.Classes.Contains("row")).ToArray();
+        for (int index = 0; index < rows.Length; index++)
+            Motion.Rise(rows[index], 6, 0.5, 0.12 + index * 0.04, Motion.Grow);
     }
     private Button MenuRow(string target, string title, string detail, string icon, bool share)
     {
         Border tile = C.Tile(icon, share ? "Primary" : "Text", 36, share ? "Accent" : null);
         tile.Margin = new(0, 0, 14, 0);
+        tile.Classes.Add("tile");
         DockPanel row = new();
         DockPanel.SetDock(tile, Dock.Left);
         row.Children.Add(tile);
@@ -406,6 +419,7 @@ internal sealed class Shell : IDisposable
         text.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(text);
         Button button = C.Ghost(new Button { Content = row, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Center, Padding = new(10, share ? 4 : 3), MinHeight = share ? 50 : 44, CornerRadius = new(14), BorderThickness = new(1) }, "Text");
+        button.Classes.Add("row");
         if (target == CurrentPage)
             Theme.SetButton(button.Resources, "Text/6", "Text", C.Clear, "Text/8");
         button.Click += (_, _) => Navigate(target);
@@ -474,6 +488,7 @@ internal sealed class Shell : IDisposable
             body.Child = scroll;
             content.Content = page.View;
             scroll.Offset = default;
+            Motion.Enter(page.View);
         }
         page.Refresh();
     }
@@ -610,7 +625,8 @@ internal sealed class Shell : IDisposable
     }
     public async Task PickFilesAsync() => await AddSelectionsAsync(await PickFilesAsync("Choose files to send"));
     public async Task PickFoldersAsync() => await AddSelectionsAsync(await PickFoldersAsync("Choose folders to send", true));
-    public async Task AddSelectionsAsync(IEnumerable<string> paths)
+    /// <summary>Adds files and folders to the selection, then opens Send unless <paramref name="stay"/> keeps the current page (the Home Send panel).</summary>
+    public async Task AddSelectionsAsync(IEnumerable<string> paths, bool stay = false)
     {
         string[] added = paths.ToArray();
         if (added.Length == 0)
@@ -636,17 +652,47 @@ internal sealed class Shell : IDisposable
                 ManifestEntry[] entries = manifest.Entries.Where(entry => entry.SourcePath == root || entry.SourcePath.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
                 Selection.Add(new(root, Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)), entries.Sum(entry => entry.Size), entries.Count(entry => !entry.Directory), entries.Count(entry => entry.Directory)));
             }
-            Navigate("Send");
+            if (stay)
+                RefreshPage();
+            else
+                Navigate("Send");
             Tell($"{manifest.FileCount} files and {manifest.FolderCount} folders ready. Select a paired recipient.");
         }
         catch (Exception error) { Error(error); }
         finally { selecting = false; }
     }
-    public void SendSelected(Peer peer)
+    public void SendSelected(Peer peer, bool navigate = true)
     {
         _ = Engine.Send(peer, Selection.Select(item => item.Path));
-        Navigate("Transfers");
+        if (navigate)
+            Navigate("Transfers");
         Tell("Transfer queued. The recipient must approve before any file bytes are sent.");
+    }
+    /// <summary>Sends the selection to a paired PC, or lists it on one approved phone's page only.</summary>
+    public async Task SendToAsync(Peer? peer, BrowserDevice? device, bool navigate = true)
+    {
+        if (peer != null)
+        {
+            SendSelected(peer, navigate);
+            return;
+        }
+        if (device == null || Selection.Count == 0)
+            return;
+        string[] paths = Selection.Select(item => item.Path).ToArray();
+        await Task.Run(() => Engine.Browser.ShareAsync(paths, default, device.Handle));
+        Tell("Sent to " + device.Label + ". It appears on that phone's page under Files from your PC.");
+    }
+    /// <summary>Turns browser sharing on, starting the receiver first when it is off.</summary>
+    public void StartBrowserSharing()
+    {
+        Store.SetPreferences(Store.Preferences with
+        {
+            BrowserSharingEnabled = true
+        });
+        if (!Engine.Running)
+            ToggleReceiving();
+        else
+            Engine.ApplySavedPreferences();
     }
     /// <summary>Native notification: osascript on macOS and notify-send on Linux. Text is passed as arguments, never as script source.</summary>
     public void Notify(string title, string body)

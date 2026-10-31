@@ -5,7 +5,7 @@
  * Only Node built-ins are used, so macOS and Linux packages can be built on Windows, whose file
  * system has no Unix modes or symlinks. Every archive entry therefore gets an explicit mode:
  *   directories 0755, symlinks 0777, files 0644,
- *   executables 0755: the app executable "Lantoss", "createdump", any *.sh, names given with --exec,
+ *   executables 0755: the app executable "hopo", "createdump", any *.sh, names given with --exec,
  *   and Debian maintainer scripts (postinst, postrm, ...) inside control.tar.gz.
  *
  * CLI:
@@ -15,7 +15,7 @@
  *   node pack.cjs icns  <out.icns> <png>...
  *
  * --add copies a file, or a directory recursively, to the archive path. Missing parent directories are added.
- * For deb, --add paths are relative to the filesystem root (opt/lantoss=...). The control directory must hold
+ * For deb, --add paths are relative to the filesystem root (opt/hopo=...). The control directory must hold
  * "control"; Installed-Size and md5sums are generated. Text templates (*.sh, *.desktop, *.plist, control files)
  * are normalised to LF line endings. SOURCE_DATE_EPOCH, when set, fixes every timestamp.
  */
@@ -24,7 +24,7 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 
-const EXECUTABLE_NAMES = Object.freeze(['Lantoss', 'createdump']);
+const EXECUTABLE_NAMES = Object.freeze(['hopo', 'createdump']);
 const MAINTAINER_SCRIPTS = Object.freeze(['preinst', 'postinst', 'prerm', 'postrm', 'config']);
 const TEXT_FILE = /\.(sh|desktop|plist)$|^(control|preinst|postinst|prerm|postrm|config|md5sums|conffiles|PkgInfo)$/;
 const S_IFDIR = 0o040000, S_IFREG = 0o100000, S_IFLNK = 0o120000;

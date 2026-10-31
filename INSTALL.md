@@ -1,20 +1,21 @@
-# Installing Lantoss 2.0
+# Installing hopo 2.1
 
-Lantoss runs on Windows, macOS and Linux. Phones need no app, because they use
-the browser page. Install Lantoss on every computer you want to share between,
+hopo runs on Windows, macOS and Linux. Phones need no app, because they use
+the browser page. hopo was called Lantoss until 2.0.2; installing 2.1 replaces it and keeps your settings,
+pairings and history. Install hopo on every computer you want to share between,
 and keep them on the same trusted home Wi-Fi or Ethernet.
 
-Get the files from the **[v2.0.2 release](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.2)**.
+Get the files from the **[v2.1.1 release](https://github.com/namishkashyap/Lantoss/releases/tag/v2.1.1)**.
 The previous Windows-only version stays available as [v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0).
 
 | Your computer | Download |
 |---|---|
-| Windows 10/11 (64-bit) | `Lantoss-Setup-2.0.2-x64.msi` |
-| Mac with Apple Silicon (M1 or later) | `Lantoss-2.0.2-macOS-AppleSilicon.zip` |
-| Mac with an Intel processor | `Lantoss-2.0.2-macOS-Intel.zip` |
-| Ubuntu, Debian, Linux Mint, Pop!_OS (64-bit PC) | `lantoss_2.0.2_amd64.deb` |
-| Raspberry Pi OS or other Debian-based ARM64 | `lantoss_2.0.2_arm64.deb` |
-| Any other Linux (Fedora, Arch, openSUSE…) | `lantoss-2.0.2-linux-x64.tar.gz` or `lantoss-2.0.2-linux-arm64.tar.gz` |
+| Windows 10/11 (64-bit) | `hopo-Setup-2.1.1-x64.msi` |
+| Mac with Apple Silicon (M1 or later) | `hopo-2.1.1-macOS-AppleSilicon.zip` |
+| Mac with an Intel processor | `hopo-2.1.1-macOS-Intel.zip` |
+| Ubuntu, Debian, Linux Mint, Pop!_OS (64-bit PC) | `hopo_2.1.1_amd64.deb` |
+| Raspberry Pi OS or other Debian-based ARM64 | `hopo_2.1.1_arm64.deb` |
+| Any other Linux (Fedora, Arch, openSUSE…) | `hopo-2.1.1-linux-x64.tar.gz` or `hopo-2.1.1-linux-arm64.tar.gz` |
 
 These are development builds. They are not signed by Microsoft or notarized by
 Apple, so each system asks you to confirm the first launch, as described below.
@@ -25,19 +26,19 @@ Apple, so each system asks you to confirm the first launch, as described below.
 
 ### Install
 1. If an older Lantoss is running, right-click its tray icon and choose **Exit Lantoss**.
-2. Double-click `Lantoss-Setup-2.0.2-x64.msi`. If SmartScreen appears, choose **More info → Run anyway**.
-3. Follow the setup. In **Custom Setup** you can add a desktop shortcut and **Launch Lantoss at sign-in**.
+2. Double-click `hopo-Setup-2.1.1-x64.msi`. If SmartScreen appears, choose **More info → Run anyway**.
+3. Follow the setup. In **Custom Setup** you can add a desktop shortcut and **Launch hopo at sign-in**.
    The **Explorer sharing** feature adds *Share with Lantoss* to the right-click menu. On Windows 11
    it asks once to trust the "Lantoss Development" publisher, then asks for administrator approval.
-4. Start **Lantoss** from the Start menu.
+4. Start **hopo** from the Start menu.
 
 ### First run
-- Approve the Windows administrator prompt if Lantoss offers to set up **Private-network** firewall access.
+- Approve the Windows administrator prompt if hopo offers to set up **Private-network** firewall access.
 - Make sure your home network is set to **Private** (Settings → Network & internet → your network).
 
 ### Update or uninstall
 - Installing a newer MSI upgrades in place.
-- Uninstall from **Settings → Apps → Installed apps → Lantoss**. Received files, history and settings are kept.
+- Uninstall from **Settings → Apps → Installed apps → hopo**. Received files, history and settings are kept.
 
 ---
 
@@ -47,14 +48,14 @@ Requires macOS 14 Sonoma or later.
 
 ### Install
 1. Download the zip for your Mac (Apple menu → **About This Mac** shows *Chip: Apple M…* or *Processor: Intel*).
-2. Double-click the zip to unpack it. You get `Lantoss.app`, **Install Lantoss.command** and `install.sh`.
+2. Double-click the zip to unpack it. You get `hopo.app`, **Install hopo.command** and `install.sh`.
    The app is signed for local use (ad-hoc), not by an Apple Developer ID. macOS therefore asks once before
-   opening it, whether you use the installer or open `Lantoss.app` directly. Each time, the answer is **Open Anyway**.
-3. Double-click **Install Lantoss.command** (recommended).
+   opening it, whether you use the installer or open `hopo.app` directly. Each time, the answer is **Open Anyway**.
+3. Double-click **Install hopo.command** (recommended).
    - If macOS says it can't verify the file, click **Done**. Then open System Settings → **Privacy & Security**,
-     scroll down, click **Open Anyway** next to "Install Lantoss.command", and confirm.
+     scroll down, click **Open Anyway** next to "Install hopo.command", and confirm.
    - A Terminal window then:
-     - copies Lantoss to **Applications**
+     - copies hopo to **Applications**
      - removes the download quarantine flag
      - signs the app for this Mac (ad-hoc), because Apple Silicon Macs refuse to run unsigned code
 
@@ -62,57 +63,57 @@ Requires macOS 14 Sonoma or later.
    - Terminal users can instead run `sh install.sh` in the unpacked folder.
 
    **Saw "Lantoss is damaged and can't be opened" with the 2.0.0 download?** That build wasn't sealed.
-   Click **Cancel** (not Move to Bin), download 2.0.2, and do step 3.
+   Click **Cancel** (not Move to Bin), download 2.1.1, and do step 3.
    Or run this in Terminal, adjusting the path to where you unpacked it:
-   `xattr -cr ~/Downloads/Lantoss-2.0.2-macOS-AppleSilicon/Lantoss.app`.
+   `xattr -cr ~/Downloads/hopo-2.1.1-macOS-AppleSilicon/hopo.app`.
 
    <details><summary>Prefer to do it by hand?</summary>
 
    ```sh
-   cp -R Lantoss.app /Applications/
-   xattr -dr com.apple.quarantine /Applications/Lantoss.app
-   codesign --verify --strict --deep /Applications/Lantoss.app
+   cp -R hopo.app /Applications/
+   xattr -dr com.apple.quarantine /Applications/hopo.app
+   codesign --verify --strict --deep /Applications/hopo.app
    ```
    Only if that check fails, and you trust the download, re-sign it for this Mac with
-   `codesign --force --deep --sign - /Applications/Lantoss.app`. Otherwise delete it and download again.
+   `codesign --force --deep --sign - /Applications/hopo.app`. Otherwise delete it and download again.
    </details>
-4. Open **Lantoss** from Applications or Launchpad.
+4. Open **hopo** from Applications or Launchpad.
 
 ### First run
 - Allow **incoming network connections** when macOS asks.
 - Allow **Local Network** access (macOS 15+). If you declined, turn it on in
-  System Settings → Privacy & Security → Local Network → Lantoss.
+  System Settings → Privacy & Security → Local Network → hopo.
 - If macOS says the app "can't be opened", open System Settings → Privacy & Security and choose **Open Anyway**.
 
 ### Uninstall
-Quit Lantoss (Lantoss menu → Quit, or the tray menu → **Exit Lantoss**), then move
-`/Applications/Lantoss.app` to the Trash. To also remove history and the device key:
+Quit hopo (hopo menu → Quit, or the tray menu → **Exit hopo**), then move
+`/Applications/hopo.app` to the Trash. To also remove history and the device key:
 `rm -rf ~/Library/Application\ Support/Lantoss`.
 
 ---
 
 ## Linux
 
-Lantoss needs a desktop session (X11 or Wayland with XWayland).
+hopo needs a desktop session (X11 or Wayland with XWayland).
 
 ### Debian, Ubuntu and derivatives (.deb)
 ```sh
-sudo apt install ./lantoss_2.0.2_amd64.deb      # or lantoss_2.0.2_arm64.deb
+sudo apt install ./hopo_2.1.1_amd64.deb      # or hopo_2.1.1_arm64.deb
 ```
-Then start **Lantoss** from your applications menu, or run `lantoss`.
-Uninstall with `sudo apt remove lantoss`.
+Then start **hopo** from your applications menu, or run `hopo`.
+Uninstall with `sudo apt remove hopo`.
 
 ### Any distribution (.tar.gz)
 ```sh
-tar -xzf lantoss-2.0.2-linux-x64.tar.gz
-cd lantoss-2.0.2
-./install.sh            # installs for your user: ~/.local/opt/lantoss and a menu entry
-# sudo ./install.sh     # or system-wide into /opt/lantoss
+tar -xzf hopo-2.1.1-linux-x64.tar.gz
+cd hopo-2.1.1
+./install.sh            # installs for your user: ~/.local/opt/hopo and a menu entry
+# sudo ./install.sh     # or system-wide into /opt/hopo
 ```
 Uninstall with `./uninstall.sh` (or `sudo ./uninstall.sh` for a system-wide install).
 
 ### First run
-- **Firewall.** If a firewall such as `ufw` or `firewalld` is on, allow Lantoss on your home network:
+- **Firewall.** If a firewall such as `ufw` or `firewalld` is on, allow hopo on your home network:
   ```sh
   sudo ufw allow from 192.168.0.0/16 to any port 48585:48588 proto tcp
   sudo ufw allow from 192.168.0.0/16 to any port 5353,48587 proto udp
@@ -121,7 +122,7 @@ Uninstall with `./uninstall.sh` (or `sudo ./uninstall.sh` for a system-wide inst
   **48588** and port **48586** only redirects to it. Scan the QR code in **Phone & browser** rather than typing `share-wollvo.local`.
 - **Notifications** use `notify-send`, which most desktops include (package `libnotify-bin`).
 - **Tray icon** needs a desktop with status-icon support (GNOME needs the AppIndicator extension).
-  Without one, closing the window minimizes Lantoss instead.
+  Without one, closing the window minimizes hopo instead.
 
 ---
 
@@ -130,7 +131,7 @@ Uninstall with `./uninstall.sh` (or `sudo ./uninstall.sh` for a system-wide inst
 - Data and history live in your user profile: `%LOCALAPPDATA%\Lantoss` on Windows,
   `~/Library/Application Support/Lantoss` on macOS, `~/.local/share/Lantoss` on Linux.
   Received files go to `Downloads/Lantoss Inbox` unless you choose another folder in Settings.
-- Open **Lantoss** on both computers and click the other one's name in **Devices** → **Connect**.
+- Open **hopo** on both computers and click the other one's name in **Devices** → **Connect**.
   The first time, both screens show the same code; approve on both if they match. Every transfer
   still asks the receiver to accept. New pairings need 2.0.2 or later on both computers.
 - Phones: open **Phone & browser** and scan the QR code with the phone's camera. The QR code uses the
@@ -147,4 +148,4 @@ Uninstall with `./uninstall.sh` (or `sudo ./uninstall.sh` for a system-wide inst
   for example `family-share`, which gives `http://family-share.local`. Many Android phones can't open `.local`
   names, so on Android use the QR code. If port 80 is unavailable, the name includes a port, for example
   `http://family-share.local:48586`.
-- Lantoss never changes your router, DNS or hosts file, and works without internet or an account.
+- hopo never changes your router, DNS or hosts file, and works without internet or an account.
