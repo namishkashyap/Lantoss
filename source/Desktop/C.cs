@@ -89,16 +89,60 @@ internal static class C
         control.Margin = new(control.Margin.Left, top, control.Margin.Right, bottom);
         return control;
     }
-    /// <summary>Glass card: translucent over the glows, a hairline border and 20 px corners.</summary>
-    public static Border Card(Control child, double padding = 22) => new()
+    public static Border Card(Control child, double padding = 22) => Card(child, new Thickness(padding));
+    /// <summary>
+    /// Glass card: translucent over the glows, a hairline border and 20 px corners. Its edge catches a light from above and a diagonal
+    /// light sweeps along it every 9 s; a purple-to-mint line glows on the top edge. Set padding here: the returned border holds the layers.
+    /// </summary>
+    public static Border Card(Control child, Thickness padding, double radius = 20)
     {
-        Child = child,
-        Padding = new(padding),
-        Background = Theme.Brush("Glass"),
-        BorderBrush = Theme.Brush("GlassBorder"),
-        BorderThickness = new(1),
-        CornerRadius = new(20)
-    };
+        RelativePoint At(double x, double y) => new(x, y, RelativeUnit.Relative);
+        LinearGradientBrush edge = new()
+        {
+            StartPoint = At(0, 0),
+            EndPoint = At(0, 1),
+            GradientStops = [new(Theme.Color("#FFFFFF/30"), 0), new(Theme.Color("#FFFFFF/5"), .35), new(Colors.Transparent, .6)]
+        };
+        LinearGradientBrush sweep = new()
+        {
+            StartPoint = At(0, 0),
+            EndPoint = At(3, 1.4),
+            GradientStops = [new(Colors.Transparent, .35), new(Theme.Color("#FFFFFF/55"), .48), new(Colors.Transparent, .6)]
+        };
+        LinearGradientBrush sheen = new()
+        {
+            StartPoint = At(0, 0),
+            EndPoint = At(1, 0),
+            GradientStops = [new(Theme.Color("#C896FF/0"), .18), new(Theme.Color("#C896FF/95"), .39), new(Theme.Color("#6EFFBE/80"), .61), new(Theme.Color("#6EFFBE/0"), .82)]
+        };
+        Border Ring(IBrush brush) => new()
+        {
+            BorderBrush = brush,
+            BorderThickness = new(1),
+            CornerRadius = new(radius),
+            Margin = new(-1),
+            IsHitTestVisible = false
+        };
+        // The line's glow is a blurred copy of the same brush, so both slide together.
+        Panel line = new()
+        {
+            Height = 7,
+            Margin = new(-1, -4, -1, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+            IsHitTestVisible = false,
+            Children = { new Border { Height = 3, Background = sheen, Opacity = .7, Effect = new BlurEffect { Radius = 8 } }, new Border { Height = 1, Background = sheen } }
+        };
+        Border card = new()
+        {
+            Child = new Panel { Children = { new Border { Padding = padding, Child = child }, Ring(edge), Ring(sweep), line } },
+            Background = Theme.Brush("Glass"),
+            BorderBrush = Theme.Brush("GlassBorder"),
+            BorderThickness = new(1),
+            CornerRadius = new(radius)
+        };
+        Motion.Card(card, sweep, sheen, line);
+        return card;
+    }
     public static DockPanel Heading(string title, Control? right = null, double size = 16)
     {
         DockPanel panel = new()
@@ -130,7 +174,10 @@ internal static class C
             HorizontalContentAlignment = HorizontalAlignment.Center
         };
         if (primary)
+        {
             Theme.SetButton(button.Resources, "Accent", "OnAccent", "Accent", "#FFC567");
+            button.Classes.Add("primary");
+        }
         button.Content = icon == null ? text : Inline(Icon(icon, 16, primary ? "OnAccent" : "Text"), new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center });
         button.Click += (_, _) =>
         {
@@ -334,12 +381,7 @@ internal static class C
         return row;
     }
     /// <summary>A reassurance line on its own glass card.</summary>
-    public static Border Note(string title, string detail, string icon = "shield")
-    {
-        Border card = Card(Point(title, detail, icon));
-        card.Padding = new(20, 18);
-        return card;
-    }
+    public static Border Note(string title, string detail, string icon = "shield") => Card(Point(title, detail, icon), new Thickness(20, 18));
     /// <summary>Round picture, or bold initials on warm amber when there is no picture or it cannot be decoded.</summary>
     public static Control Avatar(string name, byte[]? picture, double size = 36)
     {
@@ -428,6 +470,7 @@ internal static class C
             Width = 24,
             Height = 24
         };
-        return new Viewbox { Width = size, Height = size, Child = path, VerticalAlignment = VerticalAlignment.Center };
+        // The "icon" class lets a hovered button wiggle its glyph.
+        return new Viewbox { Width = size, Height = size, Child = path, VerticalAlignment = VerticalAlignment.Center, Classes = { "icon" } };
     }
 }
