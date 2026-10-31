@@ -29,7 +29,8 @@ internal sealed class HomePage : IPage
     private readonly Shell app;
     private readonly Canvas stage = new() { Width = Size, Height = Size, Background = Brushes.Transparent }, devices = new() { Width = Size, Height = Size };
     private readonly ContentControl activity = new() { HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly Path[] lines = new Path[Waves.Length], glows = new Path[Waves.Length];
+    private readonly Path[] lines = new Path[Waves.Length], glows = new Path[Waves.Length], halos = new Path[Waves.Length];
+    private readonly Point[] samples = new Point[180];
     private readonly (Border Ripple, ScaleTransform Scale)[] ripples = new (Border, ScaleTransform)[2];
     private readonly List<Blink> blinks = [];
     private readonly List<Action> cards = [];
@@ -48,13 +49,19 @@ internal sealed class HomePage : IPage
     public HomePage(Shell app)
     {
         this.app = app;
-        // Wave rings sit outside the two inner rings; a 1.6 px copy of every ring at .35 under its 0.5 px stroke is the glow (no blur: the layer changes every frame).
-        Canvas glowLayer = new()
+        // Wave rings sit outside the two inner rings; the glow is two wide, faint copies of each 0.7 px line, 9 px at .08 and 3.5 px at .22 (no blur: the layers change every frame).
+        Canvas haloLayer = new()
         {
             Width = Size,
             Height = Size,
             IsHitTestVisible = false,
-            Opacity = .35
+            Opacity = .08
+        }, glowLayer = new()
+        {
+            Width = Size,
+            Height = Size,
+            IsHitTestVisible = false,
+            Opacity = .22
         }, lineLayer = new()
         {
             Width = Size,
@@ -64,9 +71,11 @@ internal sealed class HomePage : IPage
         for (int index = 0; index < Waves.Length; index++)
         {
             IBrush color = Theme.Brush(Waves[index].Color);
-            glowLayer.Children.Add(glows[index] = new Path { Stroke = color, StrokeThickness = 1.6, StrokeJoin = PenLineJoin.Round });
-            lineLayer.Children.Add(lines[index] = new Path { Stroke = color, StrokeThickness = .5, StrokeJoin = PenLineJoin.Round });
+            haloLayer.Children.Add(halos[index] = new Path { Stroke = color, StrokeThickness = 9, StrokeJoin = PenLineJoin.Round });
+            glowLayer.Children.Add(glows[index] = new Path { Stroke = color, StrokeThickness = 3.5, StrokeJoin = PenLineJoin.Round });
+            lineLayer.Children.Add(lines[index] = new Path { Stroke = color, StrokeThickness = .7, StrokeJoin = PenLineJoin.Round });
         }
+        stage.Children.Add(haloLayer);
         stage.Children.Add(glowLayer);
         stage.Children.Add(lineLayer);
         stage.Children.Add(Ring(235, "Text/9"));
@@ -194,23 +203,27 @@ internal sealed class HomePage : IPage
             double cycle = Motion.Cycle(clock / (wave.Morph * 1.6)), start = cycle < .33 ? 0 : cycle < .66 ? .33 : .66, blend = Motion.Morph.Ease((cycle - start) / ((start == .66 ? 1 : start + .33) - start));
             double turn = clock / (wave.Spin * 1.5) * 2 * Math.PI, scale = 1 + smooth * wave.Pull * (index % 3 == 1 ? -1 : 1) * .0045;
             double[] from = Shapes[index][(int)Math.Round(start / .33)], to = Shapes[index][((int)Math.Round(start / .33) + 1) % 3];
+            for (int step = 0; step < samples.Length; step++)
+            {
+                double radius = (from[step] + (to[step] - from[step]) * blend) * scale, angle = step * Math.PI / 90 + turn;
+                samples[step] = new(Middle + radius * Math.Cos(angle), Middle + radius * Math.Sin(angle));
+            }
+            // Smooth curves through the samples (Catmull-Rom as cubic Béziers), so the ring has no corners between points.
             StreamGeometry geometry = new();
             using (StreamGeometryContext context = geometry.Open())
             {
-                for (int step = 0; step <= 180; step++)
+                int count = samples.Length;
+                context.BeginFigure(samples[0], false);
+                for (int j = 0; j < count; j++)
                 {
-                    double radius = (from[step] + (to[step] - from[step]) * blend) * scale, angle = step * Math.PI / 90 + turn;
-                    Point point = new(Middle + radius * Math.Cos(angle), Middle + radius * Math.Sin(angle));
-                    if (step == 0)
-                        context.BeginFigure(point, false);
-                    else
-                        context.LineTo(point);
+                    Point a = samples[(j + count - 1) % count], b = samples[j], c = samples[(j + 1) % count], d = samples[(j + 2) % count];
+                    context.CubicBezierTo(new(b.X + (c.X - a.X) / 6, b.Y + (c.Y - a.Y) / 6), new(c.X - (d.X - b.X) / 6, c.Y - (d.Y - b.Y) / 6), c);
                 }
                 context.EndFigure(true);
             }
-            lines[index].Data = glows[index].Data = geometry;
+            lines[index].Data = glows[index].Data = halos[index].Data = geometry;
             // Shimmer between .55 and 1 every 7 s, each ring 0.6 s ahead of the previous one.
-            lines[index].Opacity = glows[index].Opacity = moving ? .55 + .45 * Motion.InOut.Ease(Motion.Triangle(Motion.Cycle((clock + .6 * index) / 7))) : 1;
+            lines[index].Opacity = glows[index].Opacity = halos[index].Opacity = moving ? .55 + .45 * Motion.InOut.Ease(Motion.Triangle(Motion.Cycle((clock + .6 * index) / 7))) : 1;
         }
         for (int index = 0; index < ripples.Length; index++)
         {
