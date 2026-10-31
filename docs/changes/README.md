@@ -18,3 +18,4 @@ checked, what is still unverified, and how to roll it back.
 | 2026-10-31 | [hopo redesign](2026-10-31-hopo-redesign.md) |
 | 2026-10-31 | [hopo 2.1.0, new name, logo and installers](2026-10-31-hopo-2.1.0-rename-and-installers.md) |
 | 2026-10-31 | [hopo 2.1.1, motion and Home panels](2026-10-31-hopo-2.1.1-motion-and-home-panels.md) |
+| 2026-10-31 | [hopo 2.1.2, motion fixes, calmer rings and background](2026-10-31-hopo-2.1.2-motion-fixes.md) |
