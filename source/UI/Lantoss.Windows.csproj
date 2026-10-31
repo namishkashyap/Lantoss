@@ -4,7 +4,7 @@
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition><EnableDefaultPageItems>false</EnableDefaultPageItems>
-    <AssemblyName>Lantoss</AssemblyName><Version>2.0.2</Version><Product>Lantoss</Product><Title>Lantoss</Title><Description>Local Wi-Fi file sharing and folder sync</Description><ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>Lantoss</AssemblyName><Version>2.1.0</Version><Product>hopo</Product><Title>hopo</Title><AssemblyTitle>hopo</AssemblyTitle><Description>hopo: local Wi-Fi file sharing and folder sync</Description><ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Lantoss.ico</ApplicationIcon>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile><NuGetAudit>true</NuGetAudit><NuGetAuditMode>all</NuGetAuditMode><NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>

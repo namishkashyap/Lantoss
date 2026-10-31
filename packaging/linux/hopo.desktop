@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=Lantoss
+Name=hopo
 GenericName=LAN File Sharing
 Comment=Share files and sync folders with devices on your local network
-Exec=lantoss
-Icon=lantoss
+Exec=hopo
+Icon=hopo
 Terminal=false
 Categories=Network;FileTransfer;
 Keywords=share;send;transfer;wifi;lan;sync;
-StartupWMClass=Lantoss
+StartupWMClass=hopo

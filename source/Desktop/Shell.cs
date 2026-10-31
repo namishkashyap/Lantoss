@@ -170,7 +170,7 @@ internal sealed class Shell : IDisposable
     }
     public static Stream? AppIcon()
     {
-        Uri uri = new("avares://Lantoss/Assets/lantoss-256.png");
+        Uri uri = new("avares://hopo/Assets/lantoss-256.png");
         return AssetLoader.Exists(uri) ? AssetLoader.Open(uri) : null;
     }
     public void Ui(Action action)

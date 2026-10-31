@@ -312,7 +312,7 @@ function checkCommon(entries, check, { scripts = [] } = {}) {
 function checkDesktopEntry(text, check, label) {
   const lines = text.split('\n');
   check(lines[0] === '[Desktop Entry]', `${label} starts with [Desktop Entry]`);
-  for (const pair of ['Type=Application', 'Name=Lantoss', 'Icon=lantoss', 'Terminal=false', 'Categories=Network;FileTransfer;', 'StartupWMClass=Lantoss']) {
+  for (const pair of ['Type=Application', 'Name=hopo', 'Icon=hopo', 'Terminal=false', 'Categories=Network;FileTransfer;', 'StartupWMClass=hopo']) {
     check(lines.includes(pair), `${label} has ${pair}`);
   }
   check(lines.some((line) => /^Exec=\S/.test(line)), `${label} has an Exec line`);
@@ -322,8 +322,8 @@ function verifyMacZip(entries, arch, version, check, notes) {
   const exists = (p) => entries.find((entry) => entry.path === p);
   check(entries.every((entry) => entry.unix), 'every zip entry is marked "made by Unix", so macOS applies the modes');
   checkCommon(entries, check);
-  const app = entries.find((entry) => entry.type === 'dir' && path.posix.basename(entry.path) === 'Lantoss.app');
-  if (!check(app, 'the zip contains Lantoss.app')) return;
+  const app = entries.find((entry) => entry.type === 'dir' && path.posix.basename(entry.path) === 'hopo.app');
+  if (!check(app, 'the zip contains hopo.app')) return;
   const contents = `${app.path}/Contents`;
   const plistEntry = exists(`${contents}/Info.plist`);
   if (!check(plistEntry, 'Contents/Info.plist exists')) return;
@@ -331,7 +331,7 @@ function verifyMacZip(entries, arch, version, check, notes) {
   try { plist = parsePlist(plistEntry.data.toString('utf8')); } catch (error) { check(false, `Info.plist parses: ${error.message}`); return; }
   notes.push('Info.plist is well-formed XML and a valid property list');
   const expected = {
-    CFBundleExecutable: 'Lantoss', CFBundleIdentifier: 'io.github.namishkashyap.lantoss', CFBundleIconFile: 'Lantoss', CFBundlePackageType: 'APPL',
+    CFBundleExecutable: 'hopo', CFBundleIdentifier: 'io.github.namishkashyap.lantoss', CFBundleIconFile: 'hopo', CFBundlePackageType: 'APPL',
     NSHighResolutionCapable: true, LSApplicationCategoryType: 'public.app-category.utilities',
   };
   if (version) Object.assign(expected, { CFBundleShortVersionString: version });
@@ -343,10 +343,10 @@ function verifyMacZip(entries, arch, version, check, notes) {
   check(/^\d+\.\d+(\.\d+)?$/.test(minimum || ''), 'Info.plist has LSMinimumSystemVersion');
 
   const executable = exists(`${contents}/MacOS/${plist.CFBundleExecutable}`);
-  if (check(executable && executable.type === 'file', 'Contents/MacOS/Lantoss exists')) {
-    check(executable.mode === 0o755, 'Contents/MacOS/Lantoss is 0755');
+  if (check(executable && executable.type === 'file', 'Contents/MacOS/hopo exists')) {
+    check(executable.mode === 0o755, 'Contents/MacOS/hopo is 0755');
     const slices = machO(executable.data);
-    check(slices && slices.some((slice) => slice.cpu === ARCHES[arch].macho), `Contents/MacOS/Lantoss is a ${ARCHES[arch].macho} Mach-O`);
+    check(slices && slices.some((slice) => slice.cpu === ARCHES[arch].macho), `Contents/MacOS/hopo is a ${ARCHES[arch].macho} Mach-O`);
     if (slices) notes.push(`apphost: ${slices.map((s) => `${s.cpu} minos ${s.minos}${s.signed ? ', ad hoc/embedded signature' : ', unsigned'}`).join('; ')}`);
   }
   let newest = { minos: '0', file: '' }, count = 0;
@@ -366,7 +366,7 @@ function verifyMacZip(entries, arch, version, check, notes) {
   notes.push(`LSMinimumSystemVersion ${minimum}; ${count} Mach-O files, newest deployment target ${newest.minos} (${newest.file})${unsigned.length ? `; unsigned: ${unsigned.join(', ')}` : '; all carry a signature'}`);
 
   const icon = exists(`${contents}/Resources/${plist.CFBundleIconFile}${plist.CFBundleIconFile.endsWith('.icns') ? '' : '.icns'}`);
-  if (check(icon, 'Contents/Resources/Lantoss.icns exists')) {
+  if (check(icon, 'Contents/Resources/hopo.icns exists')) {
     const data = icon.data;
     check(data.toString('ascii', 0, 4) === 'icns' && data.readUInt32BE(4) === data.length, 'icns header length matches the file');
     const types = [];
@@ -382,7 +382,7 @@ function verifyMacZip(entries, arch, version, check, notes) {
     notes.push(`icns types: ${types.join(' ')}`);
   }
   const install = exists(`${path.posix.dirname(app.path) === '.' ? '' : `${path.posix.dirname(app.path)}/`}install.sh`);
-  if (check(install, 'install.sh sits next to Lantoss.app')) {
+  if (check(install, 'install.sh sits next to hopo.app')) {
     const text = install.data.toString('utf8');
     check(text.includes(`APP_ARCH="${ARCHES[arch].macScript}"`), `install.sh targets ${ARCHES[arch].macScript}`);
     check(text.includes('xattr -dr com.apple.quarantine') && text.includes('codesign --force --deep --sign -'), 'install.sh removes quarantine and signs ad hoc');
@@ -393,12 +393,12 @@ function verifyLinuxTarball(entries, arch, version, check, notes) {
   checkCommon(entries, check);
   const top = entries[0] && entries[0].path.split('/')[0];
   check(entries.every((entry) => entry.path === top || entry.path.startsWith(`${top}/`)), 'everything sits in one top folder');
-  if (version) check(top === `lantoss-${version}`, `the top folder is lantoss-${version} (is ${top})`);
+  if (version) check(top === `hopo-${version}`, `the top folder is hopo-${version} (is ${top})`);
   const exists = (p) => entries.find((entry) => entry.path === `${top}/${p}`);
-  const executable = exists('app/Lantoss');
-  if (check(executable && executable.type === 'file', 'app/Lantoss exists')) {
-    check(executable.mode === 0o755, 'app/Lantoss is 0755');
-    check(elfMachine(executable.data) === ARCHES[arch].elf, `app/Lantoss is an ELF for ${arch}`);
+  const executable = exists('app/hopo');
+  if (check(executable && executable.type === 'file', 'app/hopo exists')) {
+    check(executable.mode === 0o755, 'app/hopo is 0755');
+    check(elfMachine(executable.data) === ARCHES[arch].elf, `app/hopo is an ELF for ${arch}`);
   }
   for (const script of ['install.sh', 'uninstall.sh']) {
     const entry = exists(script);
@@ -406,10 +406,10 @@ function verifyLinuxTarball(entries, arch, version, check, notes) {
   }
   const install = exists('install.sh');
   if (install) check(install.data.toString('utf8').includes(`APP_ARCH="${ARCHES[arch].linuxScript}"`), `install.sh targets ${ARCHES[arch].linuxScript}`);
-  const desktop = exists('lantoss.desktop');
-  if (check(desktop, 'lantoss.desktop exists')) checkDesktopEntry(desktop.data.toString('utf8'), check, 'lantoss.desktop');
-  const icon = exists('lantoss.png');
-  check(icon && pngSize(icon.data), 'lantoss.png is a PNG');
+  const desktop = exists('hopo.desktop');
+  if (check(desktop, 'hopo.desktop exists')) checkDesktopEntry(desktop.data.toString('utf8'), check, 'hopo.desktop');
+  const icon = exists('hopo.png');
+  check(icon && pngSize(icon.data), 'hopo.png is a PNG');
   check(entries.every((entry) => entry.uid === 0 && entry.gid === 0), 'entries are owned by uid/gid 0');
 }
 
@@ -435,7 +435,7 @@ function verifyDeb(buffer, arch, version, check, notes, list) {
   const controlFile = controlEntries.find((entry) => entry.path === './control');
   if (!check(controlFile, 'control.tar.gz has ./control')) return;
   const fields = parseControl(controlFile.data.toString('utf8'));
-  check(fields.Package === 'lantoss', 'Package is lantoss');
+  check(fields.Package === 'hopo', 'Package is hopo');
   if (version) check(fields.Version === version.replace(/-/g, '~'), `Version is ${version}`);
   check(fields.Architecture === ARCHES[arch].deb, `Architecture is ${ARCHES[arch].deb} (is ${fields.Architecture})`);
   check(/<[^>]+@[^>]+>/.test(fields.Maintainer || ''), 'Maintainer has a name and an email address');
@@ -463,16 +463,16 @@ function verifyDeb(buffer, arch, version, check, notes, list) {
   check(Math.abs(Number(fields['Installed-Size']) - totalKiB) / totalKiB < 0.05, `Installed-Size ${fields['Installed-Size']} is close to the payload (${Math.round(totalKiB)} KiB)`);
 
   const find = (p) => dataEntries.find((entry) => entry.path === p);
-  const link = find('./usr/bin/lantoss');
-  check(link && link.type === 'symlink' && link.target === '/opt/lantoss/Lantoss', `./usr/bin/lantoss is a symlink to /opt/lantoss/Lantoss (is ${link ? `${link.type} -> ${link.target}` : 'missing'})`);
-  const executable = find('./opt/lantoss/Lantoss');
-  if (check(executable && executable.type === 'file', './opt/lantoss/Lantoss exists')) {
-    check(executable.mode === 0o755, './opt/lantoss/Lantoss is 0755');
-    check(elfMachine(executable.data) === ARCHES[arch].elf, `./opt/lantoss/Lantoss is an ELF for ${arch}`);
+  const link = find('./usr/bin/hopo');
+  check(link && link.type === 'symlink' && link.target === '/opt/hopo/hopo', `./usr/bin/hopo is a symlink to /opt/hopo/hopo (is ${link ? `${link.type} -> ${link.target}` : 'missing'})`);
+  const executable = find('./opt/hopo/hopo');
+  if (check(executable && executable.type === 'file', './opt/hopo/hopo exists')) {
+    check(executable.mode === 0o755, './opt/hopo/hopo is 0755');
+    check(elfMachine(executable.data) === ARCHES[arch].elf, `./opt/hopo/hopo is an ELF for ${arch}`);
   }
-  const desktop = find('./usr/share/applications/lantoss.desktop');
-  if (check(desktop, './usr/share/applications/lantoss.desktop exists')) checkDesktopEntry(desktop.data.toString('utf8'), check, 'lantoss.desktop');
-  const icons = dataEntries.filter((entry) => /^\.\/usr\/share\/icons\/hicolor\/\d+x\d+\/apps\/lantoss\.png$/.test(entry.path));
+  const desktop = find('./usr/share/applications/hopo.desktop');
+  if (check(desktop, './usr/share/applications/hopo.desktop exists')) checkDesktopEntry(desktop.data.toString('utf8'), check, 'hopo.desktop');
+  const icons = dataEntries.filter((entry) => /^\.\/usr\/share\/icons\/hicolor\/\d+x\d+\/apps\/hopo\.png$/.test(entry.path));
   for (const icon of icons) {
     const want = Number(/hicolor\/(\d+)x/.exec(icon.path)[1]);
     const size = pngSize(icon.data);
