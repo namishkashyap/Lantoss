@@ -75,9 +75,25 @@ internal static class C
     }
     public static Border Card(UIElement child, double padding = 22)
     {
+        // The glass sheen: a purple-to-mint line on the top edge with a soft glow under it, both from the shared animated Sheen brush.
+        Grid layer = new();
+        layer.Children.Add(child);
+        foreach ((double height, double opacity) in new[] { (1.0, 1.0), (6.0, 0.28) })
+        {
+            Border line = new()
+            {
+                Height = height,
+                Opacity = opacity,
+                VerticalAlignment = VerticalAlignment.Top,
+                IsHitTestVisible = false,
+                Margin = new(-padding, -padding - 1, -padding, 0)
+            };
+            line.SetResourceReference(Border.BackgroundProperty, "Sheen");
+            layer.Children.Add(line);
+        }
         Border border = new()
         {
-            Child = child,
+            Child = layer,
             Padding = new(padding),
             Style = (Style)AppShell.Current.Window.FindResource("Card")
         };
@@ -293,6 +309,8 @@ internal static class C
             "close" => "M5,5 L19,19 M19,5 L5,19",
             "arrow" => "M3,12 L21,12 M15,6 L21,12 L15,18",
             "phone" => "M7,3 L17,3 L17,21 L7,21 Z M11,18 L13,18",
+            "up" => "M12,19 L12,5 M5,12 L12,5 L19,12",
+            "lines" => "M5,6 L19,6 M5,11 L19,11 M5,16 L14,16",
             "star" => "M12,2 L15,8 L22,9 L17,14 L18,22 L12,18 L6,22 L7,14 L2,9 L9,8 Z",
             _ => "M12,3 A9,9 0 1 1 11.99,3 M12,7 L12,13 M12,17 L12,18"
         };

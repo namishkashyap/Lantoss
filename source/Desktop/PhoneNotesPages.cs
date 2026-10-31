@@ -19,6 +19,22 @@ internal sealed class PhonePage : IPage
     {
         get;
     }
+    /// <summary>The phone link as a QR code on a white tile, in both appearances, so every phone camera can read it.</summary>
+    public static Border Qr(string url, double size)
+    {
+        using QRCodeGenerator generator = new();
+        using QRCodeData data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
+        using PngByteQRCode qr = new(data);
+        using MemoryStream png = new(qr.GetGraphic(6));
+        Image picture = new()
+        {
+            Source = new Bitmap(png),
+            Width = size,
+            Height = size
+        };
+        RenderOptions.SetBitmapInterpolationMode(picture, BitmapInterpolationMode.None);
+        return new Border { Child = picture, Background = Brushes.White, CornerRadius = new(size > 120 ? 14 : 12), Padding = new(size > 120 ? 8 : 6), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+    }
     public PhonePage(Shell app)
     {
         this.app = app;
@@ -67,19 +83,9 @@ internal sealed class PhonePage : IPage
             string ip = app.Engine.Browser.IpUrl, named = app.Engine.Browser.Url;
             bool hasName = named != ip;
             string url = nameQr && hasName ? named : ip;
-            using QRCodeGenerator generator = new();
-            using QRCodeData data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
-            using PngByteQRCode qr = new(data);
-            using MemoryStream png = new(qr.GetGraphic(6));
-            Image picture = new()
-            {
-                Source = new Bitmap(png),
-                Width = 184,
-                Height = 184
-            };
-            RenderOptions.SetBitmapInterpolationMode(picture, BitmapInterpolationMode.None);
-            // The code sits on a white tile in both appearances so every phone camera can read it.
-            connection.Children.Add(new Border { Child = picture, Background = Brushes.White, CornerRadius = new(14), Padding = new(8), HorizontalAlignment = HorizontalAlignment.Left, Margin = new(0, 0, 0, 16) });
+            Border picture = Qr(url, 184);
+            picture.Margin = new(0, 0, 0, 16);
+            connection.Children.Add(picture);
             connection.Children.Add(C.Space(C.Text(url, 15, "Primary", true), 8));
             if (hasName && url == ip)
                 connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + named, 12, bold: true), 8));
@@ -96,18 +102,7 @@ internal sealed class PhonePage : IPage
         else
         {
             connection.Children.Add(C.Space(C.Text("Start browser sharing to show the phone link and QR code.", 13, "Muted"), 18));
-            connection.Children.Add(C.Button("Start browser sharing", () =>
-            {
-                app.Store.SetPreferences(app.Store.Preferences with
-                {
-                    BrowserSharingEnabled = true
-                });
-                if (!app.Engine.Running)
-                    app.ToggleReceiving();
-                else
-                    app.Engine.ApplySavedPreferences();
-                Refresh();
-            }, true, "phone"));
+            connection.Children.Add(C.Button("Start browser sharing", () => { app.StartBrowserSharing(); Refresh(); }, true, "phone"));
         }
         UpdateCode();
         UpdateSpeed();

@@ -1,3 +1,16 @@
+2026-10-31 - hopo 2.1.1: motion and Home panels
+
+The motion from the design is in. Buttons spring and their icons wiggle,
+cards have a sweeping edge light and a sliding purple-to-mint line, pages
+rise into place, the glows drift, and the menu grows out of its button.
+
+Home has twelve glowing wave rings that spin, morph and slow down near the
+pointer, water ripples from this PC, and blinking device dots with radar
+pings. Hovering a device shows its card. The dock opens Send files, Folder,
+Text and Phone panels that rise from their button and work in place:
+choose or drop files and a device and send, share a folder, share text, or
+scan the phone code. Motion follows the system setting for animations.
+
 2026-10-31 - hopo 2.1.0: new name, new look
 
 Lantoss is now hopo, with a new logo and a redesigned UI in a dark theme and a

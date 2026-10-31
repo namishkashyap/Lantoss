@@ -76,6 +76,8 @@ internal sealed class AppShell : IDisposable
         using Stream xaml = Assembly.GetExecutingAssembly().GetManifestResourceStream("Lantoss.Shell.xaml") ?? throw new InvalidDataException("The app shell is missing.");
         Window = (Window)XamlReader.Load(xaml);
         Current = this;
+        Motion.Register();
+        Window.Loaded += (_, _) => { Motion.Drift(Find<System.Windows.Shapes.Ellipse>("GlowTop"), -0.14, 0.1, 0.95, 60); Motion.Drift(Find<System.Windows.Shapes.Ellipse>("GlowBottom"), 0.18, 0.12, 1.1, 68); };
         Engine = new(store, identity, allowLoopback: preview);
         Dialogs = new(this);
         Firewall = new(this);
@@ -163,6 +165,7 @@ internal sealed class AppShell : IDisposable
             button.Click += (_, _) => { try { Navigate(name); } catch (Exception e) { Error(e); } };
             navigationIcons[name] = (icon, label, detail, group == "Share");
             button.Content = NavigationContent(name, false);
+            Motion.Row(button, navigation.Count);
             navigation.Add(name, button);
             menu.Children.Add(button);
         }
@@ -310,16 +313,7 @@ internal sealed class AppShell : IDisposable
             Find<Button>("MenuButton").Focus();
             return;
         }
-        Border panel = Find<Border>("MenuPanel");
-        if (!preview && SystemParameters.ClientAreaAnimation)
-        {
-            System.Windows.Media.Animation.CubicEase ease = new()
-            {
-                EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut
-            };
-            panel.RenderTransform.BeginAnimation(TranslateTransform.XProperty, new System.Windows.Media.Animation.DoubleAnimation(48, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
-            panel.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
-        }
+        Motion.OpenMenu(Find<Button>("MenuScrim"), Find<Border>("MenuPanel"), Find<StackPanel>("Navigation").Children.OfType<UIElement>());
         navigation.Values.FirstOrDefault()?.Focus();
     }
     public void Navigate(string destination)
@@ -333,7 +327,7 @@ internal sealed class AppShell : IDisposable
         Find<Grid>("MenuLayer").Visibility = Visibility.Collapsed;
         // Home is a full-window radar; other pages sit in the design's 1120 px column.
         Find<ContentControl>("PageContent").MaxWidth = destination == "Home" ? double.PositiveInfinity : 1120;
-        Find<ContentControl>("PageContent").Margin = destination == "Home" ? new(24, 8, 24, 16) : new(32, 40, 32, 40);
+        Find<ContentControl>("PageContent").Margin = destination == "Home" ? new(0) : new(32, 40, 32, 40);
         foreach ((string name, Button button) in navigation)
         {
             button.SetResourceReference(Control.BackgroundProperty, name == destination ? "Glass" : "Transparent");
@@ -356,6 +350,8 @@ internal sealed class AppShell : IDisposable
         Find<ContentControl>("PageContent").Content = page.View;
         Find<ScrollViewer>("PageScroll").ScrollToTop();
         page.Refresh();
+        if (destination != "Home")
+            Motion.Enter(page.View);
     }
     public void RefreshPage() => page?.Refresh();
     public void OpenBrowser(string relative = "/")
@@ -483,7 +479,7 @@ internal sealed class AppShell : IDisposable
         if (picker.ShowDialog(Window) == true)
             _ = AddSelectionsAsync(picker.FolderNames);
     }
-    public async Task AddSelectionsAsync(IEnumerable<string> paths)
+    public async Task AddSelectionsAsync(IEnumerable<string> paths, bool openSend = true)
     {
         if (selecting)
         {
@@ -505,7 +501,8 @@ internal sealed class AppShell : IDisposable
                 ManifestEntry[] entries = manifest.Entries.Where(e => e.SourcePath == root || e.SourcePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToArray();
                 Selection.Add(new(root, Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)), entries.Sum(e => e.Size), entries.Count(e => !e.Directory), entries.Count(e => e.Directory)));
             }
-            Navigate("Send");
+            if (openSend)
+                Navigate("Send");
             Tell($"{manifest.FileCount} files and {manifest.FolderCount} folders ready. Select a paired recipient.");
         }
         catch (Exception error) { Error(error); }
@@ -549,6 +546,7 @@ internal sealed class AppShell : IDisposable
         // DynamicResource consumers update in place, preserving selections and active transfers.
         foreach ((string name, string color) in Appearance.Palette(dark))
             Window.Resources[name] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+        Motion.Glass(Window.Resources, dark, ((SolidColorBrush)Window.Resources["GlassBorder"]).Color);
         Find<System.Windows.Shapes.Ellipse>("GlowTop").Opacity = dark ? 0.42 : 0.3;
         Find<System.Windows.Shapes.Ellipse>("GlowBottom").Opacity = dark ? 0.3 : 0.26;
         Find<ComboBox>("AppearanceSelector").SelectedItem = mode;
