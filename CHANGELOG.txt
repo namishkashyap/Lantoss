@@ -1,3 +1,15 @@
+2026-10-31 - hopo 2.1.3: ring glow, taskbar icon, HTTP phone page
+
+The Home wave rings are smooth curves with a wide soft glow. The coloured
+line on top of each box is gone; the white edge light stays. Hovering a
+device shows a round highlight, and animations can run at up to 120 frames
+per second on fast screens.
+
+The taskbar and new pins show the hopo icon (unpin and pin again to update
+an old pin). The phone page now uses plain HTTP by default, so phones no
+longer warn about an untrusted certificate. HTTPS can be turned back on in
+Settings.
+
 2026-10-31 - hopo 2.1.2: motion fixes, calmer rings, design background
 
 Fixed an error that appeared after changing the theme or closing the menu
