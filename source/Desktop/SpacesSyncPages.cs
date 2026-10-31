@@ -19,10 +19,8 @@ internal sealed class SpacesPage : IPage
     {
         this.app = app;
         remote = new(app);
-        View = C.Stack(C.Space(C.Text("A place to share, on your computer.", 28, bold: true), 10),
-            C.Space(C.Text("Browse other computers' folders here, or share folders from this one. Link a space for automatic two-way sync.", 13, "Muted"), 20),
-            C.Space(remote.View, 23), C.Space(C.Text("Folders shared from this " + Shell.Platform, 19, bold: true), 17),
-            C.Space(C.Inline(C.AsyncButton("Create space from a folder", AddAsync, true, "plus"), C.Button("Open in browser", () => app.OpenBrowser(), icon: "phone")), 17), C.Space(activity, 21), spaces,
+        View = C.Stack(C.Header("Share", "Shared folders", "Share folders with your devices, or browse theirs.", C.Inline(C.Button("Open in browser", () => app.OpenBrowser(), icon: "phone"), C.AsyncButton("Share a folder", AddAsync, true, "plus"))),
+            C.Heading("From this " + Shell.Platform), C.Space(activity, 16), spaces, C.Space(remote.View, 0, 12),
             C.Space(C.Note("Your folder stays on this computer", "New spaces are read only. Read & upload allows approved uploads and optional sync. Automatic sync needs a separate one-time host approval. Removing a space stops access and keeps files."), 0, 18));
         timer.Tick += (_, _) => RefreshActivity();
         View.AttachedToVisualTree += (_, _) => timer.Start();
@@ -84,7 +82,7 @@ internal sealed class SpacesPage : IPage
             int allowed = space.AllowedPeers?.Length ?? 0;
             TextBlock who = C.Text("Who can open: " + (allowed == 0 ? "All paired PCs" : allowed == 1 ? "1 PC" : allowed + " PCs"), 12, "Muted");
             who.VerticalAlignment = VerticalAlignment.Center;
-            StackPanel body = C.Stack(C.Heading(space.Name, C.Badge(status, space.Enabled && available ? "Success" : "Muted", space.Enabled && available ? "SuccessSoft" : "Background"), 17),
+            StackPanel body = C.Stack(C.Heading(space.Name, C.Badge(status, space.Enabled && available ? "Success" : "Muted", space.Enabled && available ? "SuccessSoft" : "Text/6"), 17),
                 C.Space(C.Text("Host: " + app.Store.Preferences.DeviceName, 12, "Muted"), 6), C.Space(C.Text(space.Folder, 11, "Muted"), 8), C.Text(storage, 11, "Muted"), access, C.Space(C.Inline(who, choose), 12), C.Wrap(open, reveal, toggle, remove));
             spaces.Children.Add(C.Space(C.Card(body), 16));
         }
@@ -125,7 +123,7 @@ internal sealed class RemoteSpacesView
     public RemoteSpacesView(Shell app)
     {
         this.app = app;
-        View = C.Card(C.Stack(C.Heading("Shared folders on your other computers"),
+        View = C.Card(C.Stack(C.Heading("On your other computers"),
             C.Space(C.Text("Browse, download, upload, or link a folder for automatic two-way sync. All computer-to-computer traffic uses TLS.", 12, "Muted"), 14),
             C.Space(C.Inline(devices, C.AsyncButton("Refresh folders", RefreshCurrentAsync, icon: "sync")), 14), C.Space(status, 14), contents));
         devices.SelectionChanged += async (_, _) => { generation++; peer = devices.SelectedItem as Peer; selected = null; folder = ""; contents.Children.Clear(); if (active) await RefreshCurrentAsync(); };
@@ -157,7 +155,7 @@ internal sealed class RemoteSpacesView
         if (peer == null)
         {
             contents.Children.Clear();
-            status.Text = "Waiting for a connected computer. Open Lantoss on both.";
+            status.Text = "Waiting for a connected computer. Open hopo on both.";
             return;
         }
         if (loading || !active)
@@ -249,7 +247,7 @@ internal sealed class RemoteSpacesView
         status.Text = "Approve automatic sync on " + target.Name + "…";
         await app.Engine.LinkSpaceAsync(target, space, picked[0]);
         app.Navigate("Sync");
-        app.Tell("Folder linked. Changes now sync automatically while both computers keep Lantoss open.");
+        app.Tell("Folder linked. Changes now sync automatically while both computers keep hopo open.");
     }
 }
 
@@ -264,9 +262,8 @@ internal sealed class SyncPage : IPage
     public SyncPage(Shell app)
     {
         this.app = app;
-        View = C.Stack(C.Space(C.Text("Keep your folders together.", 28, bold: true), 10),
-            C.Space(C.Text("Low-impact automatic sync. Changed files update in the background while both computers keep Lantoss open. Sync now runs a full checksum check.", 13, "Muted"), 20),
-            C.Space(C.Button("Choose another computer's shared folder", () => app.Navigate("Shared Spaces"), true, "folder"), 22), links,
+        View = C.Stack(C.Header("Manage", "Sync", "Keep a folder identical on two PCs.", C.Button("Link a folder", () => app.Navigate("Shared Spaces"), true, "folder")),
+            C.Space(C.Text("Low-impact automatic sync. Changed files update in the background while both computers keep hopo open. Sync now runs a full checksum check.", 12, "Muted"), 20), links,
             C.Space(C.Note("Conflicts and earlier versions are kept", "New and changed files sync both ways. Different same-name files keep a conflict copy on both computers. Replaced versions are kept in the destination's .flowshare-versions folder. Deletions stay local and the remaining copy can restore them. Backups are not pruned automatically."), 0, 18));
     }
     public void Refresh()

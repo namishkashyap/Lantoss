@@ -71,7 +71,7 @@ function Publish-Lantoss {
     param([Parameter(Mandatory = $true)][string]$Rid, [switch]$Skip, [string[]]$Extra = @())
     $publish = Join-Path $LantossWork "$Rid\publish"
     if ($Skip) {
-        if (-not (Test-Path (Join-Path $publish 'Lantoss'))) { throw "No earlier publish in $publish. Run without -SkipPublish." }
+        if (-not (Test-Path (Join-Path $publish 'hopo'))) { throw "No earlier publish in $publish. Run without -SkipPublish." }
         return $publish
     }
     if (Test-Path $publish) { Remove-Item -Recurse -Force $publish }
@@ -81,7 +81,7 @@ function Publish-Lantoss {
     $arguments = @('publish', $LantossProject, '-c', 'Release', '-r', $Rid, '--self-contained', 'true',
         '--artifacts-path', $LantossArtifacts, "-p:RestoreConfigFile=$LantossNuGetConfig", '-o', $publish, '--nologo') + $Extra
     Invoke-LantossNative dotnet $arguments
-    if (-not (Test-Path (Join-Path $publish 'Lantoss'))) { throw "dotnet publish did not produce $publish\Lantoss" }
+    if (-not (Test-Path (Join-Path $publish 'hopo'))) { throw "dotnet publish did not produce $publish\Lantoss" }
     $publish
 }
 

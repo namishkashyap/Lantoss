@@ -22,7 +22,7 @@ internal static class Program
                 }
                 return 0;
             }
-            catch (Exception error) { MessageBox.Show(error.Message, "Lantoss sharing menu", MessageBoxButton.OK, MessageBoxImage.Warning); return 1; }
+            catch (Exception error) { MessageBox.Show(error.Message, "hopo sharing menu", MessageBoxButton.OK, MessageBoxImage.Warning); return 1; }
         }
         if (args.Length == 1 && args[0] == "--uninstall-integration")
         {
@@ -62,7 +62,7 @@ internal static class Program
                     }
                     catch (Exception error) when (error is IOException or OperationCanceledException or TimeoutException or UnauthorizedAccessException)
                     {
-                        MessageBox.Show("The running instance could not receive this request. Close the older Lantoss/FlowShare version and try again.\n\n" + error.Message, "Lantoss");
+                        MessageBox.Show("The running instance could not receive this request. Close the older hopo, Lantoss or FlowShare version and try again.\n\n" + error.Message, "hopo");
                         return 1;
                     }
                     return 0;
@@ -70,7 +70,7 @@ internal static class Program
             }
             System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
             Application app = new();
-            app.DispatcherUnhandledException += (_, e) => { if (!preview) MessageBox.Show(e.Exception.Message, "Lantoss", MessageBoxButton.OK, MessageBoxImage.Warning); e.Handled = true; };
+            app.DispatcherUnhandledException += (_, e) => { if (!preview) MessageBox.Show(e.Exception.Message, "hopo", MessageBoxButton.OK, MessageBoxImage.Warning); e.Handled = true; };
             MetadataStore store = new(data);
             Identity identity = preview ? Identity.Ephemeral() : Identity.Windows(store);
             using AppShell shell = new(store, identity, preview);
@@ -130,7 +130,7 @@ internal static class Program
             }
             catch { }
             if (!preview)
-                MessageBox.Show("Lantoss could not start.\n\n" + error.Message + "\n\nDetails are in the app's startup-error.txt file.", "Lantoss", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("hopo could not start.\n\n" + error.Message + "\n\nDetails are in the app's startup-error.txt file.", "hopo", MessageBoxButton.OK, MessageBoxImage.Error);
             return 1;
         }
         finally { if (ownsInstance) instance?.ReleaseMutex(); }

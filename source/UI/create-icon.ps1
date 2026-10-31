@@ -7,19 +7,28 @@ foreach ($lantossSize in @(16,32,48,256)) {
     $lantossGraphics = [System.Drawing.Graphics]::FromImage($lantossBitmap)
     $lantossGraphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $lantossGraphics.ScaleTransform(($lantossSize / 256.0),($lantossSize / 256.0))
+    # hopo mark (256 x 256 design space): dark rounded tile, faint purple and green glows, amber centre, two rings and a mint satellite.
     $lantossBox = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $lantossBox.AddArc(4,4,120,120,180,90); $lantossBox.AddArc(132,4,120,120,270,90); $lantossBox.AddArc(132,132,120,120,0,90); $lantossBox.AddArc(4,132,120,120,90,90); $lantossBox.CloseFigure()
-    $lantossBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush([System.Drawing.Point]::new(32,224),[System.Drawing.Point]::new(220,20),[System.Drawing.Color]::FromArgb(8,116,93),[System.Drawing.Color]::FromArgb(145,229,180))
-    $lantossGraphics.FillPath($lantossBrush,$lantossBox)
-    $lantossPen = New-Object System.Drawing.Pen([System.Drawing.Color]::White,9)
-    $lantossPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round; $lantossPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $lantossWave = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $lantossWave.AddBezier(40,141,89,58,146,211,216,104); $lantossGraphics.DrawPath($lantossPen,$lantossWave)
-    $lantossWave.Reset(); $lantossWave.AddBezier(40,170,94,89,149,240,216,134); $lantossGraphics.DrawPath($lantossPen,$lantossWave)
+    $lantossBox.AddArc(8,8,112,112,180,90); $lantossBox.AddArc(136,8,112,112,270,90); $lantossBox.AddArc(136,136,112,112,0,90); $lantossBox.AddArc(8,136,112,112,90,90); $lantossBox.CloseFigure()
+    $lantossFill = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(11,12,18)); $lantossGraphics.FillPath($lantossFill,$lantossBox)
+    $lantossGraphics.SetClip($lantossBox)
+    foreach ($lantossGlow in @(@(-60,-60,250,140,60,255,120), @(70,70,250,40,240,150,90))) {
+        $lantossGlowPath = New-Object System.Drawing.Drawing2D.GraphicsPath; $lantossGlowPath.AddEllipse($lantossGlow[0],$lantossGlow[1],$lantossGlow[2],$lantossGlow[2])
+        $lantossGlowBrush = New-Object System.Drawing.Drawing2D.PathGradientBrush($lantossGlowPath); $lantossGlowBrush.CenterColor = [System.Drawing.Color]::FromArgb($lantossGlow[6],$lantossGlow[3],$lantossGlow[4],$lantossGlow[5]); $lantossGlowBrush.SurroundColors = @([System.Drawing.Color]::FromArgb(0,$lantossGlow[3],$lantossGlow[4],$lantossGlow[5]))
+        $lantossGraphics.FillPath($lantossGlowBrush,$lantossGlowPath); $lantossGlowBrush.Dispose(); $lantossGlowPath.Dispose()
+    }
+    $lantossGraphics.ResetClip()
+    # Ring strokes never drop below about one device pixel, so the 16 px icon keeps both rings.
+    $lantossStroke = [Math]::Max(9.0, 1.2 * 256.0 / $lantossSize)
+    $lantossOuter = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(120,237,238,242),$lantossStroke); $lantossGraphics.DrawEllipse($lantossOuter,40,40,176,176)
+    $lantossInner = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(190,237,238,242),$lantossStroke); $lantossGraphics.DrawEllipse($lantossInner,72,72,112,112)
+    $lantossAmber = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(245,181,74)); $lantossGraphics.FillEllipse($lantossAmber,100,100,56,56)
+    $lantossMint = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(110,231,197)); $lantossGraphics.FillEllipse($lantossMint,166,62,36,36)
+    $lantossOuter.Dispose(); $lantossInner.Dispose(); $lantossAmber.Dispose(); $lantossMint.Dispose(); $lantossFill.Dispose()
     $lantossPng = New-Object System.IO.MemoryStream
     $lantossBitmap.Save($lantossPng,[System.Drawing.Imaging.ImageFormat]::Png)
     $lantossIconImages += [pscustomobject]@{Size=$lantossSize;Bytes=$lantossPng.ToArray()}
-    $lantossPng.Dispose(); $lantossWave.Dispose(); $lantossPen.Dispose(); $lantossBrush.Dispose(); $lantossBox.Dispose(); $lantossGraphics.Dispose(); $lantossBitmap.Dispose()
+    $lantossPng.Dispose(); $lantossBox.Dispose(); $lantossGraphics.Dispose(); $lantossBitmap.Dispose()
 }
 $lantossIconFile = [System.IO.File]::Create([System.IO.Path]::GetFullPath($OutputPath))
 $lantossIconWriter = New-Object System.IO.BinaryWriter($lantossIconFile)

@@ -11,7 +11,12 @@ internal sealed class App : Application
     {
         get; private set;
     }
-    public override void Initialize() => Styles.Add(new FluentTheme());
+    public override void Initialize()
+    {
+        // The name macOS shows in the app menu; the bundle, executable and data folder keep the Lantoss name.
+        Name = "hopo";
+        Styles.Add(new FluentTheme());
+    }
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -29,7 +34,7 @@ internal sealed class App : Application
                     {
                         Instance = new FileStream(Path.Combine(data, ".lantoss.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                     }
-                    catch (IOException) { throw new IOException("Lantoss is already running. Use its open window or tray icon."); }
+                    catch (IOException) { throw new IOException("hopo is already running. Use its open window or tray icon."); }
                 MetadataStore store = new(data);
                 Identity identity;
                 if (preview)
@@ -51,12 +56,12 @@ internal sealed class App : Application
                 Theme.Apply("System");
                 Window window = new()
                 {
-                    Title = "Lantoss could not start",
+                    Title = "hopo could not start",
                     Width = 520,
                     SizeToContent = SizeToContent.Height,
                     Background = Theme.Brush("Background")
                 };
-                window.Content = new Border { Padding = new(28), Child = C.Stack(C.Space(C.Text("Lantoss could not start", 20, bold: true), 12), C.Space(C.Text(error.Message, 13), 20), C.Button("Close", window.Close, true)) };
+                window.Content = new Border { Padding = new(28), Child = C.Stack(C.Space(C.Text("hopo could not start", 20, bold: true), 12), C.Space(C.Text(error.Message, 13), 20), C.Button("Close", window.Close, true)) };
                 desktop.MainWindow = window;
             }
         }

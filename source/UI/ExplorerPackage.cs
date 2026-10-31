@@ -83,8 +83,8 @@ internal static class ExplorerPackage
         using X509Certificate2 certificate = Publisher();
         if (!Trusted(certificate))
         {
-            if (!prompt || MessageBox.Show("The Windows 11 sharing menu needs Lantoss's signed identity package.\n\nThis development build uses the publisher “Lantoss Development”. Allow Windows to trust this publisher for app packages on this PC? Windows will ask for administrator approval.\n\nCertificate: " + certificate.Thumbprint + "\n\nChoose No to cancel this feature. You can install without the Explorer feature.",
-                "Lantoss · Windows 11 sharing menu", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            if (!prompt || MessageBox.Show("The Windows 11 sharing menu needs hopo's signed identity package.\n\nThis development build uses the publisher “Lantoss Development”. Allow Windows to trust this publisher for app packages on this PC? Windows will ask for administrator approval.\n\nCertificate: " + certificate.Thumbprint + "\n\nChoose No to cancel this feature. You can install without the Explorer feature.",
+                "hopo · Windows 11 sharing menu", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
                 throw new OperationCanceledException("The Windows 11 menu was not installed. Install again with Explorer sharing unchecked to use the app without it.");
             ProcessStartInfo trust = new(Environment.ProcessPath!, "--trust-explorer-publisher")
             {
@@ -127,7 +127,7 @@ internal static class ExplorerPackage
         {
             if (mode == "Remove")
                 return;
-            throw new FileNotFoundException("Install Lantoss with its MSI to enable the Windows 11 menu.");
+            throw new FileNotFoundException("Install hopo with its MSI to enable the Windows 11 menu.");
         }
         ProcessStartInfo start = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"))
         {
@@ -146,6 +146,6 @@ internal static class ExplorerPackage
             throw new TimeoutException("Windows package setup timed out.");
         }
         if (process.ExitCode != 0)
-            throw new IOException("Windows could not " + (mode == "Install" ? "register" : "remove") + " the Lantoss sharing menu.\n" + error.GetAwaiter().GetResult() + output.GetAwaiter().GetResult());
+            throw new IOException("Windows could not " + (mode == "Install" ? "register" : "remove") + " the hopo sharing menu.\n" + error.GetAwaiter().GetResult() + output.GetAwaiter().GetResult());
     }
 }
