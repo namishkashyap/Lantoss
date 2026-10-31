@@ -39,7 +39,7 @@ internal sealed class HomePage : IPage
     private readonly Border clickAway = new() { Background = Brushes.Transparent, IsVisible = false };
     private readonly TextBox message = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 84, MaxHeight = 160, MaxLength = SharedNotes.MaxCharacters, PlaceholderText = "Paste a note or a link…", CornerRadius = new(12) };
     private string? open, sheet, folder, noteKey, deviceSignature;
-    private SpaceAccess access = SpaceAccess.ReadOnly;
+    private SpaceAccess access = SpaceAccess.ReadAndUpload;
     private Action? fillSheet;
     private double clock, pull, nearness, last;
     public Control View
