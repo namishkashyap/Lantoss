@@ -150,11 +150,13 @@ internal static class C
         b.MinHeight = 34;
         return b;
     }
+    /// <summary>A link as people read it: no https:// and no trailing slash. QR codes, copying and opening keep the full address.</summary>
+    public static string Bare(string url) => url.Replace("https://", "", StringComparison.OrdinalIgnoreCase).Replace("http://", "", StringComparison.OrdinalIgnoreCase).TrimEnd('/');
     public static Border Badge(string text, string color = "Primary", string background = "PrimarySoft")
     {
         Border border = new()
         {
-            CornerRadius = new(999),
+            CornerRadius = new(8),
             Padding = new(10, 4, 10, 4),
             Child = Text(text, 11, color, true),
             VerticalAlignment = VerticalAlignment.Center

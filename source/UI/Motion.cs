@@ -198,16 +198,18 @@ internal static class Motion
             RelativeTransform = new TranslateTransform(),
             Opacity = 0.85
         };
+        // The window's resources freeze a brush when it is added, so start the animations first (an animated brush cannot be frozen).
+        if (On)
+        {
+            SineEase ease = new()
+            {
+                EasingMode = EasingMode.EaseInOut
+            };
+            ((TranslateTransform)sweep.RelativeTransform).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0.7, -0.7, TimeSpan.FromSeconds(9)) { EasingFunction = ease, RepeatBehavior = RepeatBehavior.Forever });
+            ((TranslateTransform)sheen.RelativeTransform).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-0.22, 0.22, TimeSpan.FromSeconds(7)) { EasingFunction = ease, AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+            sheen.BeginAnimation(Brush.OpacityProperty, new DoubleAnimation(0.7, 1, TimeSpan.FromSeconds(7)) { EasingFunction = ease, AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+        }
         resources["GlassEdge"] = sweep;
         resources["Sheen"] = sheen;
-        if (!On)
-            return;
-        SineEase ease = new()
-        {
-            EasingMode = EasingMode.EaseInOut
-        };
-        ((TranslateTransform)sweep.RelativeTransform).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0.7, -0.7, TimeSpan.FromSeconds(9)) { EasingFunction = ease, RepeatBehavior = RepeatBehavior.Forever });
-        ((TranslateTransform)sheen.RelativeTransform).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-0.22, 0.22, TimeSpan.FromSeconds(7)) { EasingFunction = ease, AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
-        sheen.BeginAnimation(Brush.OpacityProperty, new DoubleAnimation(0.7, 1, TimeSpan.FromSeconds(7)) { EasingFunction = ease, AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
     }
 }
