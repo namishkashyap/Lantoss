@@ -75,25 +75,9 @@ internal static class C
     }
     public static Border Card(UIElement child, double padding = 22)
     {
-        // The glass sheen: a purple-to-mint line on the top edge with a soft glow under it, both from the shared animated Sheen brush.
-        Grid layer = new();
-        layer.Children.Add(child);
-        foreach ((double height, double opacity) in new[] { (1.0, 1.0), (6.0, 0.28) })
-        {
-            Border line = new()
-            {
-                Height = height,
-                Opacity = opacity,
-                VerticalAlignment = VerticalAlignment.Top,
-                IsHitTestVisible = false,
-                Margin = new(-padding, -padding - 1, -padding, 0)
-            };
-            line.SetResourceReference(Border.BackgroundProperty, "Sheen");
-            layer.Children.Add(line);
-        }
         Border border = new()
         {
-            Child = layer,
+            Child = child,
             Padding = new(padding),
             Style = (Style)AppShell.Current.Window.FindResource("Card")
         };
@@ -150,11 +134,13 @@ internal static class C
         b.MinHeight = 34;
         return b;
     }
+    /// <summary>A link as people read it: no https:// and no trailing slash. QR codes, copying and opening keep the full address.</summary>
+    public static string Bare(string url) => url.Replace("https://", "", StringComparison.OrdinalIgnoreCase).Replace("http://", "", StringComparison.OrdinalIgnoreCase).TrimEnd('/');
     public static Border Badge(string text, string color = "Primary", string background = "PrimarySoft")
     {
         Border border = new()
         {
-            CornerRadius = new(999),
+            CornerRadius = new(8),
             Padding = new(10, 4, 10, 4),
             Child = Text(text, 11, color, true),
             VerticalAlignment = VerticalAlignment.Center

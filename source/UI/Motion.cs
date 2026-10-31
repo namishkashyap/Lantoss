@@ -47,6 +47,8 @@ internal static class Motion
         if (registered)
             return;
         registered = true;
+        // WPF animates at 60 frames per second unless asked; allow 120 so 90–144 Hz screens stay smooth (slower screens still run at their own rate).
+        Timeline.DesiredFrameRateProperty.OverrideMetadata(typeof(Timeline), new FrameworkPropertyMetadata { DefaultValue = 120 });
         EventManager.RegisterClassHandler(typeof(Button), UIElement.MouseEnterEvent, new MouseEventHandler((sender, _) => Hover((Button)sender, true)));
         EventManager.RegisterClassHandler(typeof(Button), UIElement.MouseLeaveEvent, new MouseEventHandler((sender, _) => Hover((Button)sender, false)));
         EventManager.RegisterClassHandler(typeof(Button), UIElement.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler((sender, _) => Press((Button)sender, true)), true);
@@ -178,7 +180,7 @@ internal static class Motion
         To(scale, ScaleTransform.ScaleYProperty, over ? 1.04 : 1, 0.45, Bezier.Spring);
         To(rotate, RotateTransform.AngleProperty, over ? (index % 2 == 0 ? -4 : 4) : 0, 0.45, Bezier.Spring);
     }
-    /// <summary>Shared animated brushes for every glass card: a diagonal light sweeping across the edge every 9 s, and the purple-to-mint top line sliding ±22% over 7 s.</summary>
+    /// <summary>The shared animated edge for every glass card: a diagonal light sweeping across it every 9 s.</summary>
     public static void Glass(ResourceDictionary resources, bool dark, Color edge)
     {
         Color light = dark ? Color.FromArgb(140, 255, 255, 255) : Color.FromArgb(90, 20, 22, 29);
@@ -190,24 +192,9 @@ internal static class Motion
             GradientStops = { new(edge, 0), new(edge, 0.35), new(light, 0.48), new(edge, 0.6), new(edge, 1) },
             RelativeTransform = new TranslateTransform()
         };
-        LinearGradientBrush sheen = new()
-        {
-            StartPoint = new(0, 0),
-            EndPoint = new(1, 0),
-            GradientStops = { new(Colors.Transparent, 0.18), new(Color.FromArgb(242, 200, 150, 255), 0.4), new(Color.FromArgb(204, 110, 255, 190), 0.62), new(Colors.Transparent, 0.82) },
-            RelativeTransform = new TranslateTransform(),
-            Opacity = 0.85
-        };
+        // The window's resources freeze a brush when it is added, so start the animation first (an animated brush cannot be frozen).
+        if (On)
+            ((TranslateTransform)sweep.RelativeTransform).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0.7, -0.7, TimeSpan.FromSeconds(9)) { EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }, RepeatBehavior = RepeatBehavior.Forever });
         resources["GlassEdge"] = sweep;
-        resources["Sheen"] = sheen;
-        if (!On)
-            return;
-        SineEase ease = new()
-        {
-            EasingMode = EasingMode.EaseInOut
-        };
-        ((TranslateTransform)sweep.RelativeTransform).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0.7, -0.7, TimeSpan.FromSeconds(9)) { EasingFunction = ease, RepeatBehavior = RepeatBehavior.Forever });
-        ((TranslateTransform)sheen.RelativeTransform).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-0.22, 0.22, TimeSpan.FromSeconds(7)) { EasingFunction = ease, AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
-        sheen.BeginAnimation(Brush.OpacityProperty, new DoubleAnimation(0.7, 1, TimeSpan.FromSeconds(7)) { EasingFunction = ease, AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
     }
 }

@@ -34,7 +34,7 @@ internal static class Theme
         GradientOrigin = new RelativePoint(x, y, RelativeUnit.Relative),
         RadiusX = new RelativeScalar(radiusX, RelativeUnit.Relative),
         RadiusY = new RelativeScalar(radiusY, RelativeUnit.Relative),
-        GradientStops = [new(Color(name + "/" + Percent(strength)), 0), new(Color(name + "/" + Percent(strength / 3)), 0.55), new(Color(name + "/0"), 1)]
+        GradientStops = [new(Color(name + "/" + Percent(strength)), 0), new(Color(name + "/" + Percent(strength * 0.33)), 0.55), new(Color(name + "/0"), 1)]
     };
     /// <summary>Drop shadow for floating glass (menu, dock, device cards); lighter in the light appearance.</summary>
     public static BoxShadows Shadow(double y, double blur, double opacity) => new(new BoxShadow { OffsetY = y, Blur = blur, Color = Color("#000000/" + Percent(Dark ? opacity : opacity / 4)) });

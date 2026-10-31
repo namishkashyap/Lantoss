@@ -13,19 +13,21 @@ internal sealed class HomePage : IPage
 {
     // The nearby field is drawn on the design's fixed 640 px stage and scaled down on small windows.
     private const double Stage = 640, Middle = Stage / 2;
-    // The design's twelve wave rings: radius, wave height, lobes, colour, spin seconds, reversed, morph seconds, pointer pull.
-    private static readonly (double R, double A, int N, string Color, double Spin, bool Reverse, double Morph, double Pull)[] Rings = [(268, 9, 14, "#B57CFF", 90, false, 7, 14), (273, 10, 18, "#3FE0FF", 130, true, 9, 8), (277, 8, 22, "#3DF5A0", 110, false, 6, 12), (282, 11, 12, "#FF6AD5", 160, true, 10, 6), (286, 7, 26, "#8C9BFF", 75, false, 6.5, 16), (290, 9, 16, "#D49BFF", 190, true, 9.5, 9), (280, 12, 10, "#7DF7C0", 145, false, 11, 11), (296, 6, 30, "#9AE6FF", 220, true, 8, 7), (271, 7, 24, "#C9A6FF", 100, true, 5.5, 13), (284, 10, 20, "#5CF0D0", 175, false, 8.5, 10), (292, 8, 13, "#FF9BE6", 120, false, 12, 5), (299, 5, 28, "#A7B6FF", 240, true, 7.5, 15)];
+    // Seven of the design's twelve wave rings: radius, wave height, lobes, colour, spin seconds, reversed, morph seconds, pointer pull.
+    // Spin is 1.5× and morph 1.6× the design's timing, for a calmer field.
+    private static readonly (double R, double A, int N, string Color, double Spin, bool Reverse, double Morph, double Pull)[] Rings = [(268, 9, 14, "#B57CFF", 135, false, 11.2, 14), (273, 10, 18, "#3FE0FF", 195, true, 14.4, 8), (277, 8, 22, "#3DF5A0", 165, false, 9.6, 12), (282, 11, 12, "#FF6AD5", 240, true, 16, 6), (290, 9, 16, "#D49BFF", 285, true, 15.2, 9), (284, 10, 20, "#5CF0D0", 262.5, false, 13.6, 10), (299, 5, 28, "#A7B6FF", 360, true, 12, 15)];
     private static readonly KeySpline Settle = Frozen(new KeySpline(0.22, 1, 0.36, 1));
     private readonly AppShell app;
     private readonly Canvas stage = new() { Width = Stage, Height = Stage }, devices = new() { Width = Stage, Height = Stage };
-    private readonly System.Windows.Shapes.Path[] lines = new System.Windows.Shapes.Path[Rings.Length], glows = new System.Windows.Shapes.Path[Rings.Length];
+    private readonly System.Windows.Shapes.Path[] lines = new System.Windows.Shapes.Path[Rings.Length], glows = new System.Windows.Shapes.Path[Rings.Length], halos = new System.Windows.Shapes.Path[Rings.Length];
+    private readonly Point[] samples = new Point[180];
     private readonly Border sheetHost = new() { HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 12) }, clickAway = new() { Background = Brushes.Transparent, Visibility = Visibility.Collapsed };
     private readonly Dictionary<string, Button> dock = [];
     private readonly TextBlock status = C.Text("", 12, "Muted");
     private string? sheet, target, folder;
     private string draft = "";
     private bool upload = true;
-    private double clock, rate = 1, proximity, last = -1;
+    private double clock, pointer, proximity, last = -1;
     public FrameworkElement View
     {
         get;
@@ -37,8 +39,7 @@ internal sealed class HomePage : IPage
         {
             Width = Stage,
             Height = Stage,
-            IsHitTestVisible = false,
-            Effect = new BlurEffect { Radius = 6 }
+            IsHitTestVisible = false
         }, lineLayer = new()
         {
             Width = Stage,
@@ -49,18 +50,24 @@ internal sealed class HomePage : IPage
         {
             SolidColorBrush ink = new((Color)ColorConverter.ConvertFromString(Rings[i].Color));
             ink.Freeze();
-            glows[i] = new()
+            // The glow is two wide, faint copies of the line (9 px and 3.5 px) rather than a blur, which would redraw every frame.
+            (halos[i], glows[i], lines[i]) = (new()
             {
                 Stroke = ink,
-                StrokeThickness = 2.6,
+                StrokeThickness = 9,
                 StrokeLineJoin = PenLineJoin.Round
-            };
-            lines[i] = new()
+            }, new()
             {
                 Stroke = ink,
-                StrokeThickness = 0.8,
+                StrokeThickness = 3.5,
                 StrokeLineJoin = PenLineJoin.Round
-            };
+            }, new()
+            {
+                Stroke = ink,
+                StrokeThickness = 0.7,
+                StrokeLineJoin = PenLineJoin.Round
+            });
+            glowLayer.Children.Add(halos[i]);
             glowLayer.Children.Add(glows[i]);
             lineLayer.Children.Add(lines[i]);
         }
@@ -163,8 +170,8 @@ internal sealed class HomePage : IPage
         }
         Border bar = C.Card(buttons, 8);
         bar.CornerRadius = new(18);
-        bar.Effect = new DropShadowEffect { BlurRadius = 60, ShadowDepth = 24, Opacity = 0.45, Direction = 270 };
-        sheetHost.Effect = new DropShadowEffect { BlurRadius = 80, ShadowDepth = 30, Opacity = 0.5, Direction = 270 };
+        bar.Effect = new DropShadowEffect { BlurRadius = 60, ShadowDepth = 24, Opacity = 0.45, Direction = 270, RenderingBias = RenderingBias.Performance };
+        sheetHost.Effect = new DropShadowEffect { BlurRadius = 80, ShadowDepth = 30, Opacity = 0.5, Direction = 270, RenderingBias = RenderingBias.Performance };
         status.HorizontalAlignment = HorizontalAlignment.Center;
         StackPanel bottom = new()
         {
@@ -185,9 +192,9 @@ internal sealed class HomePage : IPage
         field.MouseMove += (_, e) =>
         {
             Point point = e.GetPosition(stage);
-            proximity = Math.Max(0, 1 - Math.Abs(Math.Sqrt((point.X - Middle) * (point.X - Middle) + (point.Y - Middle) * (point.Y - Middle)) - 284) / 110);
+            pointer = Math.Max(0, 1 - Math.Abs(Math.Sqrt((point.X - Middle) * (point.X - Middle) + (point.Y - Middle) * (point.Y - Middle)) - 284) / 110);
         };
-        field.MouseLeave += (_, _) => proximity = 0;
+        field.MouseLeave += (_, _) => pointer = 0;
         clickAway.MouseLeftButtonDown += (_, _) => Close();
         Grid layout = new()
         {
@@ -225,9 +232,10 @@ internal sealed class HomePage : IPage
             return;
         if (last >= 0)
         {
-            // Ease toward the design's playback rate, 1 − .75 × proximity, so the rings slow rather than stop.
-            rate += (1 - 0.75 * proximity - rate) * 0.12;
-            clock += Math.Min(now - last, 0.1) * rate;
+            // Follow the pointer over about half a second, so the slow-down and swell never jump, then play at the design's rate, 1 − .75 × proximity.
+            double step = Math.Min(now - last, 0.1);
+            proximity += (pointer - proximity) * (1 - Math.Exp(-step / 0.5));
+            clock += step * (1 - 0.75 * proximity);
         }
         last = now;
         Draw();
@@ -244,20 +252,28 @@ internal sealed class HomePage : IPage
             (double A, double Phase)[] shapes = [(A, p), (A * 1.35, p + Math.PI * 0.66), (A * 0.5, p + Math.PI * 1.33), (A, p)];
             double height = shapes[k].A + (shapes[k + 1].A - shapes[k].A) * ease, phase = shapes[k].Phase + (shapes[k + 1].Phase - shapes[k].Phase) * ease;
             double scale = 1 + proximity * Pull * (i % 3 == 1 ? -1 : 1) * 0.0045, half = Math.Floor(N / 2.0 + 0.5);
+            for (int step = 0; step < samples.Length; step++)
+            {
+                double t = step * Math.PI / 90, r = (R + height * Math.Sin(N * t + phase) + height * 0.35 * Math.Sin(half * t - phase * 1.3)) * scale;
+                samples[step] = new(Middle + r * Math.Cos(t + spin), Middle + r * Math.Sin(t + spin));
+            }
+            // Smooth curves through the samples (Catmull-Rom as cubic Béziers), so the ring has no corners between points.
             StreamGeometry geometry = new();
             using (StreamGeometryContext path = geometry.Open())
-                for (int step = 0; step <= 180; step++)
+            {
+                int n = samples.Length;
+                path.BeginFigure(samples[0], false, true);
+                for (int j = 0; j < n; j++)
                 {
-                    double t = step * Math.PI / 90, r = (R + height * Math.Sin(N * t + phase) + height * 0.35 * Math.Sin(half * t - phase * 1.3)) * scale;
-                    Point point = new(Middle + r * Math.Cos(t + spin), Middle + r * Math.Sin(t + spin));
-                    if (step == 0)
-                        path.BeginFigure(point, false, true);
-                    else
-                        path.LineTo(point, true, true);
+                    Point a = samples[(j + n - 1) % n], b = samples[j], c = samples[(j + 1) % n], d = samples[(j + 2) % n];
+                    path.BezierTo(b + (c - a) / 6, c - (d - b) / 6, c, true, true);
                 }
+            }
             geometry.Freeze();
-            lines[i].Data = glows[i].Data = geometry;
-            lines[i].Opacity = glows[i].Opacity = 0.55 + 0.45 * (0.5 - 0.5 * Math.Cos(2 * Math.PI * (clock + i * 0.6) / 7));
+            lines[i].Data = glows[i].Data = halos[i].Data = geometry;
+            lines[i].Opacity = 0.55 + 0.45 * (0.5 - 0.5 * Math.Cos(2 * Math.PI * (clock + i * 0.6) / 7));
+            glows[i].Opacity = lines[i].Opacity * 0.22;
+            halos[i].Opacity = lines[i].Opacity * 0.08;
         }
     }
     public void Refresh()
@@ -356,7 +372,7 @@ internal sealed class HomePage : IPage
         }
         Button blip = new()
         {
-            Style = (Style)app.Window.FindResource("Plain"),
+            Style = (Style)app.Window.FindResource("Dot"),
             Width = 44,
             Height = 44,
             Content = dot
@@ -493,7 +509,7 @@ internal sealed class HomePage : IPage
             }
         }
     }
-    /// <summary>Opens a panel above the dock. It grows out of its dock button: from 26 px lower at .62 × .5 with a 3 px blur, past full size at 55%, then rests (0.6 s); its rows fade up after 0.14 s.</summary>
+    /// <summary>Opens a panel above the dock. It grows out of its dock button: from 26 px lower at .62 × .5, past full size at 55%, then rests (0.6 s); its rows fade up after 0.14 s.</summary>
     private void Open(string key, string? device = null, bool animate = true)
     {
         sheet = key;
@@ -513,10 +529,6 @@ internal sealed class HomePage : IPage
             return;
         ScaleTransform scale = new(0.62, 0.5);
         TranslateTransform shift = new(0, 26);
-        BlurEffect blur = new()
-        {
-            Radius = 3
-        };
         panel.RenderTransformOrigin = new(key switch
         {
             "send" => 0.14,
@@ -525,7 +537,6 @@ internal sealed class HomePage : IPage
             _ => 0.84
         }, 1.08);
         panel.RenderTransform = new TransformGroup { Children = { scale, shift } };
-        panel.Effect = blur;
         panel.Opacity = 0;
         DoubleAnimationUsingKeyFrames Keys(double from, double middle, double to) => new()
         {
@@ -536,9 +547,6 @@ internal sealed class HomePage : IPage
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, Keys(0.5, 1.008, 1));
         shift.BeginAnimation(TranslateTransform.YProperty, Keys(26, -2, 0));
         panel.BeginAnimation(UIElement.OpacityProperty, Keys(0, 1, 1));
-        DoubleAnimationUsingKeyFrames sharpen = Keys(3, 0, 0);
-        sharpen.Completed += (_, _) => panel.Effect = null;
-        blur.BeginAnimation(BlurEffect.RadiusProperty, sharpen);
         if (panel.Child is Panel rows)
             foreach (UIElement row in rows.Children)
                 Motion.Rise(row, 0.14, 6, 0.45);
@@ -785,7 +793,7 @@ internal sealed class HomePage : IPage
             code.Background = Brushes.White;
             code.Child = new Image { Source = BitmapFrame.Create(image, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad) };
             AutomationProperties.SetName(code, "QR code for " + app.Engine.Browser.IpUrl);
-            address = app.Engine.Browser.IpUrl;
+            address = C.Bare(app.Engine.Browser.IpUrl);
             action = C.Button("Open Phone & browser", () => { Close(); app.Navigate("Phone & browser"); }, true, "phone");
         }
         else

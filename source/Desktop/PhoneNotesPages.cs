@@ -86,9 +86,9 @@ internal sealed class PhonePage : IPage
             Border picture = Qr(url, 184);
             picture.Margin = new(0, 0, 0, 16);
             connection.Children.Add(picture);
-            connection.Children.Add(C.Space(C.Text(url, 15, "Primary", true), 8));
+            connection.Children.Add(C.Space(C.Text(C.Bare(url), 15, "Primary", true), 8));
             if (hasName && url == ip)
-                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + named, 12, bold: true), 8));
+                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + C.Bare(named), 12, bold: true), 8));
             connection.Children.Add(C.Space(C.Text(app.Engine.Browser.LocalAddressStatus, 12, "Muted"), 12));
             string print = app.Engine.Browser.CertificateFingerprint;
             if (app.Engine.Browser.Https)

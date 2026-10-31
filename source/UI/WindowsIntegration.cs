@@ -107,4 +107,62 @@ internal sealed class WindowsIntegration
     [DllImport("shell32.dll")]
     private static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
     private static void NotifyExplorer() => SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
+    /// <summary>
+    /// Gives the window its own taskbar identity: app ID, relaunch command, the name "hopo" and the exe's icon. The Explorer
+    /// package (1.9.0.0) would otherwise lend the process its old Lantoss logo, so taskbar buttons and new pins use these instead.
+    /// </summary>
+    public static void Taskbar(IntPtr window, string executable)
+    {
+        Guid store = new("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99");
+        if (SHGetPropertyStoreForWindow(window, ref store, out IPropertyStore properties) != 0)
+            return;
+        try
+        {
+            // Relaunch details must be set with the ID: 2 command, 3 icon, 4 display name, 5 app ID.
+            foreach ((uint id, string value) in new[] { (2u, "\"" + executable + "\""), (3u, executable + ",0"), (4u, "hopo"), (5u, "hopo.LocalFileSharing") })
+            {
+                PropertyKey key = new()
+                {
+                    Format = new("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
+                    Id = id
+                };
+                PropVariant text = new()
+                {
+                    Type = 31,
+                    Value = Marshal.StringToCoTaskMemUni(value)
+                };
+                try
+                {
+                    properties.SetValue(ref key, ref text);
+                }
+                finally { Marshal.FreeCoTaskMem(text.Value); }
+            }
+            properties.Commit();
+        }
+        finally { Marshal.ReleaseComObject(properties); }
+    }
+    [DllImport("shell32.dll")]
+    private static extern int SHGetPropertyStoreForWindow(IntPtr window, ref Guid interfaceId, out IPropertyStore store);
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    private struct PropertyKey
+    {
+        public Guid Format;
+        public uint Id;
+    }
+    // PROPVARIANT is 24 bytes on x64; only the type and the string pointer are used.
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
+    private struct PropVariant
+    {
+        [FieldOffset(0)] public ushort Type;
+        [FieldOffset(8)] public IntPtr Value;
+    }
+    [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IPropertyStore
+    {
+        [PreserveSig] int GetCount(out uint count);
+        [PreserveSig] int GetAt(uint index, out PropertyKey key);
+        [PreserveSig] int GetValue(ref PropertyKey key, out PropVariant value);
+        [PreserveSig] int SetValue(ref PropertyKey key, ref PropVariant value);
+        [PreserveSig] int Commit();
+    }
 }

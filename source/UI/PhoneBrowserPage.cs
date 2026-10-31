@@ -80,9 +80,9 @@ internal sealed class PhoneBrowserPage : IPage
             System.Windows.Automation.AutomationProperties.SetName(picture, "QR code for " + url);
             RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.NearestNeighbor);
             connection.Children.Add(picture);
-            connection.Children.Add(C.Space(C.Text(url, 15, "Primary", true), 8));
+            connection.Children.Add(C.Space(C.Text(C.Bare(url), 15, "Primary", true), 8));
             if (hasName && url == ip)
-                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + named, 12, bold: true), 8));
+                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + C.Bare(named), 12, bold: true), 8));
             connection.Children.Add(C.Space(C.Text(app.Engine.Browser.LocalAddressStatus, 12, "Muted"), 12));
             Button copy = C.Small("Copy link", () => { Clipboard.SetText(url); app.Tell("Browser link copied."); });
             Button open = C.Small("Open page", () => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }));

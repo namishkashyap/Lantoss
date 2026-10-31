@@ -77,6 +77,16 @@ internal sealed class AppShell : IDisposable
         Window = (Window)XamlReader.Load(xaml);
         Current = this;
         Motion.Register();
+        // The design sizes its glows to the window: 125% × 135%, hanging 40% and 55% off opposite corners.
+        ((FrameworkElement)Window.Content).SizeChanged += (_, e) =>
+        {
+            foreach ((string name, bool top) in new[] { ("GlowTop", true), ("GlowBottom", false) })
+            {
+                System.Windows.Shapes.Ellipse glow = Find<System.Windows.Shapes.Ellipse>(name);
+                (glow.Width, glow.Height) = (e.NewSize.Width * 1.25, e.NewSize.Height * 1.35);
+                glow.Margin = top ? new(-0.4 * e.NewSize.Width, -0.55 * e.NewSize.Height, 0, 0) : new(0, 0, -0.4 * e.NewSize.Width, -0.55 * e.NewSize.Height);
+            }
+        };
         Window.Loaded += (_, _) => { Motion.Drift(Find<System.Windows.Shapes.Ellipse>("GlowTop"), -0.14, 0.1, 0.95, 60); Motion.Drift(Find<System.Windows.Shapes.Ellipse>("GlowBottom"), 0.18, 0.12, 1.1, 68); };
         Engine = new(store, identity, allowLoopback: preview);
         Dialogs = new(this);
@@ -88,6 +98,7 @@ internal sealed class AppShell : IDisposable
             Window.Icon = BitmapFrame.Create(icon, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
         if (!preview)
         {
+            Window.SourceInitialized += (_, _) => WindowsIntegration.Taskbar(new System.Windows.Interop.WindowInteropHelper(Window).Handle, Environment.ProcessPath ?? "");
             Window.MinWidth = Math.Min(1000, Math.Max(760, SystemParameters.WorkArea.Width - 20));
             Window.MinHeight = Math.Min(720, Math.Max(520, SystemParameters.WorkArea.Height - 20));
             Window.Width = Math.Min(Window.Width, SystemParameters.WorkArea.Width - 20);
@@ -547,10 +558,21 @@ internal sealed class AppShell : IDisposable
         foreach ((string name, string color) in Appearance.Palette(dark))
             Window.Resources[name] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
         Motion.Glass(Window.Resources, dark, ((SolidColorBrush)Window.Resources["GlassBorder"]).Color);
-        Find<System.Windows.Shapes.Ellipse>("GlowTop").Opacity = dark ? 0.42 : 0.3;
-        Find<System.Windows.Shapes.Ellipse>("GlowBottom").Opacity = dark ? 0.3 : 0.26;
+        Find<System.Windows.Shapes.Ellipse>("GlowTop").Fill = Glow(Appearance.Palette(dark)["GlowA"], dark ? 0.52 : 0.42);
+        Find<System.Windows.Shapes.Ellipse>("GlowBottom").Fill = Glow(Appearance.Palette(dark)["GlowB"], dark ? 0.4 : 0.36);
         Find<ComboBox>("AppearanceSelector").SelectedItem = mode;
         Find<TextBlock>("AppearanceStatus").Text = mode == "System" ? "Following Windows · " + EffectiveTheme : EffectiveTheme + " appearance";
+    }
+    /// <summary>The design's glow: a radial gradient from the colour at <paramref name="alpha"/> to a third of it at 55%, then clear (no opacity mask, so drifting stays cheap).</summary>
+    private static RadialGradientBrush Glow(string hex, double alpha)
+    {
+        Color color = (Color)ColorConverter.ConvertFromString(hex);
+        RadialGradientBrush brush = new()
+        {
+            GradientStops = { new(Color.FromArgb((byte)(alpha * 255), color.R, color.G, color.B), 0), new(Color.FromArgb((byte)(alpha * 0.33 * 255), color.R, color.G, color.B), 0.55), new(Color.FromArgb(0, color.R, color.G, color.B), 1) }
+        };
+        brush.Freeze();
+        return brush;
     }
     private void SystemThemeChanged(object sender, UserPreferenceChangedEventArgs e)
     {

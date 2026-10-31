@@ -91,7 +91,6 @@ internal sealed class Shell : IDisposable
     private Ellipse networkDot = new();
     private Border header = new(), body = new(), menuPanel = new(), scrim = new();
     private Panel menu = new();
-    private Control rings = new Panel();
     private IPage? page;
     private TrayIcon? tray;
     private bool exitRequested, closing, allowClose, disposed, selecting, sharingStoppedManually, trayNoticeShown;
@@ -206,20 +205,20 @@ internal sealed class Shell : IDisposable
     private void Build(string mode)
     {
         Window.Background = Theme.Brush("Background");
-        // The hopo field behind every page: a purple glow top-left, a green glow bottom-right and faint rings top-right.
+        // The hopo field behind every page: a purple glow top-left, a green glow bottom-right and faint rings centred on the window.
         Panel field = new()
         {
             IsHitTestVisible = false,
             ClipToBounds = true
         };
-        // They drift slowly: purple to (-14%, 10%) at 95% over 60 s, green to (18%, 12%) at 110% over 68 s, as shares of the design's 125% × 135% glow.
-        RadialGradientBrush violet = (RadialGradientBrush)Theme.Glow("GlowA", Theme.Dark ? 0.46 : 0.3, 0.225, 0.125, 0.625, 0.675), green = (RadialGradientBrush)Theme.Glow("GlowB", Theme.Dark ? 0.34 : 0.24, 0.775, 0.875, 0.625, 0.675);
+        // Each glow is the design's 1.25 W × 1.35 H ellipse (purple at −.40 W, −.55 H; green mirrored bottom-right), drawn by a window-relative brush so it follows every resize.
+        // They drift slowly: purple to (-14%, 10%) at 95% over 60 s, green to (18%, 12%) at 110% over 68 s, as shares of the glow.
+        RadialGradientBrush violet = (RadialGradientBrush)Theme.Glow(Theme.Dark ? "#8C3CFF" : "#8F5BFF", Theme.Dark ? 0.52 : 0.42, 0.225, 0.125, 0.625, 0.675), green = (RadialGradientBrush)Theme.Glow(Theme.Dark ? "#28F096" : "#24C98A", Theme.Dark ? 0.4 : 0.36, 0.775, 0.875, 0.625, 0.675);
         field.Children.Add(new Border { Background = violet });
         field.Children.Add(new Border { Background = green });
         Motion.Drift(field, violet, -0.175, 0.135, 0.95, 60);
         Motion.Drift(field, green, 0.225, 0.162, 1.1, 68);
-        rings = new Border { Child = C.Rings(225, 612), Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 200, 200, 0) };
-        field.Children.Add(rings);
+        field.Children.Add(new Border { Child = C.Rings(), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
         TextBlock brand = C.Text("hopo", 17, bold: true);
         brand.LetterSpacing = -0.2;
         brand.VerticalAlignment = VerticalAlignment.Center;
@@ -255,7 +254,7 @@ internal sealed class Shell : IDisposable
             Child = chipRow,
             Height = 32,
             Padding = new(12, 0),
-            CornerRadius = new(16),
+            CornerRadius = new(10),
             Background = Theme.Brush("Text/6"),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -463,7 +462,6 @@ internal sealed class Shell : IDisposable
         slash.IsVisible = pageTitle.IsVisible = !home;
         search.IsVisible = Searchable.Contains(destination);
         header.BorderThickness = new(0, 0, 0, home ? 0 : 1);
-        rings.IsVisible = !home;
         page = destination switch
         {
             "Home" => new HomePage(this),

@@ -128,15 +128,12 @@ internal static class Motion
         };
         host.DetachedFromVisualTree += (_, _) => run++;
     }
-    /// <summary>The card's edge sweep (every 9 s) and its purple-to-mint top line sliding ±22% and brightening from .7 to 1 (7 s, reversing).</summary>
-    public static void Card(Visual card, LinearGradientBrush sweep, LinearGradientBrush sheen, Visual line) => Every(card, time =>
+    /// <summary>The card's edge sweep, every 9 s.</summary>
+    public static void Card(Visual card, LinearGradientBrush sweep) => Every(card, time =>
     {
-        double pass = InOut.Ease(Cycle(time / 9)) * 2.8, slide = InOut.Ease(Triangle(Cycle(time / 14)));
+        double pass = InOut.Ease(Cycle(time / 9)) * 2.8;
         sweep.StartPoint = At(-2.4 + pass, 0);
         sweep.EndPoint = At(.6 + pass, 1.4);
-        sheen.StartPoint = At(-.14 + .28 * slide, 0);
-        sheen.EndPoint = At(.86 + .28 * slide, 0);
-        line.Opacity = .7 + .3 * slide;
     });
     /// <summary>One background glow drifting by a share of the window and scaling, easing in and out and reversing forever.</summary>
     public static void Drift(Visual field, RadialGradientBrush glow, double x, double y, double scale, double seconds)

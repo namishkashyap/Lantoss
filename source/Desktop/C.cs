@@ -92,7 +92,7 @@ internal static class C
     public static Border Card(Control child, double padding = 22) => Card(child, new Thickness(padding));
     /// <summary>
     /// Glass card: translucent over the glows, a hairline border and 20 px corners. Its edge catches a light from above and a diagonal
-    /// light sweeps along it every 9 s; a purple-to-mint line glows on the top edge. Set padding here: the returned border holds the layers.
+    /// light sweeps along it every 9 s. Set padding here: the returned border holds the layers.
     /// </summary>
     public static Border Card(Control child, Thickness padding, double radius = 20)
     {
@@ -109,12 +109,6 @@ internal static class C
             EndPoint = At(3, 1.4),
             GradientStops = [new(Colors.Transparent, .35), new(Theme.Color("#FFFFFF/55"), .48), new(Colors.Transparent, .6)]
         };
-        LinearGradientBrush sheen = new()
-        {
-            StartPoint = At(0, 0),
-            EndPoint = At(1, 0),
-            GradientStops = [new(Theme.Color("#C896FF/0"), .18), new(Theme.Color("#C896FF/95"), .39), new(Theme.Color("#6EFFBE/80"), .61), new(Theme.Color("#6EFFBE/0"), .82)]
-        };
         Border Ring(IBrush brush) => new()
         {
             BorderBrush = brush,
@@ -123,24 +117,15 @@ internal static class C
             Margin = new(-1),
             IsHitTestVisible = false
         };
-        // The line's glow is a blurred copy of the same brush, so both slide together.
-        Panel line = new()
-        {
-            Height = 7,
-            Margin = new(-1, -4, -1, 0),
-            VerticalAlignment = VerticalAlignment.Top,
-            IsHitTestVisible = false,
-            Children = { new Border { Height = 3, Background = sheen, Opacity = .7, Effect = new BlurEffect { Radius = 8 } }, new Border { Height = 1, Background = sheen } }
-        };
         Border card = new()
         {
-            Child = new Panel { Children = { new Border { Padding = padding, Child = child }, Ring(edge), Ring(sweep), line } },
+            Child = new Panel { Children = { new Border { Padding = padding, Child = child }, Ring(edge), Ring(sweep) } },
             Background = Theme.Brush("Glass"),
             BorderBrush = Theme.Brush("GlassBorder"),
             BorderThickness = new(1),
             CornerRadius = new(radius)
         };
-        Motion.Card(card, sweep, sheen, line);
+        Motion.Card(card, sweep);
         return card;
     }
     public static DockPanel Heading(string title, Control? right = null, double size = 16)
@@ -242,7 +227,7 @@ internal static class C
         ToolTip.SetTip(button, label);
         return ghost ? Ghost(button) : button;
     }
-    /// <summary>Pill chip, 24 px high.</summary>
+    /// <summary>Rounded chip, 24 px high.</summary>
     public static Border Badge(string text, string color = "Primary", string background = "PrimarySoft")
     {
         TextBlock label = Text(text, 11, color, true);
@@ -252,7 +237,7 @@ internal static class C
         {
             Child = label,
             Background = Theme.Brush(background),
-            CornerRadius = new(12),
+            CornerRadius = new(8),
             Padding = new(10, 0),
             MinHeight = 24,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -294,14 +279,16 @@ internal static class C
         grid.Children.Add(new Border { Padding = new(22), Child = child });
         return grid;
     }
-    /// <summary>Faint concentric rings 64 px apart, centered on (0, 0) of the returned canvas and fading out towards <paramref name="fadeTo"/>.</summary>
-    public static Canvas Rings(double fadeFrom, double fadeTo, string color = "Ring", double first = 64)
+    /// <summary>The phone-page address as people type it: no scheme and no trailing slash.</summary>
+    public static string Bare(string url) => (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? url[8..] : url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ? url[7..] : url).TrimEnd('/');
+    /// <summary>The design's faint concentric rings, 384 to 1024 px every 64 px, centered on (0, 0) of the returned canvas: fading in to 400 px, then out.</summary>
+    public static Canvas Rings(string color = "Ring")
     {
         Canvas canvas = new()
         {
             IsHitTestVisible = false
         };
-        for (double radius = first; radius < fadeTo; radius += 64)
+        for (double radius = 384; radius <= 1024; radius += 64)
         {
             Ellipse ring = new()
             {
@@ -309,7 +296,7 @@ internal static class C
                 Height = radius * 2,
                 Stroke = Theme.Brush(color),
                 StrokeThickness = 1,
-                Opacity = radius <= fadeFrom ? 1 : 1 - (radius - fadeFrom) / (fadeTo - fadeFrom)
+                Opacity = radius < 400 ? (radius - 340) / 60 : 1 - (radius - 400) / 650
             };
             Canvas.SetLeft(ring, -radius);
             Canvas.SetTop(ring, -radius);
