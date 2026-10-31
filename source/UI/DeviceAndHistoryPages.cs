@@ -20,7 +20,7 @@ internal sealed class DevicesPage : IPage
         pair.Margin = new(10, 0, 0, 0);
         Button diagnostics = C.Button("Connection diagnostics", () => NetworkDiagnostics.Show(app));
         diagnostics.Margin = new(10, 0, 0, 0);
-        View = C.Stack(C.Space(C.Text("Your PCs, connected automatically.", 24, bold: true), 9), C.Space(C.Text("Open Lantoss on both PCs. Discovery uses mDNS and LAN broadcast, and direct connections are automatic unless code protection is enabled.", 13, "Muted"), 22), C.Space(C.Inline(scan, pair, diagnostics), 18), C.Space(status, 22), list,
+        View = C.Stack(C.Space(C.Text("Your PCs, approved once.", 24, bold: true), 9), C.Space(C.Text("Open Lantoss on both PCs. Discovery uses mDNS and LAN broadcast, and a new PC is approved once on both screens. Paired PCs reconnect automatically.", 13, "Muted"), 22), C.Space(C.Inline(scan, pair, diagnostics), 18), C.Space(status, 22), list,
             C.Space(C.Note("Using your phone?", "Open Phone & browser in the sidebar and scan its QR code. Phones use the browser page; NAS agents and internet sharing remain unavailable.", "devices"), 0, 20));
     }
     public void Refresh()
@@ -81,10 +81,17 @@ internal sealed class DevicesPage : IPage
         {
             Button disconnect = C.Small("Disconnect", () => { if (MessageBox.Show(app.Window, "Disconnect " + browser.Label + "? Its pending uploads stop and the page must connect again.", "Disconnect browser", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Disconnect(browser.Handle); });
             string seen = DateTime.UtcNow - browser.LastSeenUtc < TimeSpan.FromMinutes(1) ? "active now" : "active " + browser.LastSeenUtc.ToLocalTime().ToString("HH:mm");
-            StackPanel details = C.Stack(C.Space(C.Person(browser.Label, browser.Picture, browser.Address + " · connected " + browser.ConnectedUtc.ToLocalTime().ToString("HH:mm") + " · " + seen, 44), 12),
-                C.Space(C.Text(browser.Name.Length > 0 ? "Name and picture are chosen on that device." : "This browser has not set a name yet.", 11, "Muted"), 12), disconnect);
+            Button block = C.Small("Block", () => { if (MessageBox.Show(app.Window, "Block " + browser.Address + "? " + browser.Label + " is disconnected and this address cannot open the page until Lantoss restarts.", "Block browser", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Block(browser.Handle); });
+            block.Margin = new(8, 0, 0, 0);
+            StackPanel actions = browser.Approved ? C.Inline(disconnect, block) : C.Inline(C.Small("Allow", () => app.Engine.Browser.Approve(browser.Handle)), block);
+            Border state = C.Badge(browser.Approved ? "Allowed" : "Waiting for Allow", browser.Approved ? "Success" : "Danger", browser.Approved ? "SuccessSoft" : "DangerSoft");
+            state.HorizontalAlignment = HorizontalAlignment.Left;
+            StackPanel details = C.Stack(C.Space(C.Person(browser.Label, browser.Picture, browser.Address + " · connected " + browser.ConnectedUtc.ToLocalTime().ToString("HH:mm") + " · " + seen, 44), 12), C.Space(state, 10),
+                C.Space(C.Text(browser.Approved ? browser.Name.Length > 0 ? "Name and picture are chosen on that device." : "This browser has not set a name yet." : "Allow only a phone you recognise. Until then it cannot see files, folders or notes.", 11, "Muted"), 12), actions);
             list.Children.Add(C.Space(C.Card(details), 14));
         }
+        foreach (string address in app.Engine.Browser.BlockedAddresses)
+            list.Children.Add(C.Space(C.Card(C.Stack(C.Space(C.Text("Blocked address " + address, 13, bold: true), 10), C.Small("Unblock", () => { app.Engine.Browser.Unblock(address); Refresh(); }))), 14));
     }
     private void Rename(Peer peer)
     {

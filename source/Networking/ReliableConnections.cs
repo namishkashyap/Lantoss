@@ -47,7 +47,8 @@ public sealed partial class TransferEngine
     private void AutoConnectPeer(Peer peer)
     {
         Preferences preferences = store.Preferences;
-        if (!Running || !preferences.AutoConnect || !preferences.Discoverable || preferences.RequireConnectionCode || peer.RequiresCode || !peer.SupportsDirectConnect || store.Trusted(peer.Fingerprint) != null || store.Blocked(peer.Fingerprint) || nextConnect.GetValueOrDefault(peer.Fingerprint) > DateTime.UtcNow || !connecting.TryAdd(peer.Fingerprint, 0))
+        // With Approve new devices on, nothing new is dialled automatically; already paired PCs reconnect through probes.
+        if (!Running || preferences.ApproveNewDevices || !preferences.AutoConnect || !preferences.Discoverable || preferences.RequireConnectionCode || peer.RequiresCode || !peer.SupportsDirectConnect || store.Trusted(peer.Fingerprint) != null || store.Blocked(peer.Fingerprint) || nextConnect.GetValueOrDefault(peer.Fingerprint) > DateTime.UtcNow || !connecting.TryAdd(peer.Fingerprint, 0))
             return;
         RunWorker(async () =>
         {

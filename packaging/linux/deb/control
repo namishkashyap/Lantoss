@@ -1,0 +1,13 @@
+Package: lantoss
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: @MAINTAINER@
+Depends: libc6 (>= 2.27), libgcc-s1, libstdc++6, zlib1g, libssl3t64 | libssl3 | libssl1.1, libfontconfig1, libx11-6, libice6, libsm6
+Section: net
+Priority: optional
+Description: Local Wi-Fi file sharing and folder sync
+ Lantoss sends files, folders, text and links directly between computers
+ on the same local network, keeps shared spaces and two-way folder sync,
+ and lets phones join through a browser without installing an app.
+ .
+ This package bundles its own .NET runtime.

@@ -164,7 +164,8 @@ public sealed class SyncScanner(Func<DateTime>? utcNow = null) : IDisposable
                 {
                     token.ThrowIfCancellationRequested();
                     string name = Path.GetFileName(path);
-                    if (name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase))
+                    // Shell-control files and names with hidden characters are never offered to peers.
+                    if (name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase) || name.Any(FileCatalog.Hidden) || (FileCatalog.ShellControl(name) && File.Exists(path)))
                         continue;
                     FileCatalog.ValidateSegment(name);
                     FileCatalog.CheckSafePath(path);

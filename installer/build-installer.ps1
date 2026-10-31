@@ -5,7 +5,7 @@ param(
     [string]$CompilerPath = '',
     [string]$SdkToolsPath = '',
     [string]$SigningCertificatePath = '',
-    [string]$SigningPassword = ''
+    [switch]$NoTimestamp
 )
 $ErrorActionPreference = 'Stop'
 $lantossRelease = Split-Path -Parent $PSScriptRoot
@@ -14,11 +14,11 @@ $lantossBuild = [IO.Path]::GetFullPath($BuildRoot)
 New-Item -ItemType Directory -Force -Path $lantossBuild | Out-Null
 if (-not $SkipPublish) {
     if (-not $CompilerPath -or -not $SdkToolsPath -or -not $SigningCertificatePath) { throw 'Pass CompilerPath (g++.exe), SdkToolsPath (x64 Windows SDK tools) and SigningCertificatePath, or build Explorer and the app first and use SkipPublish.' }
-    & (Join-Path $lantossRelease 'source\Explorer\build-explorer.ps1') -CompilerPath $CompilerPath -SdkToolsPath $SdkToolsPath -SigningCertificatePath $SigningCertificatePath -SigningPassword $SigningPassword -BuildRoot (Join-Path $lantossBuild 'explorer')
+    & (Join-Path $lantossRelease 'source\Explorer\build-explorer.ps1') -CompilerPath $CompilerPath -SdkToolsPath $SdkToolsPath -SigningCertificatePath $SigningCertificatePath -NoTimestamp:$NoTimestamp -BuildRoot (Join-Path $lantossBuild 'explorer')
     & (Join-Path $lantossRelease 'source\build.ps1') -Mode Publish -DotnetPath $DotnetPath -BuildRoot $lantossBuild
     if ($LASTEXITCODE) { throw 'App publication failed.' }
 }
-if ((Get-Item (Join-Path $lantossRelease 'app\Lantoss.exe')).VersionInfo.FileVersion -ne '2.0.0.0') { throw 'Publish Lantoss 2.0 first.' }
+if ((Get-Item (Join-Path $lantossRelease 'app\Lantoss.exe')).VersionInfo.FileVersion -ne '2.0.2.0') { throw 'Publish Lantoss 2.0.2 first.' }
 foreach ($lantossPayload in @('LantossExplorer.dll','Lantoss.Explorer.msix','RegisterPackage.ps1','Assets\Logo.png','Assets\SmallLogo.png')) {
     if (-not (Test-Path -LiteralPath (Join-Path $lantossRelease ('app\'+$lantossPayload)))) { throw ('Build the Explorer integration first: '+$lantossPayload) }
 }
@@ -37,11 +37,13 @@ foreach ($lantossPackage in $lantossPackages) {
     }
     if ((Get-FileHash -LiteralPath $lantossArchive -Algorithm SHA256).Hash -ne $lantossPackage.SHA256) { throw ('Installer tool hash mismatch: '+$lantossPackage.Name) }
     $lantossExpanded = Join-Path $lantossTools $lantossPackage.Name
-    if (-not (Test-Path -LiteralPath $lantossExpanded)) { Expand-Archive -LiteralPath $lantossArchive -DestinationPath $lantossExpanded }
+    # Always extract afresh from the verified archive so a modified earlier extraction is never reused.
+    if (Test-Path -LiteralPath $lantossExpanded) { Remove-Item -LiteralPath $lantossExpanded -Recurse -Force }
+    Expand-Archive -LiteralPath $lantossArchive -DestinationPath $lantossExpanded
 }
 $lantossWix = Join-Path $lantossTools 'wix\tools\net6.0\any\wix.dll'
 $lantossUI = Join-Path $lantossTools 'wixtoolset.ui.wixext\wixext4\WixToolset.UI.wixext.dll'
-$lantossMsi = Join-Path $lantossRelease 'Lantoss-Setup-2.0.0-x64.msi'
+$lantossMsi = Join-Path $lantossRelease 'Lantoss-Setup-2.0.2-x64.msi'
 & $DotnetPath $lantossWix build (Join-Path $PSScriptRoot 'Lantoss.wxs') -arch x64 -ext $lantossUI -d ('ReleaseDir='+$lantossRelease) -out $lantossMsi -intermediatefolder (Join-Path $lantossBuild 'installer-objects') -pdbtype none -wx
 if ($LASTEXITCODE) { throw 'MSI compilation or validation failed.' }
 Get-FileHash -LiteralPath $lantossMsi -Algorithm SHA256

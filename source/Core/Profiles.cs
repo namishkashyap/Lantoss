@@ -19,8 +19,29 @@ public static class Profiles
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
     }
+    public const int MaxPicturePixels = 1024;
+    // A small file can declare huge dimensions and exhaust memory while decoding, so the header size is checked first.
     public static bool IsPicture(ReadOnlySpan<byte> data)
-        => data.Length is > 8 and <= MaxPictureBytes && (data.StartsWith((byte[])[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) || data.StartsWith((byte[])[0xFF, 0xD8, 0xFF]));
+        => data.Length is > 8 and <= MaxPictureBytes && (data.StartsWith((byte[])[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) || data.StartsWith((byte[])[0xFF, 0xD8, 0xFF]))
+            && Dimensions(data) is (int width, int height) && width is > 0 and <= MaxPicturePixels && height is > 0 and <= MaxPicturePixels;
+    public static (int Width, int Height)? Dimensions(ReadOnlySpan<byte> data)
+    {
+        if (data.Length >= 24 && data[0] == 0x89)
+            return data[12..16].SequenceEqual("IHDR"u8) ? ((int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(data[16..]), (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(data[20..])) : null;
+        for (int at = 2; at + 9 < data.Length;)
+        {
+            if (data[at] != 0xFF)
+                return null;
+            byte marker = data[at + 1];
+            int length = data[at + 2] << 8 | data[at + 3];
+            if (marker is >= 0xC0 and <= 0xCF && marker is not (0xC4 or 0xC8 or 0xCC))
+                return (data[at + 7] << 8 | data[at + 8], data[at + 5] << 8 | data[at + 6]);
+            if (length < 2)
+                return null;
+            at += 2 + length;
+        }
+        return null;
+    }
     public static byte[]? FromDataUrl(string? value)
     {
         if (string.IsNullOrEmpty(value))
@@ -43,6 +64,16 @@ public static class Profiles
         // Bidi and other format characters can make one name display as another.
         if (name.Length > 40 || name.Any(c => char.IsControl(c) || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.Format))
             throw new InvalidDataException("Use a name up to 40 characters without control or formatting characters.");
+        return name;
+    }
+    /// <summary>Validates the admin's phone-page name: a single DNS label of letters, digits and inner hyphens, without ".local".</summary>
+    public static string AddressName(string? name)
+    {
+        name = (name ?? "").Trim().ToLowerInvariant();
+        if (name.EndsWith(".local", StringComparison.Ordinal))
+            name = name[..^6];
+        if (name.Length is < 1 or > 40 || name[0] == '-' || name[^1] == '-' || !name.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-'))
+            throw new InvalidDataException("Use an address of 1 to 40 letters, digits or hyphens, for example family-share.");
         return name;
     }
     public static string SenderFolder(string inbox, string sender)

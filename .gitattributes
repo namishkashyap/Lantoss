@@ -10,3 +10,8 @@
 *.md text eol=lf
 *.ps1 text eol=crlf
 *.ico binary
+*.sh text eol=lf
+*.plist text eol=lf
+*.desktop text eol=lf
+packaging/linux/deb/* text eol=lf
+*.png binary

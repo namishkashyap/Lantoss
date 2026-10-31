@@ -1,4 +1,64 @@
+2026-10-30 - Lantoss 2.0.2: home-network security and send to phones
+
+New PCs and phones are approved on this PC (Settings → "Ask before a new
+computer or phone connects", on by default). A first pairing is confirmed on
+both screens, and auto-connect only reconnects PCs that are already paired.
+A new phone waits until the PC clicks Allow, or until it enters the access
+code. Until then it cannot see files, folders, notes or other PCs.
+
+The phone page is encrypted (HTTPS) with the PC's own certificate. Phones
+show a certificate warning once. Plain HTTP and the .local name only
+redirect to the encrypted page.
+
+Pairing uses a commit-then-reveal comparison code, so it can't be guessed
+offline. New pairings need 2.0.2 on both PCs; PCs that are already paired
+keep working.
+
+Send to a phone: the Send page lists approved phones and browsers, and
+files sent to one appear only on that phone.
+
+Shared spaces can be limited to chosen PCs.
+
+Received files carry the Windows "downloaded" mark, and shortcut or
+desktop.ini files are saved with .txt added. Approval windows warn about
+programs and scripts, look-alike names and hidden characters.
+
+Per-device limits stop one device from flooding connections, approval
+prompts or notes. Disconnect and Block take effect immediately. Phones never
+see local paths in error messages. Data files on macOS and Linux are
+readable only by the user, and sync keeps the newest five versions. The
+macOS installer checks the app's seal instead of re-signing it.
+
+2026-10-26 - Lantoss 2.0.1: phone address and macOS install
+
+The Phone & browser QR code and copied link now use the computer's IP
+address, which works on every phone. Many Android phones cannot open .local
+names. The local name is shown alongside it for iPhones, iPads and
+computers. Admins can choose the name in Settings → Phone page address, for
+example family-share for http://family-share.local. Names are now published
+on any port, so Linux and computers with port 80 in use get a name too,
+with the port in the link.
+
+The macOS app is now one single-file executable plus native libraries. The
+whole bundle is sealed and ad-hoc signed while packaging (rcodesign 0.29.0,
+pinned by SHA-256), so Info.plist and every resource are covered. In 2.0.0
+the bundle was unsealed, which made macOS report the downloaded app as
+"damaged"; now macOS shows its normal one-time "Open Anyway" prompt. The
+download also includes a double-clickable "Install Lantoss.command", which
+copies the app to Applications and clears the download flag.
+
 2026-10-26 - Lantoss 2.0: people, pictures, notifications and security fixes
+
+New macOS and Linux apps (source/Desktop, Avalonia) run the same sharing
+engine with every screen of the Windows app: send, devices and browsers,
+transfers, phone & browser QR, text & links, shared spaces, two-way sync,
+history and settings. They also include the approval and pairing dialogs,
+system notifications and a tray menu. On macOS and Linux the device key is a
+PKCS#12 file readable only by the user. Packages:
+- macOS: Lantoss.app for Apple Silicon and Intel (zip with install.sh)
+- Linux: .deb and .tar.gz for x64 and arm64
+INSTALL.md covers each platform. The previous Windows-only version stays on
+the release/1.x branch and the v1.9.0 release.
 
 Phones and PCs connected through the web page now appear in Devices and Home.
 Each shows its name, picture, device type, address and last activity, and can

@@ -2,6 +2,7 @@
 /app/
 /work/
 /artifacts/
+/dist/
 **/bin/
 **/obj/
 **/node_modules/

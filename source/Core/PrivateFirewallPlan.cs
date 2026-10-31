@@ -32,7 +32,8 @@ public sealed class PrivateFirewallPlan
             throw new InvalidDataException("Choose the published Lantoss executable.");
         Program = Path.GetFullPath(program);
         TcpPorts = tcpPorts.Distinct().Order().ToArray();
-        if (TcpPorts.Length is < 1 or > 2 || TcpPorts.Any(port => port is < 1 or > 65535))
+        // Native port, phone page HTTPS and its HTTP redirect.
+        if (TcpPorts.Length is < 1 or > 3 || TcpPorts.Any(port => port is < 1 or > 65535))
             throw new InvalidDataException("Only the current native and browser TCP ports may be configured.");
         RulePrefix = "Lantoss-Private-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Program.ToUpperInvariant())))[..16];
         Signature = RulePrefix + ":v1:" + string.Join(',', TcpPorts);

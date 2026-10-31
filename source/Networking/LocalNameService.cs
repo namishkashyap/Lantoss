@@ -14,12 +14,19 @@ public sealed class LocalNameService : IDisposable
     private readonly SemaphoreSlim pulse = new(0, 1);
     private UdpClient? udp;
     public event Action? Changed;
+    public string Alias => claim.Alias;
+    /// <summary>The browser listening port. Names are published on any port; links include it unless it is 80.</summary>
+    public int Port
+    {
+        get;
+    }
+    private string Link(string host) => "http://" + host + (Port == 80 ? "" : ":" + Port);
     public string DeviceUrl
     {
         get
         {
             lock (gate)
-                return claim.Ready ? "http://" + claim.Host : "";
+                return claim.Ready ? Link(claim.Host) : "";
         }
     }
     public string Url
@@ -27,7 +34,7 @@ public sealed class LocalNameService : IDisposable
         get
         {
             lock (gate)
-                return claim.Ready ? "http://" + (claim.OwnsAlias ? LocalNameClaim.SharedHost : claim.Host) : "";
+                return claim.Ready ? Link(claim.OwnsAlias ? claim.Alias : claim.Host) : "";
         }
     }
     public bool Accepts(string host)
@@ -35,10 +42,11 @@ public sealed class LocalNameService : IDisposable
         lock (gate)
             return claim.Owns(host.TrimEnd('.'));
     }
-    public LocalNameService(NetworkAdapter adapter, string key, IPEndPoint? discoveryEndpoint = null)
+    public LocalNameService(NetworkAdapter adapter, string key, IPEndPoint? discoveryEndpoint = null, string alias = LocalNameClaim.SharedHost, int port = 80)
     {
         this.adapter = adapter;
-        claim = new(adapter.Address, key);
+        Port = port;
+        claim = new(adapter.Address, key, alias);
         group = discoveryEndpoint ?? new(IPAddress.Parse("224.0.0.251"), 5353);
     }
     public void Start()
@@ -144,7 +152,7 @@ public sealed class LocalNameService : IDisposable
             if (lifetime.IsCancellationRequested)
                 return;
             if (claim.Ready)
-                Send(LocalDns.Answer(claim.OwnsAlias ? [claim.Host, LocalNameClaim.SharedHost] : [claim.Host], adapter.Address, 0));
+                Send(LocalDns.Answer(claim.OwnsAlias ? [claim.Host, claim.Alias] : [claim.Host], adapter.Address, 0));
             lifetime.Cancel();
             udp?.Dispose();
             udp = null;

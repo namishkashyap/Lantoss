@@ -38,9 +38,20 @@ public sealed partial class TransferEngine
     {
         if (store.Trusted(key) == null)
             throw new AuthenticationException("The PC's access was revoked.");
+        if (store.Spaces.FirstOrDefault(space => space.Id == id) is not SharedSpace saved || !saved.Allows(key))
+            throw new ProtocolException("This PC is not allowed to open that shared folder.");
         Browser.Spaces.CheckAccess(id, root, upload);
         if (syncId.Length > 0 && !Sync.Granted(syncId, key, id))
             throw new ProtocolException("Automatic sync permission was revoked. Request approval again.");
+    }
+    private readonly ConcurrentDictionary<string, DateTime> forcedScans = new();
+    private bool ForcedScanAllowed(string key)
+    {
+        DateTime now = DateTime.UtcNow;
+        if (forcedScans.TryGetValue(key, out DateTime last) && now - last < TimeSpan.FromSeconds(30))
+            return false;
+        forcedScans[key] = now;
+        return true;
     }
     public async Task<RemoteSpace[]> GetRemoteSpacesAsync(Peer peer, CancellationToken token = default)
     {
@@ -209,7 +220,7 @@ public sealed partial class TransferEngine
             await Wire.WriteAsync(stream, new()
             {
                 Kind = "spaces",
-                Spaces = Browser.Spaces.Spaces.Where(space => space.Enabled).Select(space => new RemoteSpace(space.Id, space.Name, space.Access == SpaceAccess.ReadAndUpload, SpaceCatalog.Available(space))).ToArray()
+                Spaces = Browser.Spaces.Spaces.Where(space => space.Enabled && space.Allows(peer.Fingerprint)).Select(space => new RemoteSpace(space.Id, space.Name, space.Access == SpaceAccess.ReadAndUpload, SpaceCatalog.Available(space))).ToArray()
             }, token);
             return;
         }
@@ -230,7 +241,9 @@ public sealed partial class TransferEngine
                     throw new ProtocolException("Folder scanning is busy. Sync will retry.");
                 try
                 {
-                    Manifest snapshot = await spaceScanner.ScanAsync(space.Folder, token, hello.KnownRevision.Length == 0);
+                    // A full rehash is costly, so it needs a sync grant and runs at most every 30 seconds per PC.
+                    bool force = hello.KnownRevision.Length == 0 && hello.SyncId.Length > 0 && Sync.Granted(hello.SyncId, peer.Fingerprint, space.Id) && ForcedScanAllowed(peer.Fingerprint);
+                    Manifest snapshot = await spaceScanner.ScanAsync(space.Folder, token, force);
                     Guard();
                     await Wire.WriteAsync(stream, new()
                     {
@@ -446,6 +459,12 @@ public sealed partial class TransferEngine
         if (!Directory.Exists(root))
             throw new IOException("The destination folder is unavailable.");
         string target = SyncFiles.PathIn(root, relative);
+        if (FileCatalog.ShellControl(Path.GetFileName(target)))
+        {
+            if (expected != null)
+                throw new ProtocolException("Sync does not accept Windows shell files such as desktop.ini or shortcuts.");
+            target = FileCatalog.Defuse(target);
+        }
         string parent = Path.GetDirectoryName(target)!;
         FileCatalog.CheckSafeDirectory(parent);
         Directory.CreateDirectory(parent);
@@ -495,6 +514,7 @@ public sealed partial class TransferEngine
                     try
                     {
                         File.Move(temp, destination, false);
+                        FileCatalog.MarkReceived(destination);
                         break;
                     }
                     catch (IOException) when (File.Exists(destination) || Directory.Exists(destination)) { }

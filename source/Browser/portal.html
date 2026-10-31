@@ -12,6 +12,11 @@
     <h1>A little closer.<br>Share from here.</h1>
     <p class="intro">Photos, files, and the things you want to send. Your phone and PC, on the same Wi-Fi.</p>
     <div id="notice" role="status" aria-live="polite"></div>
+    <p id="security" class="security"></p>
+    <section id="waiting" class="card" hidden>
+      <span class="symbol">⌛</span><h2>Waiting for <span id="waiting-host">the PC</span> to allow this phone</h2>
+      <p>On the PC, open Lantoss and choose <strong>Allow</strong> next to this phone in <strong>Phone &amp; browser</strong> or <strong>Devices</strong>. This page continues by itself.</p>
+    </section>
     <section id="login" class="card" hidden>
       <span class="symbol">⌑</span><h2>This PC asks for a code</h2>
       <p>Find the access code in Lantoss’s <strong>Phone &amp; browser</strong> screen.</p>
@@ -49,6 +54,6 @@
         <div id="downloads" class="downloads"></div>
       </section>
     </div>
-    <footer><strong>Local sharing · HTTP</strong><p>Use your trusted home Wi-Fi. This browser connection is not encrypted. Access-code protection is optional in the Windows app.</p><p>No account. No cloud. Keep Lantoss open on your PC.</p></footer>
+    <footer><strong>Local sharing · private to your Wi-Fi</strong><p>The page is encrypted with your PC's own certificate. A new phone waits for Allow on the PC, or enters the access code.</p><p>No account. No cloud. Keep Lantoss open on your PC.</p></footer>
   </main>
 </body></html>

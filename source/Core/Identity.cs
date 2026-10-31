@@ -57,6 +57,37 @@ public sealed class Identity : IDisposable
         }
         finally { CryptographicOperations.ZeroMemory(pfx); }
     }
+    /// <summary>macOS and Linux keep the key in a PKCS#12 file that only the current user can read (mode 600) in the app data folder.</summary>
+    [UnsupportedOSPlatform("windows")]
+    public static Identity Portable(MetadataStore store)
+    {
+        string path = Path.Combine(store.Root, "identity.p12");
+        // macOS cannot load ephemeral keys; its default import keeps the key in a temporary keychain.
+        X509KeyStorageFlags flags = OperatingSystem.IsMacOS() ? X509KeyStorageFlags.DefaultKeySet : X509KeyStorageFlags.EphemeralKeySet;
+        if (File.Exists(path))
+        {
+            X509Certificate2 existing = X509CertificateLoader.LoadPkcs12FromFile(path, "", flags);
+            if (!existing.HasPrivateKey || existing.NotAfter.ToUniversalTime() <= DateTime.UtcNow.AddDays(1) || (!string.IsNullOrEmpty(store.Thumbprint) && existing.Thumbprint != store.Thumbprint))
+                throw new InvalidDataException("This device's key file changed or expired. Restore it or use a new data directory and pair the devices again.");
+            return new(existing);
+        }
+        if (!string.IsNullOrEmpty(store.Thumbprint))
+            throw new InvalidDataException("This device's key file is missing. Restore it or use a new data directory and pair the devices again.");
+        using Identity ephemeral = Ephemeral();
+        byte[] pfx = ephemeral.Certificate.Export(X509ContentType.Pkcs12, "");
+        try
+        {
+            // CreateNew after deleting a leftover: UnixCreateMode only applies to a newly created file.
+            File.Delete(path + ".tmp");
+            using (FileStream file = new(path + ".tmp", new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }))
+                file.Write(pfx);
+            File.Move(path + ".tmp", path, true);
+            X509Certificate2 persistent = X509CertificateLoader.LoadPkcs12(pfx, "", flags);
+            store.SetCertificate(persistent.Thumbprint);
+            return new(persistent);
+        }
+        finally { CryptographicOperations.ZeroMemory(pfx); }
+    }
     public static string KeyFingerprint(X509Certificate certificate)
     {
         using X509Certificate2 publicCertificate = X509CertificateLoader.LoadCertificate(certificate.GetRawCertData());
@@ -82,6 +113,16 @@ public sealed class Identity : IDisposable
         string hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("FlowShare pairing v1\n" + keys[0] + "\n" + keys[1] + "\n" + nonce)));
         return $"{hash[..4]} {hash[4..8]} {hash[8..12]}";
     }
+    /// <summary>Pairing v2: the client commits to its nonce before the server picks one, so an attacker in the middle gets a single 1-in-2^48 guess instead of an offline search.</summary>
+    public static string Comparison(string first, string second, string clientNonce, string serverNonce)
+    {
+        string[] keys = [first, second];
+        Array.Sort(keys, StringComparer.Ordinal);
+        string hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join((char)10, "Lantoss pairing v2", keys[0], keys[1], clientNonce, serverNonce))));
+        return $"{hash[..4]} {hash[4..8]} {hash[8..12]}";
+    }
+    public static string Commit(string nonce) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join((char)10, "Lantoss pairing commit", nonce))));
+    public bool ExpiresSoon => Certificate.NotAfter.ToUniversalTime() < DateTime.UtcNow.AddDays(30);
     public void Dispose() => Certificate.Dispose();
 }
 

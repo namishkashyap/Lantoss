@@ -11,6 +11,7 @@ main{max-width:880px;margin:28px auto 60px;padding:0 28px}
 .eyebrow{font-size:11px;letter-spacing:2px;font-weight:700;color:var(--primary);margin:0 0 13px}
 h1{font-size:clamp(34px,6vw,54px);font-weight:800;line-height:1.08;letter-spacing:-1.8px;margin:0 0 18px}
 .intro{font-size:16px;color:var(--muted);max-width:530px;margin:0 0 26px}
+.security{font-size:12px;color:var(--muted);margin:-14px 0 18px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:26px;margin:18px 0;box-shadow:0 8px 28px #0000000d}
 .host{display:flex;align-items:center;gap:14px;margin:0 0 13px}.host .eyebrow{margin:0}
 #host-picture{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--accent)}

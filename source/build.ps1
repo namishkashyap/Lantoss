@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Core','Test','TestLarge','Build','Publish','Format','CheckFormat')][string]$Mode = 'Build',
+    [ValidateSet('Core','Desktop','Test','TestLarge','Build','Publish','Format','CheckFormat')][string]$Mode = 'Build',
     [string]$DotnetPath = 'dotnet',
     [string]$BuildRoot = '',
     [string]$LargeSource = ''
@@ -39,6 +39,7 @@ try {
         Invoke-LantossDotnet $lantossFormatArgs
     }
     elseif ($Mode -eq 'Core') { Invoke-LantossDotnet (@('build', (Join-Path $lantossSourceRoot 'Core\Lantoss.Core.csproj')) + $lantossSharedArgs) }
+    elseif ($Mode -eq 'Desktop') { Invoke-LantossDotnet (@('build', (Join-Path $lantossSourceRoot 'Desktop\Lantoss.Desktop.csproj')) + $lantossSharedArgs) }
     elseif ($Mode -in @('Test','TestLarge')) {
         Invoke-LantossDotnet (@('build', (Join-Path $lantossSourceRoot 'tests\Lantoss.Tests.csproj')) + $lantossSharedArgs)
         $lantossTestRoot = Join-Path $lantossBuildRoot ('verification-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))

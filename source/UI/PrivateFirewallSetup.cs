@@ -66,7 +66,7 @@ internal sealed class PrivateFirewallSetup(AppShell app)
             FileCatalog.CheckSafePath(executable);
             List<int> ports = [app.Engine.Port];
             if (app.Engine.Browser.Running)
-                ports.Add(new Uri(app.Engine.Browser.Url).Port);
+                ports.AddRange(app.Engine.Browser.Ports);
             plan = new(executable, ports);
             if (!retry && checkedSignature == plan.Signature)
                 return;

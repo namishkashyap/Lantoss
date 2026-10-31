@@ -19,6 +19,8 @@ public sealed record WireMessage
     public string Name { get; init; } = "";
     public string Code { get; init; } = "";
     public string Nonce { get; init; } = "";
+    /// <summary>SHA-256 of the client's pairing nonce, sent before the server reveals its own nonce (pairing v2).</summary>
+    public string Commit { get; init; } = "";
     public string Fingerprint { get; init; } = "";
     public string Comparison { get; init; } = "";
     public bool Accepted
@@ -95,10 +97,11 @@ public static class Wire
         catch (JsonException) { throw new ProtocolException("The peer sent an invalid protocol message."); }
         if (message.Version != 1)
             throw new ProtocolException("The peer uses an unsupported protocol version. Update both apps.");
-        if (message.Kind is null || message.Kind.Length > 40 || message.Name is null || message.Name.Length > 64 || message.Code is null || message.Code.Length > 32 || message.Nonce is null || message.Nonce.Length > 64 || message.Error is null || message.Error.Length > 300 || message.Fingerprint is null || message.Comparison is null || message.Sha256 is null || message.Skipped is null)
+        if (message.Kind is null || message.Kind.Length > 40 || message.Name is null || message.Name.Length > 64 || message.Code is null || message.Code.Length > 32 || message.Nonce is null || message.Nonce.Length > 64 || message.Commit is null || message.Commit.Length > 64 || message.Error is null || message.Error.Length > 300 || message.Fingerprint is null || message.Comparison is null || message.Sha256 is null || message.Skipped is null)
             throw new ProtocolException("The peer sent invalid protocol fields.");
         if (message.Kind == "error")
-            throw new ProtocolException(message.Error.Length > 300 ? "The peer rejected the request." : message.Error);
+            // The other PC's text is quoted, cleaned and shortened, so it cannot pose as this app's own instructions.
+            throw new ProtocolException("The other PC replied: " + (message.Error.Length > 300 ? "request rejected." : new string(message.Error.Where(c => !FileCatalog.Hidden(c)).Take(160).ToArray())));
         if (message.NoteId == null || message.NoteId.Length > 32 || message.NoteContent == null || message.NoteContent.Length > SharedNotes.MaxCharacters
             || message.KnownRevision == null || message.KnownRevision.Length > 64 || message.SnapshotRevision == null || message.SnapshotRevision.Length > 64)
             throw new ProtocolException("Invalid note or snapshot fields.");

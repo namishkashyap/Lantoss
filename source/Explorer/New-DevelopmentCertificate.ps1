@@ -1,5 +1,8 @@
-param([Parameter(Mandatory)][string]$OutputPath, [string]$Password = '')
+param([Parameter(Mandatory)][string]$OutputPath)
 $ErrorActionPreference = 'Stop'
+# The PFX password is read only from the environment so it never appears on a command line or in shell history.
+$Password = $env:LANTOSS_PFX_PASSWORD
+if (-not $Password) { throw 'Set the LANTOSS_PFX_PASSWORD environment variable to the password that will protect the new PFX, then run this script again.' }
 $path = [IO.Path]::GetFullPath($OutputPath)
 if (Test-Path -LiteralPath $path) { throw 'Keep the existing signing key; choose a new output path to create a different key.' }
 New-Item -ItemType Directory -Force (Split-Path -Parent $path) | Out-Null

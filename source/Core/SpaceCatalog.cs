@@ -33,6 +33,16 @@ public sealed class SpaceCatalog(MetadataStore store)
         }
         finally { Changed?.Invoke(id); }
     }
+    /// <summary>Null or empty: every paired PC may open the space. Otherwise only the listed device keys.</summary>
+    public void SetAllowed(string id, string[]? peers)
+    {
+        SharedSpace selected = Spaces.FirstOrDefault(space => space.Id == id) ?? throw new IOException("This space is no longer shared.");
+        try
+        {
+            store.SetSpaces(Spaces.Select(space => space.Id == id ? selected with { AllowedPeers = peers is { Length: > 0 } ? peers.Distinct().ToArray() : null } : space));
+        }
+        finally { Changed?.Invoke(id); }
+    }
     public void Remove(string id)
     {
         try

@@ -35,7 +35,7 @@ internal static partial class Program
             }
             catch (InvalidDataException) { return true; }
         }
-        Check(Reject("Lantoss.exe", [48585]) && Reject(Path.Combine(root, "other.exe"), [48585]) && Reject(executable, [0]) && Reject(executable, [1, 2, 3]) && Reject(executable, [65536]), "Firewall plans reject another program, a relative executable, invalid ports, and broad port sets");
+        Check(Reject("Lantoss.exe", [48585]) && Reject(Path.Combine(root, "other.exe"), [48585]) && Reject(executable, [0]) && Reject(executable, [1, 2, 3, 4]) && Reject(executable, [65536]), "Firewall plans reject another program, a relative executable, invalid ports, and broad port sets");
         PrivateFirewallPlan changed = new(executable, [48585, 50123]);
         Check(plan.RulePrefix == changed.RulePrefix && plan.Signature != changed.Signature, "Changed listening ports update the same app-scoped rules and invalidate the setup signature");
         string mocks = """

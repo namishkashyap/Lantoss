@@ -38,7 +38,15 @@ internal static partial class Program
         await Wait(() => engine.Transfers.Records.Any(r => r.Id == id && r.Direction == direction && r.Terminal), seconds);
         return engine.Transfers.Records.First(r => r.Id == id && r.Direction == direction);
     }
+    // Older feature tests cover the approval-off behaviour; SecurityTests use the approving defaults through SecureStore.
     private static MetadataStore Store(string name)
+    {
+        string directory = Path.Combine(root, name);
+        MetadataStore store = new(directory);
+        store.SetPreferences(new Preferences { DeviceName = name, ReceiveFolder = Path.Combine(directory, "inbox"), ApproveNewDevices = false });
+        return store;
+    }
+    private static MetadataStore SecureStore(string name)
     {
         string directory = Path.Combine(root, name);
         MetadataStore store = new(directory);
@@ -57,7 +65,7 @@ internal static partial class Program
         {
             if (args.Contains("--serve-browser"))
             {
-                await BrowserPreviewServerAsync();
+                await BrowserPreviewServerAsync(args.Contains("--waiting"));
                 return 0;
             }
             await RunAsync(args.Contains("--large"));
@@ -80,6 +88,7 @@ internal static partial class Program
         await DesktopCasesAsync();
         await LocalAddressCasesAsync();
         await Version20CasesAsync();
+        await Version201CasesAsync();
         await NoteCasesAsync();
         await EfficientSyncCasesAsync();
         await FirewallCasesAsync();
@@ -133,6 +142,7 @@ internal static partial class Program
         await SharedSpaceCasesAsync();
         await NativeSyncCasesAsync();
         await DiscoveryRecoveryCasesAsync();
+        await SecurityCasesAsync(a, b);
         using TransferEngine ea = new(sa, a, true), eb = new(sb, b, true);
         string? leftCode = null, rightCode = null;
         ea.ApprovePair = (request, _) => { leftCode = request.ComparisonCode; return Task.FromResult(true); };
