@@ -1,3 +1,18 @@
+2026-10-31 - hopo 2.1.0: new name, new look
+
+Lantoss is now hopo, with a new logo and a redesigned UI in a dark theme and a
+matching light theme (System, Light and Dark still work). A top bar and a
+slide-out menu replace the sidebar. Home is a nearby radar with this PC in the
+middle and your PCs and phones around it, plus a dock for sending files,
+sharing a folder or text, and opening the phone page. Cards are glass over
+soft glows, and the phone page has the same look.
+
+Upgrading keeps settings, pairings, history and received files. The Windows
+MSI replaces Lantoss 2.0.x, the macOS installer removes Lantoss.app, and the
+Linux .deb replaces the lantoss package. On Windows the program file is still
+Lantoss.exe and the Windows 11 Explorer menu still reads "Share with Lantoss"
+until that menu is rebuilt.
+
 2026-10-30 - Lantoss 2.0.2: home-network security and send to phones
 
 New PCs and phones are approved on this PC (Settings → "Ask before a new
