@@ -1,3 +1,15 @@
+2026-10-31 - hopo 2.1.2: motion fixes, calmer rings, design background
+
+Fixed an error that appeared after changing the theme or closing the menu
+("Cannot animate the X property"). Motion is smoother: no per-frame blur,
+lighter glows and cheaper shadows.
+
+Home now has seven thinner, slower wave rings, and they ease into the
+pointer slow-down instead of jumping. Every page has the design's faint
+background rings and window-sized purple and green glows, with more colour
+in the light theme. Chips and badges are rounded rectangles, and phone
+links are shown without https://.
+
 2026-10-31 - hopo 2.1.1: motion and Home panels
 
 The motion from the design is in. Buttons spring and their icons wiggle,
