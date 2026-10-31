@@ -8,7 +8,7 @@ is optional.
 
 | Version | Platforms | Download | Source |
 |---|---|---|---|
-| **2.1.0** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.1.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.1.0) | `main` |
+| **2.1.1** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.1.1](https://github.com/namishkashyap/Lantoss/releases/tag/v2.1.1) | `main` |
 | 2.0.2 | Same platforms, named Lantoss | [Release v2.0.2](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.2) | tag `v2.0.2` |
 | 2.0.0 | Same platforms | [Release v2.0.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.0) | tag `v2.0.0` |
 | 1.9.0 (previous) | Windows (MSI) | [Release v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0) | `release/1.x` |
@@ -19,6 +19,11 @@ on the same network, and phones need no app.
 
 ## New in 2.1: hopo
 
+- **2.1.1: motion from the design.**
+  - Spring buttons and drifting glows.
+  - Glowing wave rings and ripples on Home.
+  - Device cards on hover.
+  - Dock panels for sending files, sharing a folder or text, and opening the phone page, which rise out of their buttons.
 - **New name and look.** Lantoss is now **hopo**, with a new logo and the redesigned UI in a dark and a matching light theme:
   - a top bar and a slide-out menu instead of the sidebar
   - a nearby radar on Home
@@ -45,7 +50,7 @@ on the same network, and phones need no app.
 
 ## Install on Windows
 
-Download and double-click **hopo-Setup-2.1.0-x64.msi**. Close the older app
+Download and double-click **hopo-Setup-2.1.1-x64.msi**. Close the older app
 using **Exit Lantoss** (or **Exit hopo**) in the Windows tray first. The installer installs for the
 current Windows account under LocalAppData/Programs/hopo, creates Start menu
 entries, and registers repair/uninstall in Windows Installed apps. The .NET
