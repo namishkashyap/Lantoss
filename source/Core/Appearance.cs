@@ -49,7 +49,10 @@ public static class Appearance
             ["GlowA"] = "#8C3CFF",
             ["GlowB"] = "#28F096",
             ["Mint"] = "#6EE7C5",
-            ["Phone"] = "#B57CFF"
+            ["Phone"] = "#B57CFF",
+            ["PhoneSoft"] = "#24B57CFF",
+            ["AccentHover"] = "#FFC567",
+            ["GlassHover"] = "#1AFFFFFF"
         }
         : new Dictionary<string, string>
         {
@@ -75,6 +78,9 @@ public static class Appearance
             ["GlowA"] = "#A98BFF",
             ["GlowB"] = "#5FD9AE",
             ["Mint"] = "#0B7A5F",
-            ["Phone"] = "#7B4FD6"
+            ["Phone"] = "#7B4FD6",
+            ["PhoneSoft"] = "#1F7B4FD6",
+            ["AccentHover"] = "#FFC567",
+            ["GlassHover"] = "#F2FFFFFF"
         };
 }

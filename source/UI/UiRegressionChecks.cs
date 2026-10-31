@@ -69,6 +69,22 @@ internal static class UiRegressionChecks
         if (app.CurrentPage != "Devices" || app.Find<Grid>("MenuLayer").Visibility != Visibility.Collapsed)
             throw new InvalidDataException("Choosing a menu page must open it and close the menu.");
         passed++;
+        // Each Home dock button raises its panel above the dock, and pressing it again closes it.
+        app.Navigate("Home");
+        foreach ((string opener, string panel) in new[] { ("Send files", "Send files"), ("Folder", "Share a folder"), ("Text", "Share text or a link"), ("Phone", "Open on your phone") })
+        {
+            app.Render(Path.Combine(output, "Home-dock.png"), 1440, 960);
+            Button button = Descendants<Button>((DependencyObject)app.Find<ContentControl>("PageContent").Content).Last(item => System.Windows.Automation.AutomationProperties.GetName(item) == opener);
+            button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            app.Render(Path.Combine(output, "Home-" + opener.Replace(' ', '-') + ".png"), 1440, 960);
+            if (!Descendants<Border>((DependencyObject)app.Find<ContentControl>("PageContent").Content).Any(item => System.Windows.Automation.AutomationProperties.GetName(item) == panel))
+                throw new InvalidDataException("The " + opener + " dock button must open its panel.");
+            button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            app.Render(Path.Combine(output, "Home-dock.png"), 1440, 960);
+            if (Descendants<Border>((DependencyObject)app.Find<ContentControl>("PageContent").Content).Any(item => System.Windows.Automation.AutomationProperties.GetName(item) == panel))
+                throw new InvalidDataException("Pressing " + opener + " again must close its panel.");
+        }
+        passed++;
         app.Navigate("Home");
         passed++;
         FrameworkElement home = (FrameworkElement)app.Find<ContentControl>("PageContent").Content;
