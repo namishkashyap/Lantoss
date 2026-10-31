@@ -43,7 +43,7 @@ internal static partial class Program
     {
         string directory = Path.Combine(root, name);
         MetadataStore store = new(directory);
-        store.SetPreferences(new Preferences { DeviceName = name, ReceiveFolder = Path.Combine(directory, "inbox"), ApproveNewDevices = false });
+        store.SetPreferences(new Preferences { DeviceName = name, ReceiveFolder = Path.Combine(directory, "inbox"), ApproveNewDevices = false, BrowserHttps = true });
         return store;
     }
     private static MetadataStore SecureStore(string name)

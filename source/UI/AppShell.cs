@@ -98,6 +98,7 @@ internal sealed class AppShell : IDisposable
             Window.Icon = BitmapFrame.Create(icon, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
         if (!preview)
         {
+            Window.SourceInitialized += (_, _) => WindowsIntegration.Taskbar(new System.Windows.Interop.WindowInteropHelper(Window).Handle, Environment.ProcessPath ?? "");
             Window.MinWidth = Math.Min(1000, Math.Max(760, SystemParameters.WorkArea.Width - 20));
             Window.MinHeight = Math.Min(720, Math.Max(520, SystemParameters.WorkArea.Height - 20));
             Window.Width = Math.Min(Window.Width, SystemParameters.WorkArea.Width - 20);

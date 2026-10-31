@@ -19,7 +19,8 @@ internal sealed class HomePage : IPage
     private static readonly KeySpline Settle = Frozen(new KeySpline(0.22, 1, 0.36, 1));
     private readonly AppShell app;
     private readonly Canvas stage = new() { Width = Stage, Height = Stage }, devices = new() { Width = Stage, Height = Stage };
-    private readonly System.Windows.Shapes.Path[] lines = new System.Windows.Shapes.Path[Rings.Length], glows = new System.Windows.Shapes.Path[Rings.Length];
+    private readonly System.Windows.Shapes.Path[] lines = new System.Windows.Shapes.Path[Rings.Length], glows = new System.Windows.Shapes.Path[Rings.Length], halos = new System.Windows.Shapes.Path[Rings.Length];
+    private readonly Point[] samples = new Point[180];
     private readonly Border sheetHost = new() { HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 12) }, clickAway = new() { Background = Brushes.Transparent, Visibility = Visibility.Collapsed };
     private readonly Dictionary<string, Button> dock = [];
     private readonly TextBlock status = C.Text("", 12, "Muted");
@@ -49,18 +50,24 @@ internal sealed class HomePage : IPage
         {
             SolidColorBrush ink = new((Color)ColorConverter.ConvertFromString(Rings[i].Color));
             ink.Freeze();
-            glows[i] = new()
+            // The glow is two wide, faint copies of the line (9 px and 3.5 px) rather than a blur, which would redraw every frame.
+            (halos[i], glows[i], lines[i]) = (new()
             {
                 Stroke = ink,
-                StrokeThickness = 1.6,
+                StrokeThickness = 9,
                 StrokeLineJoin = PenLineJoin.Round
-            };
-            lines[i] = new()
+            }, new()
             {
                 Stroke = ink,
-                StrokeThickness = 0.5,
+                StrokeThickness = 3.5,
                 StrokeLineJoin = PenLineJoin.Round
-            };
+            }, new()
+            {
+                Stroke = ink,
+                StrokeThickness = 0.7,
+                StrokeLineJoin = PenLineJoin.Round
+            });
+            glowLayer.Children.Add(halos[i]);
             glowLayer.Children.Add(glows[i]);
             lineLayer.Children.Add(lines[i]);
         }
@@ -245,21 +252,28 @@ internal sealed class HomePage : IPage
             (double A, double Phase)[] shapes = [(A, p), (A * 1.35, p + Math.PI * 0.66), (A * 0.5, p + Math.PI * 1.33), (A, p)];
             double height = shapes[k].A + (shapes[k + 1].A - shapes[k].A) * ease, phase = shapes[k].Phase + (shapes[k + 1].Phase - shapes[k].Phase) * ease;
             double scale = 1 + proximity * Pull * (i % 3 == 1 ? -1 : 1) * 0.0045, half = Math.Floor(N / 2.0 + 0.5);
+            for (int step = 0; step < samples.Length; step++)
+            {
+                double t = step * Math.PI / 90, r = (R + height * Math.Sin(N * t + phase) + height * 0.35 * Math.Sin(half * t - phase * 1.3)) * scale;
+                samples[step] = new(Middle + r * Math.Cos(t + spin), Middle + r * Math.Sin(t + spin));
+            }
+            // Smooth curves through the samples (Catmull-Rom as cubic Béziers), so the ring has no corners between points.
             StreamGeometry geometry = new();
             using (StreamGeometryContext path = geometry.Open())
-                for (int step = 0; step <= 180; step++)
+            {
+                int n = samples.Length;
+                path.BeginFigure(samples[0], false, true);
+                for (int j = 0; j < n; j++)
                 {
-                    double t = step * Math.PI / 90, r = (R + height * Math.Sin(N * t + phase) + height * 0.35 * Math.Sin(half * t - phase * 1.3)) * scale;
-                    Point point = new(Middle + r * Math.Cos(t + spin), Middle + r * Math.Sin(t + spin));
-                    if (step == 0)
-                        path.BeginFigure(point, false, true);
-                    else
-                        path.LineTo(point, true, true);
+                    Point a = samples[(j + n - 1) % n], b = samples[j], c = samples[(j + 1) % n], d = samples[(j + 2) % n];
+                    path.BezierTo(b + (c - a) / 6, c - (d - b) / 6, c, true, true);
                 }
+            }
             geometry.Freeze();
-            lines[i].Data = glows[i].Data = geometry;
+            lines[i].Data = glows[i].Data = halos[i].Data = geometry;
             lines[i].Opacity = 0.55 + 0.45 * (0.5 - 0.5 * Math.Cos(2 * Math.PI * (clock + i * 0.6) / 7));
-            glows[i].Opacity = lines[i].Opacity * 0.35;
+            glows[i].Opacity = lines[i].Opacity * 0.22;
+            halos[i].Opacity = lines[i].Opacity * 0.08;
         }
     }
     public void Refresh()
@@ -358,7 +372,7 @@ internal sealed class HomePage : IPage
         }
         Button blip = new()
         {
-            Style = (Style)app.Window.FindResource("Plain"),
+            Style = (Style)app.Window.FindResource("Dot"),
             Width = 44,
             Height = 44,
             Content = dot
