@@ -21,8 +21,7 @@ internal sealed class SharedSpacesPage : IPage
         Button add = C.Button("Create space from a folder", Add, true, "plus");
         Button browser = C.Button("Open in browser", () => app.OpenBrowser(), icon: "devices");
         browser.Margin = new(10, 0, 0, 0);
-        View = C.Stack(C.Space(C.Text("A place to share, on your PC.", 26, bold: true), 10),
-            C.Space(C.Text("Browse the other PC's folders here, or share folders from this PC. Link a space for automatic two-way sync.", 13, "Muted"), 20),
+        View = C.Stack(C.Hero("Share", "Shared folders", "Share folders with your devices, or browse theirs. Link one for automatic two-way sync."),
             C.Space(remote.View, 23), C.Space(C.Text("Folders shared from this PC", 19, bold: true), 17),
             C.Space(C.Inline(add, browser), 17), C.Space(activity, 21), spaces,
             C.Space(C.Note("Your folder stays on this PC", "New spaces are read only. Read & upload allows approved uploads and optional sync. Automatic sync needs a separate one-time host approval. Removing a space stops access and keeps files. Per-person team roles are not included."), 0, 18));

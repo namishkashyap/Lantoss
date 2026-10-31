@@ -1,5 +1,7 @@
 using System.Text;
 using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 
 namespace Lantoss.Desktop;
@@ -22,16 +24,23 @@ internal sealed class TransfersPage : IPage
         foreach (string name in new[] { "All", "Active", "Queued", "Completed", "Failed" })
         {
             Button button = C.Small(name, () => { filter = name; layoutKey = ""; Refresh(); });
+            button.CornerRadius = new(17);
             filters[name] = button;
             tabs.Children.Add(button);
         }
-        View = C.Stack(C.Space(C.Text("Every file. Every step.", 26, bold: true), 9), C.Space(C.Text("Actual transfer progress, with integrity checked before completion.", 13, "Muted"), 22), C.Space(tabs, 20), rows,
+        View = C.Stack(C.Header("Manage", "Transfers", "Live progress, verified on arrival.", C.Button("Send files", () => app.Navigate("Send"), true, "send")), C.Space(tabs, 20), rows,
             C.Space(C.Text("Retry starts a new transfer and asks the recipient for approval again.", 11, "Muted"), 0, 20));
     }
     public void Refresh()
     {
+        TransferRecord[] all = app.Engine.Transfers.Records.ToArray();
         foreach ((string name, Button button) in filters)
-            Theme.SetButton(button.Resources, name == filter ? "PrimarySoft" : "Surface", "Text", name == filter ? "Primary" : "Border", "PrimarySoft");
+        {
+            // Filter pills: the chosen one carries the amber tint; Active and Queued show their counts.
+            int count = name is "Active" or "Queued" ? all.Count(record => name == "Active" ? !record.Terminal && record.State != TransferState.Queued : record.State == TransferState.Queued) : 0;
+            button.Content = count > 0 ? name + " · " + count : name;
+            Theme.SetButton(button.Resources, name == filter ? "Accent/14" : "Glass", "Text", name == filter ? "Accent/45" : "GlassBorder", name == filter ? "Accent/20" : "Text/8");
+        }
         TransferRecord[] records = app.Engine.Transfers.Records.Where(r => Matches(r) && (r.Title.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || r.PeerName.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || r.Files.Any(f => f.RelativePath.Contains(app.Search, StringComparison.OrdinalIgnoreCase)))).Take(100).ToArray();
         string key = string.Join('|', records.Select(r => r.Id + r.Direction));
         // Rebuild only when the set of jobs changes; progress updates reuse the existing cards.
@@ -68,7 +77,7 @@ internal sealed class TransferRow
     private readonly Shell app;
     private TransferRecord record;
     private readonly TextBlock title = C.Text("", 15, bold: true), status = C.Text("", 12, "Primary", true), detail = C.Text("", 11, "Muted"), current = C.Text("", 12), amount = C.Text("", 11, "Muted"), speed = C.Text("", 11, "Primary"), error = C.Text("", 12, "Danger");
-    private readonly ProgressBar progress = new() { Minimum = 0, Maximum = 100, Height = 6, MinHeight = 6, Margin = new(0, 12) };
+    private readonly ProgressBar progress = new() { Minimum = 0, Maximum = 100, Height = 6, MinHeight = 6, CornerRadius = new(3), Background = Theme.Brush("Text/8"), Margin = new(0, 12) };
     private readonly StackPanel buttons = C.Inline(), fileDetails = new() { IsVisible = false };
     private readonly Button details;
     private bool lastTerminal;
@@ -104,7 +113,7 @@ internal sealed class TransferRow
         if (record.State == TransferState.Completed)
             current.Text = record.Transport.Contains("HTTP", StringComparison.Ordinal) ? record.Direction == "Received" ? "Saved on this computer · SHA-256 recorded locally" : "Sent to browser · saving is controlled by that device" : $"{Count(record.VerifiedFiles, "file")} verified · {Count(record.FolderCount, "folder")} · {Count(record.SkippedFiles, "file")} skipped";
         progress.Value = record.Progress;
-        progress.Foreground = Theme.Brush(record.State == TransferState.Completed ? "Success" : "Primary");
+        progress.Foreground = Theme.Brush(record.State == TransferState.Completed ? "Mint" : "Accent");
         amount.Text = record.ProgressText;
         speed.Text = record.SpeedText + (record.TimeLeft.Length > 0 ? " · " + record.TimeLeft : "");
         error.Text = record.Error;
@@ -148,24 +157,42 @@ internal sealed class HistoryPage : IPage
     public HistoryPage(Shell app)
     {
         this.app = app;
-        View = C.Stack(C.Space(C.Text("A record of what moved.", 26, bold: true), 9), C.Space(C.Text("Search by filename, person or device. History contains local metadata, never file contents.", 13, "Muted"), 20),
-            C.Space(C.Inline(C.AsyncButton("Export log", ExportAsync), C.AsyncButton("Clear finished history", ClearAsync)), 22), list);
+        View = C.Stack(C.Header("Manage", "History", "What moved, and when. File contents are never stored.", C.Inline(C.AsyncButton("Export log", ExportAsync), C.AsyncButton("Clear finished", ClearAsync))), C.Card(list, 18),
+            C.Space(C.Text("Search by file name, person or device at the top. Clearing history never deletes received files.", 11, "Muted"), 0, 12));
     }
     public void Refresh()
     {
         list.Children.Clear();
         TransferRecord[] records = app.Engine.Transfers.Records.Where(r => r.Terminal && (r.Title.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || r.PeerName.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || r.Files.Any(f => f.RelativePath.Contains(app.Search, StringComparison.OrdinalIgnoreCase)))).Take(100).ToArray();
+        list.Children.Add(Row(C.Eyebrow("File"), C.Eyebrow("Device"), C.Eyebrow("Direction"), C.Eyebrow("Size"), C.Eyebrow("Status"), C.Eyebrow("When"), new Panel()));
         if (records.Length == 0)
-            list.Children.Add(C.Empty("No matching history.", "Completed, declined, cancelled, and failed transfers appear here. Clearing history keeps received files.", "history"));
+            list.Children.Add(C.Space(C.Text("No matching history. Completed, declined, cancelled and failed transfers appear here.", 13, "Muted"), 12, 12));
         foreach (TransferRecord record in records)
         {
-            string color = record.State == TransferState.Completed ? "Success" : record.State == TransferState.Failed ? "Danger" : "Primary";
-            StackPanel info = C.Stack(C.Heading(record.Title, C.Badge(record.StatusText, color, color == "Primary" ? "PrimarySoft" : color + "Soft"), 13),
-                C.Text($"{(record.Direction == "Received" ? "From" : "To")} {record.PeerName}{(record.PeerAddress.Length > 0 ? " · " + record.PeerAddress : "")} · {record.SizeText} · {record.CreatedUtc.ToLocalTime():dd MMM, HH:mm}", 11, "Muted"));
-            if (record.Direction == "Received" && Directory.Exists(record.Destination))
-                info.Children.Add(C.Space(C.Small("Reveal receive folder", () => app.Reveal(record.Destination)), 0, 10));
-            list.Children.Add(C.Space(C.Card(info, 17), 14));
+            string color = record.State == TransferState.Completed ? "Mint" : record.State == TransferState.Failed ? "Danger" : "Muted";
+            Control reveal = record.Direction == "Received" && Directory.Exists(record.Destination) ? C.IconButton("folder", () => app.Reveal(record.Destination), "Show in folder", true) : new Panel();
+            TextBlock device = C.Text(record.PeerName + (record.PeerAddress.Length > 0 ? " · " + record.PeerAddress : ""), 12, "Muted");
+            device.TextTrimming = TextTrimming.CharacterEllipsis;
+            device.TextWrapping = TextWrapping.NoWrap;
+            Grid row = Row(C.Medium(record.Title, 13), device, C.Text(record.Direction, 12, "Muted"), C.Text(record.SizeText, 12, "Muted"), C.Badge(record.StatusText, color, color + "/14"), C.Text(record.CreatedUtc.ToLocalTime().ToString("dd MMM, HH:mm"), 12, "Muted"), reveal);
+            list.Children.Add(new Border { BorderBrush = Theme.Brush("Text/6"), BorderThickness = new(0, 1, 0, 0), Child = row });
         }
+    }
+    private static Grid Row(params Control[] cells)
+    {
+        Grid row = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("2*,1.5*,90,80,120,110,44"),
+            MinHeight = 46
+        };
+        for (int index = 0; index < cells.Length; index++)
+        {
+            cells[index].VerticalAlignment = VerticalAlignment.Center;
+            cells[index].Margin = new(0, 0, 12, 0);
+            Grid.SetColumn(cells[index], index);
+            row.Children.Add(cells[index]);
+        }
+        return row;
     }
     private async Task ClearAsync()
     {
@@ -177,7 +204,7 @@ internal sealed class HistoryPage : IPage
     }
     private async Task ExportAsync()
     {
-        IStorageFile? file = await app.Window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = "Export transfer metadata", SuggestedFileName = "Lantoss-history.csv", DefaultExtension = "csv" });
+        IStorageFile? file = await app.Window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = "Export transfer metadata", SuggestedFileName = "hopo-history.csv", DefaultExtension = "csv" });
         if (file == null)
             return;
         StringBuilder csv = new("Time UTC,Direction,Person or device,Status,Files,Bytes,Verified files,Skipped files\r\n");

@@ -15,3 +15,9 @@ checked, what is still unverified, and how to roll it back.
 | 2026-10-30 | [Trusted devices and admin server plan](2026-10-30-trusted-devices-and-admin-server-plan.md) |
 | 2026-10-30 | [Lantoss 2.0.2, home-network security, send to phones, screenshots](2026-10-30-lantoss-2.0.2-home-network-security.md) |
 | 2026-10-31 | [Make the repository public](2026-10-31-make-repository-public.md) |
+| 2026-10-31 | [hopo redesign](2026-10-31-hopo-redesign.md) |
+| 2026-10-31 | [hopo 2.1.0, new name, logo and installers](2026-10-31-hopo-2.1.0-rename-and-installers.md) |
+| 2026-10-31 | [hopo 2.1.1, motion and Home panels](2026-10-31-hopo-2.1.1-motion-and-home-panels.md) |
+| 2026-10-31 | [hopo 2.1.2, motion fixes, calmer rings and background](2026-10-31-hopo-2.1.2-motion-fixes.md) |
+| 2026-10-31 | [hopo 2.1.3, ring glow, taskbar icon, HTTP phone page](2026-10-31-hopo-2.1.3-glow-icon-http.md) |
+| 2026-10-31 | [Merge the 2.0.0–2.1.3 pull requests into main](2026-10-31-merge-hopo-releases.md) |

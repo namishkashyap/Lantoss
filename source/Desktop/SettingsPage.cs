@@ -53,16 +53,11 @@ internal sealed class SettingsPage : IPage
         DockPanel pictureRow = new();
         DockPanel.SetDock(picture, Dock.Left);
         pictureRow.Children.Add(picture);
-        StackPanel pictureActions = C.Stack(C.Space(C.Text("Shown in the sidebar and on the phone/browser page.", 12, "Muted"), 8), C.Inline(choose, remove));
+        StackPanel pictureActions = C.Stack(C.Space(C.Text("Shown in the menu, on other devices and on the phone page.", 12, "Muted"), 8), C.Inline(choose, remove));
         pictureActions.VerticalAlignment = VerticalAlignment.Center;
         pictureRow.Children.Add(pictureActions);
-        CheckBox Check(string text, bool value) => new()
-        {
-            Content = text,
-            IsChecked = value,
-            Margin = new(0, 3)
-        };
-        CheckBox automatic = Check("Start the sharing server automatically when Lantoss opens", saved.StartReceivingOnOpen),
+        static CheckBox Check(string text, bool value) => C.Check(text, value);
+        CheckBox automatic = Check("Start the sharing server automatically when hopo opens", saved.StartReceivingOnOpen),
             tray = Check("Keep receiving and syncing when I close the window", saved.CloseToTray),
             autoConnect = Check("Connect automatically to new computers (only when approval is off)", saved.AutoConnect),
             notifications = Check("Show notifications for incoming and finished transfers", saved.Notifications),
@@ -83,7 +78,7 @@ internal sealed class SettingsPage : IPage
             folder = picked[0];
             folderText.Text = folder;
         }, icon: "folder");
-        Button save = C.Button("Save preferences", () =>
+        Button save = C.Button("Save changes", () =>
         {
             app.Store.SetPreferences(app.Store.Preferences with
             {
@@ -105,9 +100,8 @@ internal sealed class SettingsPage : IPage
             app.UpdateStatus();
             app.Tell("Preferences saved. Discovery changes apply now. Existing jobs keep their chosen destination.");
         }, true);
-        save.HorizontalAlignment = HorizontalAlignment.Left;
         StackPanel general = C.Stack(C.Heading("General"), C.Text("Profile picture", 12, bold: true), C.Space(pictureRow, 18, 8), C.Text("Name shown to other devices", 12, bold: true), name,
-            automatic, tray, autoConnect, C.Space(notifications, 16), save);
+            C.Space(C.Text("Appearance", 12, bold: true), 8), C.Space(app.AppearancePicker(), 16), automatic, tray, autoConnect, notifications);
         StackPanel transfers = C.Stack(C.Heading("Transfers"), C.Space(C.Text("Files are saved locally on this " + Shell.Platform, 12, bold: true), 9), C.Space(folderText, 15), C.Space(folderPicker, 17), C.Space(senderFolders, 15),
             C.Text("Manual transfers require approval. Linked-folder sync uses its separate one-time host permission. Keep both is the default for manual duplicates.", 12, "Muted"));
         NetworkAdapter[] available = NetworkAdapter.Available();
@@ -141,7 +135,7 @@ internal sealed class SettingsPage : IPage
             C.Space(C.Text("This device's public-key fingerprint", 12, bold: true), 9), C.Space(key, 13), C.Small("Copy fingerprint", () => app.CopyAsync(app.Engine.Fingerprint, "Fingerprint copied.")));
         StackPanel advanced = C.Stack(C.Heading("Advanced & storage"), C.Space(C.Text("Local data: " + app.Store.Root, 11, "Muted"), 11),
             C.Text("History keeps up to 300 recent jobs. Clearing history never deletes received files. The device key is stored in this folder, readable only by your user account.", 12, "Muted"));
-        View = C.Stack(C.Space(C.Text("Make Lantoss feel at home.", 28, bold: true), 9), C.Space(C.Text("Local preferences, clear permissions, and security that stays on.", 13, "Muted"), 24),
+        View = C.Stack(C.Header("hopo", "Settings", "Preferences, permissions and security.", save),
             C.Space(C.Columns(C.Card(general), C.Card(transfers), 390), 20), C.Space(C.Columns(C.Card(network), C.Card(security), 390), 20), C.Card(advanced));
     }
     public void Refresh()

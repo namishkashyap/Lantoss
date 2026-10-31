@@ -41,7 +41,7 @@ internal sealed class PrivateFirewallSetup(AppShell app)
     }
     private static async Task<bool?> InspectAsync(PrivateFirewallPlan plan)
     {
-        using Process check = Process.Start(Command(plan.InspectionScript, false)) ?? throw new IOException("Windows could not check Lantoss's rules.");
+        using Process check = Process.Start(Command(plan.InspectionScript, false)) ?? throw new IOException("Windows could not check hopo's firewall rules.");
         Task<string> output = check.StandardOutput.ReadToEndAsync();
         Task<string> errors = check.StandardError.ReadToEndAsync();
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(20));
@@ -80,7 +80,7 @@ internal sealed class PrivateFirewallSetup(AppShell app)
             if (ready == true)
             {
                 checkedSignature = plan.Signature;
-                Status = "Lantoss firewall rules are configured for Private networks and the local subnet.";
+                Status = "hopo firewall rules are configured for Private networks and the local subnet.";
                 SaveState(plan, true);
                 return;
             }
@@ -95,7 +95,7 @@ internal sealed class PrivateFirewallSetup(AppShell app)
                 Status = "Firewall setup needs Windows administrator approval. Use Set up Private-network access in Connection diagnostics.";
                 return;
             }
-            Status = "Waiting for Windows administrator approval for Lantoss's Private-network rules…";
+            Status = "Waiting for Windows administrator approval for hopo's Private-network rules…";
             app.Tell(Status);
             using Process helper = Process.Start(Command(plan.SetupScript, true)) ?? throw new IOException("Windows could not start the firewall setup helper.");
             await helper.WaitForExitAsync();

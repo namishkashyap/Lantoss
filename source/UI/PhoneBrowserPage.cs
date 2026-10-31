@@ -48,8 +48,7 @@ internal sealed class PhoneBrowserPage : IPage
         folders.Margin = new(9, 0, 0, 0);
         StackPanel selected = C.Stack(C.Heading("Files your phone can download", C.Small("Remove all", () => app.Engine.Browser.ClearFiles())),
             C.Space(C.Text("Only files you select here are listed. Uploads from a phone go to your receive folder after your approval.", 12, "Muted"), 18), C.Space(C.Inline(files, folders), 18), shared);
-        View = C.Stack(C.Space(C.Text("Your phone. No extra app.", 26, bold: true), 9),
-            C.Space(C.Text("Use the same Wi-Fi, scan the QR code with your phone’s camera, and open the page. Send photos/files to the PC or download the files you share below.", 13, "Muted"), 23),
+        View = C.Stack(C.Hero("Share", "Your phone. No extra app.", "Same Wi‑Fi, scan the code, done. Send photos and files to this PC, or download the files you share below."),
             C.Space(transferSpeed, 18), C.Space(C.Columns(C.Card(connection), C.Card(protection), 370), 20), C.Space(C.Card(selected), 20),
             C.Note("Phone page security", "The page is encrypted with this PC's own certificate (HTTPS), and a new phone waits for Allow unless it enters the access code. Received files are marked as coming from another device.", "devices"));
         timer.Tick += (_, _) => { UpdateCode(); UpdateSpeed(); };
@@ -81,9 +80,9 @@ internal sealed class PhoneBrowserPage : IPage
             System.Windows.Automation.AutomationProperties.SetName(picture, "QR code for " + url);
             RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.NearestNeighbor);
             connection.Children.Add(picture);
-            connection.Children.Add(C.Space(C.Text(url, 15, "Primary", true), 8));
+            connection.Children.Add(C.Space(C.Text(C.Bare(url), 15, "Primary", true), 8));
             if (hasName && url == ip)
-                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + named, 12, bold: true), 8));
+                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + C.Bare(named), 12, bold: true), 8));
             connection.Children.Add(C.Space(C.Text(app.Engine.Browser.LocalAddressStatus, 12, "Muted"), 12));
             Button copy = C.Small("Copy link", () => { Clipboard.SetText(url); app.Tell("Browser link copied."); });
             Button open = C.Small("Open page", () => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }));

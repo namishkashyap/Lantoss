@@ -60,7 +60,7 @@ internal sealed class AppShell : IDisposable
     private readonly bool preview;
     public bool Preview => preview;
     private readonly Dictionary<string, Button> navigation = [];
-    private readonly Dictionary<string, string> navigationIcons = [];
+    private readonly Dictionary<string, (string Icon, string Label, string Detail, bool Share)> navigationIcons = [];
     private readonly Forms.NotifyIcon? notifications;
     private readonly System.Drawing.Icon? trayIcon;
     private IPage? page;
@@ -76,6 +76,18 @@ internal sealed class AppShell : IDisposable
         using Stream xaml = Assembly.GetExecutingAssembly().GetManifestResourceStream("Lantoss.Shell.xaml") ?? throw new InvalidDataException("The app shell is missing.");
         Window = (Window)XamlReader.Load(xaml);
         Current = this;
+        Motion.Register();
+        // The design sizes its glows to the window: 125% × 135%, hanging 40% and 55% off opposite corners.
+        ((FrameworkElement)Window.Content).SizeChanged += (_, e) =>
+        {
+            foreach ((string name, bool top) in new[] { ("GlowTop", true), ("GlowBottom", false) })
+            {
+                System.Windows.Shapes.Ellipse glow = Find<System.Windows.Shapes.Ellipse>(name);
+                (glow.Width, glow.Height) = (e.NewSize.Width * 1.25, e.NewSize.Height * 1.35);
+                glow.Margin = top ? new(-0.4 * e.NewSize.Width, -0.55 * e.NewSize.Height, 0, 0) : new(0, 0, -0.4 * e.NewSize.Width, -0.55 * e.NewSize.Height);
+            }
+        };
+        Window.Loaded += (_, _) => { Motion.Drift(Find<System.Windows.Shapes.Ellipse>("GlowTop"), -0.14, 0.1, 0.95, 60); Motion.Drift(Find<System.Windows.Shapes.Ellipse>("GlowBottom"), 0.18, 0.12, 1.1, 68); };
         Engine = new(store, identity, allowLoopback: preview);
         Dialogs = new(this);
         Firewall = new(this);
@@ -86,6 +98,7 @@ internal sealed class AppShell : IDisposable
             Window.Icon = BitmapFrame.Create(icon, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
         if (!preview)
         {
+            Window.SourceInitialized += (_, _) => WindowsIntegration.Taskbar(new System.Windows.Interop.WindowInteropHelper(Window).Handle, Environment.ProcessPath ?? "");
             Window.MinWidth = Math.Min(1000, Math.Max(760, SystemParameters.WorkArea.Width - 20));
             Window.MinHeight = Math.Min(720, Math.Max(520, SystemParameters.WorkArea.Height - 20));
             Window.Width = Math.Min(Window.Width, SystemParameters.WorkArea.Width - 20);
@@ -119,34 +132,59 @@ internal sealed class AppShell : IDisposable
             using Stream iconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Lantoss.ico")!;
             using System.Drawing.Icon asset = new(iconStream);
             trayIcon = (System.Drawing.Icon)asset.Clone();
-            notifications = new Forms.NotifyIcon { Icon = trayIcon, Text = "Lantoss — local file sharing", Visible = true };
+            notifications = new Forms.NotifyIcon { Icon = trayIcon, Text = "hopo — local file sharing", Visible = true };
             notifications.DoubleClick += (_, _) => ShowWindow();
             notifications.BalloonTipClicked += (_, _) => Ui(ShowWindow);
             Forms.ContextMenuStrip tray = new();
-            tray.Items.Add("Open Lantoss", null, (_, _) => Ui(ShowWindow));
+            tray.Items.Add("Open hopo", null, (_, _) => Ui(ShowWindow));
             tray.Items.Add("Start sharing server", null, (_, _) => Ui(() => { try { if (!Engine.Running) ToggleReceiving(); } catch (Exception error) { Error(error); } }));
             tray.Items.Add("Stop sharing server", null, (_, _) => Ui(() => { if (Engine.Running) ToggleReceiving(); }));
             tray.Items.Add(new Forms.ToolStripSeparator());
-            tray.Items.Add("Exit Lantoss", null, (_, _) => Ui(() => { exitRequested = true; Window.Close(); }));
+            tray.Items.Add("Exit hopo", null, (_, _) => Ui(() => { exitRequested = true; Window.Close(); }));
             notifications.ContextMenuStrip = tray;
             RefreshExplorerMenu();
         }
-        string[] names = ["Home", "Send", "Transfers", "Devices", "Phone & browser", "Text & links", "Shared Spaces", "Sync", "History", "Settings"];
-        string[] icons = ["home", "send", "transfer", "devices", "devices", "file", "folder", "sync", "history", "settings"];
-        for (int i = 0; i < names.Length; i++)
+        // The menu mirrors the design: Share actions first, with a subtitle and amber tile, then Manage pages. Home is the hopo mark.
+        (string Group, string Name, string Label, string Detail, string Icon)[] items = [("Share", "Send", "Send files", "To a PC or phone on your network", "send"), ("Share", "Shared Spaces", "Share a folder", "Shared spaces for your PCs", "folder"), ("Share", "Text & links", "Share text or a link", "Notes, addresses, URLs", "file"), ("Share", "Phone & browser", "Phone & browser", "Scan a QR code, no app needed", "phone"), ("Manage", "Transfers", "Transfers", "", "transfer"), ("Manage", "Devices", "Devices", "", "devices"), ("Manage", "Sync", "Sync", "", "sync"), ("Manage", "History", "History", "", "history"), ("Manage", "Settings", "Settings", "", "settings")];
+        StackPanel menu = Find<StackPanel>("Navigation");
+        foreach ((string group, string name, string label, string detail, string icon) in items)
         {
-            string name = names[i];
-            Button button = C.Button(name, () => Navigate(name));
-            navigationIcons[name] = icons[i];
+            if (!menu.Children.OfType<TextBlock>().Any(heading => heading.Text == group.ToUpperInvariant()))
+            {
+                if (menu.Children.Count > 0)
+                {
+                    Border divider = new()
+                    {
+                        Height = 1,
+                        Margin = new(10, 8, 10, 8)
+                    };
+                    divider.SetResourceReference(Border.BackgroundProperty, "GlassBorder");
+                    menu.Children.Add(divider);
+                }
+                menu.Children.Add(C.Eyebrow(group, new(10, 6, 10, 6)));
+            }
+            Button button = new()
+            {
+                Style = (Style)Window.FindResource("Plain"),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Padding = new(10, 6, 10, 6),
+                MinHeight = detail.Length > 0 ? 52 : 46,
+                Margin = new(0, 0, 0, 2)
+            };
+            System.Windows.Automation.AutomationProperties.SetName(button, label);
+            button.Click += (_, _) => { try { Navigate(name); } catch (Exception e) { Error(e); } };
+            navigationIcons[name] = (icon, label, detail, group == "Share");
             button.Content = NavigationContent(name, false);
-            button.HorizontalAlignment = HorizontalAlignment.Stretch;
-            button.HorizontalContentAlignment = HorizontalAlignment.Left;
-            button.Margin = new(0, 0, 0, 4);
-            button.Padding = new(12, 9, 12, 9);
-            button.BorderThickness = new(0);
+            Motion.Row(button, navigation.Count);
             navigation.Add(name, button);
-            Find<StackPanel>("Navigation").Children.Add(button);
+            menu.Children.Add(button);
         }
+        Find<Button>("HomeLink").Click += (_, _) => Navigate("Home");
+        Find<Button>("MenuButton").Click += (_, _) => ShowMenu(true);
+        Find<Button>("CloseMenu").Click += (_, _) => ShowMenu(false);
+        Find<Button>("MenuScrim").Click += (_, _) => ShowMenu(false);
+        Window.PreviewKeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Escape && Find<Grid>("MenuLayer").Visibility == Visibility.Visible) { ShowMenu(false); e.Handled = true; } };
         Find<TextBox>("SearchBox").TextChanged += (_, _) => page?.Refresh();
         Find<Button>("ReceiveToggle").Click += (_, _) => { try { ToggleReceiving(); } catch (Exception e) { Error(e); } };
         Find<Button>("OpenBrowser").Click += (_, _) => { try { OpenBrowser(); } catch (Exception error) { Error(error); } };
@@ -218,7 +256,7 @@ internal sealed class AppShell : IDisposable
             return;
         }
         // Keep existing draft files unless the user explicitly replaces them.
-        if (Selection.Count > 0 && !preview && MessageBox.Show(Window, "Replace the current unsent file selection with the files selected in Explorer?", "Share with Lantoss", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+        if (Selection.Count > 0 && !preview && MessageBox.Show(Window, "Replace the current unsent file selection with the files selected in Explorer?", "Share with hopo", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
         _ = await Task.Run(() => FileCatalog.BuildAsync(selected, Guid.NewGuid().ToString("N"), false, default));
         if (!Engine.Running && !preview)
@@ -241,13 +279,53 @@ internal sealed class AppShell : IDisposable
     {
         Tell(TransferEngine.HumanError(error));
         if (!preview)
-            MessageBox.Show(Window, TransferEngine.HumanError(error), "Lantoss", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Window, TransferEngine.HumanError(error), "hopo", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
     private UIElement NavigationContent(string name, bool active)
     {
-        FrameworkElement glyph = C.Icon(navigationIcons[name], 18, active ? "OnAccent" : "Primary");
-        glyph.Margin = new(0, 0, 14, 0);
-        return C.Inline(glyph, C.Text(name, 12, active ? "OnAccent" : "Text", active));
+        (string icon, string label, string detail, bool share) = navigationIcons[name];
+        Border tile = new()
+        {
+            Width = 36,
+            Height = 36,
+            CornerRadius = new(10),
+            BorderThickness = new(1),
+            Margin = new(0, 0, 14, 0),
+            Child = C.Icon(icon, 18, share || active ? "Primary" : "Text")
+        };
+        tile.SetResourceReference(Border.BackgroundProperty, share || active ? "PrimarySoft" : "Glass");
+        tile.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
+        StackPanel text = C.Stack(C.Text(label, 13, "Text", active));
+        text.VerticalAlignment = VerticalAlignment.Center;
+        if (detail.Length > 0)
+            text.Children.Add(C.Space(C.Text(detail, 11, "Muted"), 0, 1));
+        DockPanel row = new();
+        DockPanel.SetDock(tile, Dock.Left);
+        row.Children.Add(tile);
+        int running = name == "Transfers" ? Engine.Transfers.Records.Count(record => !record.Terminal) : 0;
+        if (running > 0)
+        {
+            TextBlock count = C.Text(running + " active", 11, "Success", true);
+            count.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(count, Dock.Right);
+            row.Children.Add(count);
+        }
+        row.Children.Add(text);
+        return row;
+    }
+    public void ShowMenu(bool open)
+    {
+        if (open)
+            foreach ((string name, Button button) in navigation)
+                button.Content = NavigationContent(name, name == CurrentPage);
+        Find<Grid>("MenuLayer").Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        if (!open)
+        {
+            Find<Button>("MenuButton").Focus();
+            return;
+        }
+        Motion.OpenMenu(Find<Button>("MenuScrim"), Find<Border>("MenuPanel"), Find<StackPanel>("Navigation").Children.OfType<UIElement>());
+        navigation.Values.FirstOrDefault()?.Focus();
     }
     public void Navigate(string destination)
     {
@@ -256,9 +334,14 @@ internal sealed class AppShell : IDisposable
         Find<TextBox>("SearchBox").Text = "";
         Find<TextBlock>("PageTitle").Text = destination;
         Find<TextBox>("SearchBox").IsEnabled = destination is "Home" or "Send" or "Transfers" or "Devices" or "History" or "Shared Spaces" or "Text & links";
+        Find<Grid>("SearchArea").Visibility = Find<TextBox>("SearchBox").IsEnabled && destination != "Home" ? Visibility.Visible : Visibility.Collapsed;
+        Find<Grid>("MenuLayer").Visibility = Visibility.Collapsed;
+        // Home is a full-window radar; other pages sit in the design's 1120 px column.
+        Find<ContentControl>("PageContent").MaxWidth = destination == "Home" ? double.PositiveInfinity : 1120;
+        Find<ContentControl>("PageContent").Margin = destination == "Home" ? new(0) : new(32, 40, 32, 40);
         foreach ((string name, Button button) in navigation)
         {
-            button.SetResourceReference(Control.BackgroundProperty, name == destination ? "Accent" : "Sidebar");
+            button.SetResourceReference(Control.BackgroundProperty, name == destination ? "Glass" : "Transparent");
             button.Content = NavigationContent(name, name == destination);
         }
         page = destination switch
@@ -278,6 +361,8 @@ internal sealed class AppShell : IDisposable
         Find<ContentControl>("PageContent").Content = page.View;
         Find<ScrollViewer>("PageScroll").ScrollToTop();
         page.Refresh();
+        if (destination != "Home")
+            Motion.Enter(page.View);
     }
     public void RefreshPage() => page?.Refresh();
     public void OpenBrowser(string relative = "/")
@@ -319,7 +404,7 @@ internal sealed class AppShell : IDisposable
             Engine.Start(network);
         }
         catch (System.Net.Sockets.SocketException e) when (e.SocketErrorCode == System.Net.Sockets.SocketError.AddressAlreadyInUse) { Engine.Start(network, 0); }
-        Tell("Ready to connect. Open Lantoss on the other PC and click its name. If Windows asks, allow Private networks only.");
+        Tell("Ready to connect. Open hopo on the other PC and click its name. If Windows asks, allow Private networks only.");
         UpdateStatus();
         sharingStoppedManually = false;
         networkSignature = string.Join(";", NetworkAdapter.Available().Select(adapter => adapter.Address + "/" + adapter.Mask).Order());
@@ -356,7 +441,7 @@ internal sealed class AppShell : IDisposable
         if (notifications == null || !Store.Preferences.Notifications)
             return;
         notifications.BalloonTipTitle = device.Label + " wants to connect";
-        notifications.BalloonTipText = device.Address + ". Open Lantoss and choose Allow in Phone & browser or Devices.";
+        notifications.BalloonTipText = device.Address + ". Open hopo and choose Allow in Phone & browser or Devices.";
         notifications.BalloonTipIcon = Forms.ToolTipIcon.Info;
         notifications.ShowBalloonTip(10000);
     }
@@ -372,7 +457,8 @@ internal sealed class AppShell : IDisposable
     public void UpdateStatus()
     {
         Find<Button>("ReceiveToggle").Content = Engine.Running ? "Stop sharing" : "Start server";
-        Find<TextBlock>("NetworkStatus").Text = Engine.Running ? "LAN · " + Engine.Endpoint : "Receiving off";
+        Find<TextBlock>("NetworkStatus").Text = Engine.Running ? "Receiving · " + Engine.Endpoint : "Receiving off";
+        Find<System.Windows.Shapes.Ellipse>("NetworkDot").SetResourceReference(System.Windows.Shapes.Shape.FillProperty, Engine.Running ? "Mint" : "Muted");
         Find<TextBlock>("ThisDevice").Text = Store.Preferences.DeviceName;
         Find<ContentControl>("ThisAvatar").Content = C.Avatar(Store.Preferences.DeviceName, Profiles.Picture(Store), 36);
         try
@@ -404,7 +490,7 @@ internal sealed class AppShell : IDisposable
         if (picker.ShowDialog(Window) == true)
             _ = AddSelectionsAsync(picker.FolderNames);
     }
-    public async Task AddSelectionsAsync(IEnumerable<string> paths)
+    public async Task AddSelectionsAsync(IEnumerable<string> paths, bool openSend = true)
     {
         if (selecting)
         {
@@ -426,7 +512,8 @@ internal sealed class AppShell : IDisposable
                 ManifestEntry[] entries = manifest.Entries.Where(e => e.SourcePath == root || e.SourcePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToArray();
                 Selection.Add(new(root, Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)), entries.Sum(e => e.Size), entries.Count(e => !e.Directory), entries.Count(e => e.Directory)));
             }
-            Navigate("Send");
+            if (openSend)
+                Navigate("Send");
             Tell($"{manifest.FileCount} files and {manifest.FolderCount} folders ready. Select a paired recipient.");
         }
         catch (Exception error) { Error(error); }
@@ -470,8 +557,22 @@ internal sealed class AppShell : IDisposable
         // DynamicResource consumers update in place, preserving selections and active transfers.
         foreach ((string name, string color) in Appearance.Palette(dark))
             Window.Resources[name] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+        Motion.Glass(Window.Resources, dark, ((SolidColorBrush)Window.Resources["GlassBorder"]).Color);
+        Find<System.Windows.Shapes.Ellipse>("GlowTop").Fill = Glow(Appearance.Palette(dark)["GlowA"], dark ? 0.52 : 0.42);
+        Find<System.Windows.Shapes.Ellipse>("GlowBottom").Fill = Glow(Appearance.Palette(dark)["GlowB"], dark ? 0.4 : 0.36);
         Find<ComboBox>("AppearanceSelector").SelectedItem = mode;
         Find<TextBlock>("AppearanceStatus").Text = mode == "System" ? "Following Windows · " + EffectiveTheme : EffectiveTheme + " appearance";
+    }
+    /// <summary>The design's glow: a radial gradient from the colour at <paramref name="alpha"/> to a third of it at 55%, then clear (no opacity mask, so drifting stays cheap).</summary>
+    private static RadialGradientBrush Glow(string hex, double alpha)
+    {
+        Color color = (Color)ColorConverter.ConvertFromString(hex);
+        RadialGradientBrush brush = new()
+        {
+            GradientStops = { new(Color.FromArgb((byte)(alpha * 255), color.R, color.G, color.B), 0), new(Color.FromArgb((byte)(alpha * 0.33 * 255), color.R, color.G, color.B), 0.55), new(Color.FromArgb(0, color.R, color.G, color.B), 1) }
+        };
+        brush.Freeze();
+        return brush;
     }
     private void SystemThemeChanged(object sender, UserPreferenceChangedEventArgs e)
     {
@@ -518,8 +619,8 @@ internal sealed class AppShell : IDisposable
             if (!trayNoticeShown && notifications != null)
             {
                 trayNoticeShown = true;
-                notifications.BalloonTipTitle = "Lantoss is still running";
-                notifications.BalloonTipText = "Receiving and sync continue in the tray. Use Exit Lantoss to stop the server.";
+                notifications.BalloonTipTitle = "hopo is still running";
+                notifications.BalloonTipText = "Receiving and sync continue in the tray. Use Exit hopo to stop the server.";
                 notifications.ShowBalloonTip(4000);
             }
             return;
@@ -529,7 +630,7 @@ internal sealed class AppShell : IDisposable
             e.Cancel = true;
             return;
         }
-        if (!preview && Engine.Transfers.Records.Any(r => !r.Terminal) && MessageBox.Show(Window, "Stop active transfers and close Lantoss? Files already verified and saved will stay on disk.", "Close Lantoss", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+        if (!preview && Engine.Transfers.Records.Any(r => !r.Terminal) && MessageBox.Show(Window, "Stop active transfers and close hopo? Files already verified and saved will stay on disk.", "Close Lantoss", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
         {
             e.Cancel = true;
             return;

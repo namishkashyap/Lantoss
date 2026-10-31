@@ -22,39 +22,65 @@ public static class Appearance
         catch { return false; }
     }
 
+    // hopo design tokens. Glass, GlassBorder, Menu, Scrim and Ring carry alpha (#AARRGGBB) and sit over the GlowA/GlowB field;
+    // every solid text/background pair keeps 4.5:1. Light mode keeps the amber buttons but uses deep amber for text and icons.
     public static IReadOnlyDictionary<string, string> Palette(bool dark) => dark
         ? new Dictionary<string, string>
         {
-            ["Background"] = "#0C1715",
-            ["Surface"] = "#15241F",
-            ["Sidebar"] = "#0F1D1A",
-            ["Text"] = "#EEF7F2",
-            ["Muted"] = "#A9C2B7",
-            ["Border"] = "#2E453C",
-            ["Primary"] = "#6FE0B3",
-            ["PrimarySoft"] = "#1C3C30",
-            ["Accent"] = "#6FE0B3",
-            ["OnAccent"] = "#0B1F18",
-            ["Success"] = "#74E0B4",
-            ["SuccessSoft"] = "#1C3C30",
-            ["Danger"] = "#FFB4AB",
-            ["DangerSoft"] = "#472826"
+            ["Background"] = "#07080C",
+            ["Surface"] = "#12141C",
+            ["Sidebar"] = "#0B0C12",
+            ["Text"] = "#EDEEF2",
+            ["Muted"] = "#9BA1AE",
+            ["Border"] = "#2A2D38",
+            ["Primary"] = "#F5B54A",
+            ["PrimarySoft"] = "#241D11",
+            ["Accent"] = "#F5B54A",
+            ["OnAccent"] = "#1A1204",
+            ["Success"] = "#6EE7C5",
+            ["SuccessSoft"] = "#10251F",
+            ["Danger"] = "#FF8A80",
+            ["DangerSoft"] = "#3A1A1A",
+            ["Glass"] = "#0EFFFFFF",
+            ["GlassBorder"] = "#1CFFFFFF",
+            ["Menu"] = "#EB12141C",
+            ["Scrim"] = "#99040508",
+            ["Ring"] = "#16FFFFFF",
+            ["GlowA"] = "#8C3CFF",
+            ["GlowB"] = "#28F096",
+            ["Mint"] = "#6EE7C5",
+            ["Phone"] = "#B57CFF",
+            ["PhoneSoft"] = "#24B57CFF",
+            ["AccentHover"] = "#FFC567",
+            ["GlassHover"] = "#1AFFFFFF"
         }
         : new Dictionary<string, string>
         {
-            ["Background"] = "#F1F5F3",
+            ["Background"] = "#F4F5F9",
             ["Surface"] = "#FFFFFF",
-            ["Sidebar"] = "#E6EEEA",
-            ["Text"] = "#0E211D",
-            ["Muted"] = "#4A625C",
-            ["Border"] = "#CEDCD6",
-            ["Primary"] = "#08634F",
-            ["PrimarySoft"] = "#D8EFE5",
-            ["Accent"] = "#0A6E58",
-            ["OnAccent"] = "#FFFFFF",
-            ["Success"] = "#0F6B47",
-            ["SuccessSoft"] = "#D8EFE5",
+            ["Sidebar"] = "#FAFAFC",
+            ["Text"] = "#14161D",
+            ["Muted"] = "#555C6B",
+            ["Border"] = "#DCDFE7",
+            ["Primary"] = "#8A5300",
+            ["PrimarySoft"] = "#FBEFD9",
+            ["Accent"] = "#F5B54A",
+            ["OnAccent"] = "#1A1204",
+            ["Success"] = "#0B7A5F",
+            ["SuccessSoft"] = "#DDF4EC",
             ["Danger"] = "#B42F37",
-            ["DangerSoft"] = "#FCE7E6"
+            ["DangerSoft"] = "#FCE7E6",
+            ["Glass"] = "#C2FFFFFF",
+            ["GlassBorder"] = "#2414161D",
+            ["Menu"] = "#F5FFFFFF",
+            ["Scrim"] = "#5914161D",
+            ["Ring"] = "#1C14161D",
+            ["GlowA"] = "#8F5BFF",
+            ["GlowB"] = "#24C98A",
+            ["Mint"] = "#0B7A5F",
+            ["Phone"] = "#7B4FD6",
+            ["PhoneSoft"] = "#1F7B4FD6",
+            ["AccentHover"] = "#FFC567",
+            ["GlassHover"] = "#F2FFFFFF"
         };
 }

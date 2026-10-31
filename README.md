@@ -1,4 +1,4 @@
-# Lantoss 2.0 for Windows, macOS, Linux and phone browsers
+# hopo (formerly Lantoss) for Windows, macOS, Linux and phone browsers
 
 Private home-Wi-Fi file sharing. Connections between computers are direct by
 default: no password, typed code, or comparison prompt. Access-code protection
@@ -8,13 +8,32 @@ is optional.
 
 | Version | Platforms | Download | Source |
 |---|---|---|---|
-| **2.0.2** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.0.2](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.2) | `main` |
+| **2.1.3** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.1.3](https://github.com/namishkashyap/Lantoss/releases/tag/v2.1.3) | `main` |
+| 2.0.2 | Same platforms, named Lantoss | [Release v2.0.2](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.2) | tag `v2.0.2` |
 | 2.0.0 | Same platforms | [Release v2.0.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.0) | tag `v2.0.0` |
 | 1.9.0 (previous) | Windows (MSI) | [Release v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0) | `release/1.x` |
 
 Step-by-step install, first-run, firewall and uninstall instructions for each
 platform are in **[INSTALL.md](INSTALL.md)**. All versions talk to each other
 on the same network, and phones need no app.
+
+## New in 2.1: hopo
+
+- **2.1.1: motion from the design.**
+  - Spring buttons and drifting glows.
+  - Glowing wave rings and ripples on Home.
+  - Device cards on hover.
+  - Dock panels for sending files, sharing a folder or text, and opening the phone page, which rise out of their buttons.
+- **New name and look.** Lantoss is now **hopo**, with a new logo and the redesigned UI in a dark and a matching light theme:
+  - a top bar and a slide-out menu instead of the sidebar
+  - a nearby radar on Home
+  - glass cards
+  - the same look on the phone page
+- **Upgrades in place.** Settings, pairings, history and received files carry over. The installers remove the old Lantoss copy:
+  - The Windows MSI replaces Lantoss 2.0.x.
+  - The macOS installer removes `Lantoss.app`.
+  - The Linux `.deb` replaces the `lantoss` package.
+- On Windows the program file is still `Lantoss.exe` and the Windows 11 Explorer menu still reads *Share with Lantoss*, until that menu is rebuilt.
 
 ## New in 2.0
 
@@ -31,9 +50,9 @@ on the same network, and phones need no app.
 
 ## Install on Windows
 
-Download and double-click **Lantoss-Setup-2.0.2-x64.msi**. Close the older app
-using **Exit Lantoss** in the Windows tray first. The installer installs for the
-current Windows account under LocalAppData/Programs/Lantoss, creates Start menu
+Download and double-click **hopo-Setup-2.1.3-x64.msi**. Close the older app
+using **Exit Lantoss** (or **Exit hopo**) in the Windows tray first. The installer installs for the
+current Windows account under LocalAppData/Programs/hopo, creates Start menu
 entries, and registers repair/uninstall in Windows Installed apps. The .NET
 runtime is included. The Windows 11 identity package and native extension use a local development signing certificate; this is not a publicly trusted release. The MSI itself is unsigned.
 

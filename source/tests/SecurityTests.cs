@@ -67,13 +67,18 @@ internal static partial class Program
     private static async Task SecurePortalAsync()
     {
         MetadataStore store = SecureStore("Secure portal");
+        // HTTPS is optional since 2.1.3 (phones warn about the self-signed certificate); these checks cover it when it is on.
+        store.SetPreferences(store.Preferences with
+        {
+            BrowserHttps = true
+        });
         PairingCode code = new();
         using BrowserPortal portal = new(store, new(store), code, true);
         BrowserDevice? asked = null;
         portal.ApprovalRequested += device => asked = device;
         portal.ApproveReceive = (request, _) => Task.FromResult(new ReceiveDecision(true, request.DefaultFolder));
         await portal.StartAsync(Loopback, 0);
-        Check(portal.Https && portal.IpUrl.StartsWith("https://127.0.0.1:", StringComparison.Ordinal) && portal.HttpUrl.StartsWith("http://127.0.0.1:", StringComparison.Ordinal) && portal.CertificateFingerprint.Length == 64, "The phone page uses HTTPS by default and the PC can show its certificate fingerprint");
+        Check(portal.Https && portal.IpUrl.StartsWith("https://127.0.0.1:", StringComparison.Ordinal) && portal.HttpUrl.StartsWith("http://127.0.0.1:", StringComparison.Ordinal) && portal.CertificateFingerprint.Length == 64, "With HTTPS on, the phone page uses it and the PC can show its certificate fingerprint");
         using (HttpClient plain = new(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false })
         {
             BaseAddress = new Uri(portal.HttpUrl)
@@ -155,7 +160,7 @@ internal static partial class Program
     private static async Task SecurePairingAsync(Identity first, Identity second)
     {
         MetadataStore left = SecureStore("Secure sender"), right = SecureStore("Secure receiver");
-        Check(left.Preferences.ApproveNewDevices && left.Preferences.BrowserHttps, "New installs approve new devices and encrypt the phone page by default");
+        Check(left.Preferences.ApproveNewDevices && !left.Preferences.BrowserHttps, "New installs approve new devices and serve the phone page over HTTP by default");
         using TransferEngine sender = new(left, first, true), receiver = new(right, second, true);
         string? receiverCode = null, senderCode = null;
         receiver.ApprovePair = (request, _) => { receiverCode = request.ComparisonCode; return Task.FromResult(true); };

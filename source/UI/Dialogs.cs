@@ -116,7 +116,7 @@ internal sealed class Dialogs(AppShell app)
         TextBox address = new()
         {
             Text = candidate?.Endpoint ?? "",
-            ToolTip = "Address shown by Lantoss on the other PC",
+            ToolTip = "Address shown by hopo on the other PC",
             Margin = new(0, 7, 0, 15)
         };
         AutomationProperties.SetName(address, "Other PC address and port");
@@ -128,13 +128,13 @@ internal sealed class Dialogs(AppShell app)
             Margin = new(0, 7, 0, 15)
         };
         AutomationProperties.SetName(code, "Other PC pairing code");
-        TextBlock feedback = C.Text("Both PCs need Lantoss. Browser pairing is not supported in this release.", 12, "Muted");
+        TextBlock feedback = C.Text("Both PCs need hopo. Browser pairing is not supported in this release.", 12, "Muted");
         Button pair = C.Button("Connect and compare codes", () => { }, true, "pair");
         pair.HorizontalAlignment = HorizontalAlignment.Stretch;
         pair.Click += async (_, _) =>
         {
             pair.IsEnabled = false;
-            feedback.Text = "Connecting securely. Keep Lantoss open on the other PC…";
+            feedback.Text = "Connecting securely. Keep hopo open on the other PC…";
             try
             {
                 Peer result = await app.Engine.PairAsync(address.Text, code.Text, CompareAsync, work.Token);

@@ -1,3 +1,55 @@
+2026-10-31 - hopo 2.1.3: ring glow, taskbar icon, HTTP phone page
+
+The Home wave rings are smooth curves with a wide soft glow. The coloured
+line on top of each box is gone; the white edge light stays. Hovering a
+device shows a round highlight, and animations can run at up to 120 frames
+per second on fast screens.
+
+The taskbar and new pins show the hopo icon (unpin and pin again to update
+an old pin). The phone page now uses plain HTTP by default, so phones no
+longer warn about an untrusted certificate. HTTPS can be turned back on in
+Settings.
+
+2026-10-31 - hopo 2.1.2: motion fixes, calmer rings, design background
+
+Fixed an error that appeared after changing the theme or closing the menu
+("Cannot animate the X property"). Motion is smoother: no per-frame blur,
+lighter glows and cheaper shadows.
+
+Home now has seven thinner, slower wave rings, and they ease into the
+pointer slow-down instead of jumping. Every page has the design's faint
+background rings and window-sized purple and green glows, with more colour
+in the light theme. Chips and badges are rounded rectangles, and phone
+links are shown without https://.
+
+2026-10-31 - hopo 2.1.1: motion and Home panels
+
+The motion from the design is in. Buttons spring and their icons wiggle,
+cards have a sweeping edge light and a sliding purple-to-mint line, pages
+rise into place, the glows drift, and the menu grows out of its button.
+
+Home has twelve glowing wave rings that spin, morph and slow down near the
+pointer, water ripples from this PC, and blinking device dots with radar
+pings. Hovering a device shows its card. The dock opens Send files, Folder,
+Text and Phone panels that rise from their button and work in place:
+choose or drop files and a device and send, share a folder, share text, or
+scan the phone code. Motion follows the system setting for animations.
+
+2026-10-31 - hopo 2.1.0: new name, new look
+
+Lantoss is now hopo, with a new logo and a redesigned UI in a dark theme and a
+matching light theme (System, Light and Dark still work). A top bar and a
+slide-out menu replace the sidebar. Home is a nearby radar with this PC in the
+middle and your PCs and phones around it, plus a dock for sending files,
+sharing a folder or text, and opening the phone page. Cards are glass over
+soft glows, and the phone page has the same look.
+
+Upgrading keeps settings, pairings, history and received files. The Windows
+MSI replaces Lantoss 2.0.x, the macOS installer removes Lantoss.app, and the
+Linux .deb replaces the lantoss package. On Windows the program file is still
+Lantoss.exe and the Windows 11 Explorer menu still reads "Share with Lantoss"
+until that menu is rebuilt.
+
 2026-10-30 - Lantoss 2.0.2: home-network security and send to phones
 
 New PCs and phones are approved on this PC (Settings → "Ask before a new

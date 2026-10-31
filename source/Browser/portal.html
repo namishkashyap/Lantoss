@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lantoss · Home sharing</title><link rel="stylesheet" href="/portal.css">
+  <title>hopo · Home sharing</title><link rel="stylesheet" href="/portal.css">
   <script src="/portal.js" defer></script>
 </head>
 <body>
-  <header><a class="brand" href="/"><span class="logo">≈</span> Lantoss</a><div class="header-actions"><label class="appearance" for="appearance">Appearance <select id="appearance"><option value="System">System</option><option value="Light">Light</option><option value="Dark">Dark</option></select></label><span class="pill">Home Wi-Fi</span></div></header>
+  <div class="aurora" aria-hidden="true"><span class="glow glow-a"></span><span class="glow glow-b"></span><span class="rings"></span></div>
+  <header><a class="brand" href="/"><svg class="mark" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><circle cx="13" cy="13" r="3.5" fill="#F5B54A"/><circle cx="13" cy="13" r="7.5" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><circle cx="13" cy="13" r="11.5" stroke="currentColor" stroke-opacity=".25" stroke-width="1.2"/><circle class="mark-dot" cx="20.5" cy="8" r="1.8"/></svg>hopo</a><div class="header-actions"><label class="appearance" for="appearance">Appearance <select id="appearance"><option value="System">System</option><option value="Light">Light</option><option value="Dark">Dark</option></select></label><span class="pill">Home Wi-Fi</span></div></header>
   <main>
     <div class="host"><img id="host-picture" alt="" hidden><p class="eyebrow" id="device">YOUR PC, WITHIN REACH</p></div>
     <h1>A little closer.<br>Share from here.</h1>
@@ -14,12 +15,12 @@
     <div id="notice" role="status" aria-live="polite"></div>
     <p id="security" class="security"></p>
     <section id="waiting" class="card" hidden>
-      <span class="symbol">⌛</span><h2>Waiting for <span id="waiting-host">the PC</span> to allow this phone</h2>
-      <p>On the PC, open Lantoss and choose <strong>Allow</strong> next to this phone in <strong>Phone &amp; browser</strong> or <strong>Devices</strong>. This page continues by itself.</p>
+      <span class="symbol pulse"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><h2>Waiting for <span id="waiting-host">the PC</span> to allow this phone</h2>
+      <p>On the PC, open hopo and choose <strong>Allow</strong> next to this phone in <strong>Phone &amp; browser</strong> or <strong>Devices</strong>. This page continues by itself.</p>
     </section>
     <section id="login" class="card" hidden>
-      <span class="symbol">⌑</span><h2>This PC asks for a code</h2>
-      <p>Find the access code in Lantoss’s <strong>Phone &amp; browser</strong> screen.</p>
+      <span class="symbol"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h2>This PC asks for a code</h2>
+      <p>Find the access code in hopo’s <strong>Phone &amp; browser</strong> screen.</p>
       <form id="login-form"><label for="code">Access code</label><input id="code" name="code" maxlength="24" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required><button type="submit" id="connect">Connect</button></form>
     </section>
     <div id="sharing" hidden>
@@ -31,29 +32,29 @@
       </section>
       <section id="devices-card" class="card" hidden><h2>Other PCs on your Wi-Fi</h2><p>Choose the PC whose files or text you want to access.</p><div id="browser-devices" class="space-list"></div></section>
       <section class="card notes-card">
-        <div class="section-title"><span class="symbol">✎</span><div><h2>Text &amp; links</h2><p>Shared with this PC. Find received notes in the app's Text &amp; links area.</p></div><button id="notes-refresh" class="icon-button" aria-label="Refresh shared notes">↻</button></div>
+        <div class="section-title"><span class="symbol"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></span><div><h2>Text &amp; links</h2><p>Shared with this PC. Find received notes in the app's Text &amp; links area.</p></div><button id="notes-refresh" class="icon-button" aria-label="Refresh shared notes"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button></div>
         <form id="note-form"><label for="note-content">Text or link</label><textarea id="note-content" maxlength="16000" rows="4" placeholder="Paste a link or write a note…" required></textarea><button id="note-send" type="submit">Share with this PC</button></form>
         <div id="notes-list" class="downloads"></div>
       </section>
       <section class="card spaces-card">
-        <div class="section-title"><span class="symbol">▤</span><div><h2>Shared Spaces</h2><p>Folders your PC has chosen to share. Permissions are set by the host.</p></div><button id="spaces-refresh" class="icon-button" aria-label="Refresh shared spaces">↻</button></div>
+        <div class="section-title"><span class="symbol"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><div><h2>Shared Spaces</h2><p>Folders your PC has chosen to share. Permissions are set by the host.</p></div><button id="spaces-refresh" class="icon-button" aria-label="Refresh shared spaces"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button></div>
         <div id="spaces" class="space-list"></div>
         <div id="space-browser" hidden><div class="space-navigation"><button id="space-up" class="secondary">↑ Up</button><strong id="space-path"></strong><button id="inbox" class="secondary">Use PC inbox instead</button></div><div id="space-entries" class="downloads"></div></div>
       </section>
       <section class="card send-card">
-        <div class="section-title"><span class="symbol">↑</span><div><h2 id="send-title">Send to your PC</h2><p id="upload-hint">Pick files or photos. Approve the request on your PC.</p></div></div>
-        <label class="picker" for="files"><span class="picker-icon">＋</span><strong>Choose files or photos</strong><span>Up to 100 files · 2 GiB each</span></label>
+        <div class="section-title"><span class="symbol"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span><div><h2 id="send-title">Send to your PC</h2><p id="upload-hint">Pick files or photos. Approve the request on your PC.</p></div></div>
+        <label class="picker" for="files"><span class="picker-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><strong>Choose files or photos</strong><span>Up to 100 files · 2 GiB each</span></label>
         <input id="files" type="file" multiple class="file-input">
         <ul id="selection" class="selection"></ul>
-        <div class="actions"><button id="send" disabled>Send to PC <span aria-hidden="true">↗</span></button><button id="cancel" class="secondary" hidden>Cancel</button></div>
+        <div class="actions"><button id="send" disabled><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Send to PC</button><button id="cancel" class="secondary" hidden>Cancel</button></div>
         <div id="transfer" hidden><p id="transfer-label" role="status" aria-live="polite"></p><p id="transfer-speed" class="speed"></p><progress id="progress" max="100" value="0" aria-label="Upload progress"></progress></div>
       </section>
-      <section class="card activity-card"><div class="section-title"><span class="symbol">↔</span><div><h2>Live transfers</h2><p>Your browser’s uploads and downloads · measured speed and estimated time.</p></div></div><div id="live-transfers"></div></section>
+      <section class="card activity-card"><div class="section-title"><span class="symbol mint"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></svg></span><div><h2>Live transfers</h2><p>Your browser’s uploads and downloads · measured speed and estimated time.</p></div></div><div id="live-transfers"></div></section>
       <section class="card receive-card">
-        <div class="section-title"><span class="symbol mint">↓</span><div><h2>Get files from your PC</h2><p>Only files selected in Lantoss appear here.</p></div><button id="refresh" class="icon-button" aria-label="Refresh shared files">↻</button></div>
+        <div class="section-title"><span class="symbol mint"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span><div><h2>Get files from your PC</h2><p>Only files selected in hopo appear here.</p></div><button id="refresh" class="icon-button" aria-label="Refresh shared files"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button></div>
         <div id="downloads" class="downloads"></div>
       </section>
     </div>
-    <footer><strong>Local sharing · private to your Wi-Fi</strong><p>The page is encrypted with your PC's own certificate. A new phone waits for Allow on the PC, or enters the access code.</p><p>No account. No cloud. Keep Lantoss open on your PC.</p></footer>
+    <footer><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><div><strong>Local sharing · private to your Wi-Fi</strong><p>The page is encrypted with your PC's own certificate. A new phone waits for Allow on the PC, or enters the access code.</p><p>No account. No cloud. Keep hopo open on your PC.</p></div></footer>
   </main>
 </body></html>

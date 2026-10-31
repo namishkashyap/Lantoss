@@ -26,8 +26,13 @@ public sealed record Preferences
     public string LocalName { get; init; } = "share-wollvo";
     /// <summary>A new computer or phone waits for approval on this PC; already paired PCs reconnect without asking.</summary>
     public bool ApproveNewDevices { get; init; } = true;
-    /// <summary>The phone page is served over HTTPS with this PC's own certificate.</summary>
-    public bool BrowserHttps { get; init; } = true;
+    /// <summary>The phone page is served over HTTPS with this PC's own certificate. Off by default: phones warn about a self-signed certificate.</summary>
+    /// <remarks>Saved under a new name so installs that had the old default (on) switch to HTTP once.</remarks>
+    [System.Text.Json.Serialization.JsonPropertyName("BrowserHttpsOn")]
+    public bool BrowserHttps
+    {
+        get; init;
+    }
 }
 
 public sealed record Peer

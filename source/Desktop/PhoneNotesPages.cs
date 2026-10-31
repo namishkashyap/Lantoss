@@ -19,14 +19,26 @@ internal sealed class PhonePage : IPage
     {
         get;
     }
+    /// <summary>The phone link as a QR code on a white tile, in both appearances, so every phone camera can read it.</summary>
+    public static Border Qr(string url, double size)
+    {
+        using QRCodeGenerator generator = new();
+        using QRCodeData data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
+        using PngByteQRCode qr = new(data);
+        using MemoryStream png = new(qr.GetGraphic(6));
+        Image picture = new()
+        {
+            Source = new Bitmap(png),
+            Width = size,
+            Height = size
+        };
+        RenderOptions.SetBitmapInterpolationMode(picture, BitmapInterpolationMode.None);
+        return new Border { Child = picture, Background = Brushes.White, CornerRadius = new(size > 120 ? 14 : 12), Padding = new(size > 120 ? 8 : 6), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+    }
     public PhonePage(Shell app)
     {
         this.app = app;
-        CheckBox requireCode = new()
-        {
-            Content = "Require an access code",
-            IsChecked = app.Store.Preferences.RequireConnectionCode
-        };
+        CheckBox requireCode = C.Check("Require an access code", app.Store.Preferences.RequireConnectionCode);
         requireCode.IsCheckedChanged += (_, _) =>
         {
             if (requireCode.IsChecked == app.Store.Preferences.RequireConnectionCode)
@@ -42,13 +54,12 @@ internal sealed class PhonePage : IPage
         accessCode.FontFamily = new FontFamily("monospace");
         codeActions = C.Inline(C.Small("Copy current code", () => app.CopyAsync(app.Engine.PairingCode.Value, "Access code copied. It expires after five minutes and one use.")),
             C.Small("New code", () => { app.Engine.PairingCode.Rotate(); app.Engine.Browser.ResetConnections(); Refresh(); }));
-        StackPanel protection = C.Stack(C.Heading("Optional protection"), C.Space(requireCode, 8),
-            C.Space(C.Text("Off by default: new computers and phones are approved on this screen instead. Turn it on to require a code; entering it also approves the phone.", 12, "Muted"), 13), C.Space(accessCode, 12), codeActions);
-        StackPanel selected = C.Stack(C.Heading("Files your phone can download", C.Small("Remove all", app.Engine.Browser.ClearFiles)),
-            C.Space(C.Text("Only files you select here are listed. Uploads from a phone go to your receive folder after your approval.", 12, "Muted"), 18),
-            C.Space(C.Inline(C.AsyncButton("Share files with browser", PickFilesAsync, true, "plus"), C.AsyncButton("Add a folder", PickFolderAsync, icon: "folder")), 18), shared);
-        View = C.Stack(C.Space(C.Text("Your phone. No extra app.", 28, bold: true), 9),
-            C.Space(C.Text("Use the same Wi-Fi, scan the QR code with your phone's camera, and open the page. Send photos and files to this computer, or download the files you share below.", 13, "Muted"), 23),
+        StackPanel protection = C.Stack(C.Heading("Access code"), C.Space(requireCode, 8),
+            C.Space(C.Text("Off by default: new computers and phones are approved on this screen instead. Turn it on to require a code; entering it also approves the phone.", 12, "Muted"), 16), C.Eyebrow("Current code"), C.Space(accessCode, 12, 6), codeActions);
+        StackPanel selected = C.Stack(C.Heading("Files your phone can download", C.Ghost(C.Small("Remove all", app.Engine.Browser.ClearFiles))),
+            C.Space(C.Text("Only files you pick here are listed. Uploads from a phone land in your receive folder after you approve them.", 12, "Muted"), 18),
+            C.Space(C.Inline(C.AsyncButton("Add files", PickFilesAsync, true, "plus"), C.AsyncButton("Add a folder", PickFolderAsync, icon: "folder")), 18), shared);
+        View = C.Stack(C.Header("Share", "Your phone. No extra app.", "Same Wi‑Fi, scan the code, done. No app needed."),
             waiting, C.Space(transferSpeed, 18), C.Space(C.Columns(C.Card(connection), C.Card(protection), 370), 20), C.Space(C.Card(selected), 20),
             app.Store.Preferences.BrowserHttps ? C.Note("Browser sharing uses HTTPS", "The phone page is encrypted with this computer's own certificate. Phones show a warning the first time because no public authority signed it. Computer-to-computer transfers continue to use TLS.", "phone")
                 : C.Note("Browser sharing uses local HTTP", "The phone page is not encrypted. Use your trusted home Wi-Fi. The optional code controls access; it does not add transport encryption. Computer-to-computer transfers continue to use TLS.", "phone"));
@@ -65,30 +76,19 @@ internal sealed class PhonePage : IPage
         foreach (BrowserDevice browser in asking)
             waiting.Children.Add(C.Space(DevicesPage.Waiting(app, browser), 18));
         connection.Children.Clear();
-        connection.Children.Add(C.Heading("Open on your phone", C.Badge(app.Engine.Browser.Running ? "Browser is on" : "Browser is off")));
+        connection.Children.Add(C.Heading("Open on your phone", app.Engine.Browser.Running ? C.Badge("Browser sharing on", "Mint", "Mint/12") : C.Badge("Browser sharing off", "Muted", "Text/6")));
         if (app.Engine.Browser.Running)
         {
             // The IP link works on every phone; many Android phones cannot resolve .local names, so it is the QR default.
             string ip = app.Engine.Browser.IpUrl, named = app.Engine.Browser.Url;
             bool hasName = named != ip;
             string url = nameQr && hasName ? named : ip;
-            using QRCodeGenerator generator = new();
-            using QRCodeData data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
-            using PngByteQRCode qr = new(data);
-            using MemoryStream png = new(qr.GetGraphic(6));
-            Image picture = new()
-            {
-                Source = new Bitmap(png),
-                Width = 184,
-                Height = 184,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new(0, 0, 0, 16)
-            };
-            RenderOptions.SetBitmapInterpolationMode(picture, BitmapInterpolationMode.None);
+            Border picture = Qr(url, 184);
+            picture.Margin = new(0, 0, 0, 16);
             connection.Children.Add(picture);
-            connection.Children.Add(C.Space(C.Text(url, 15, "Primary", true), 8));
+            connection.Children.Add(C.Space(C.Text(C.Bare(url), 15, "Primary", true), 8));
             if (hasName && url == ip)
-                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + named, 12, bold: true), 8));
+                connection.Children.Add(C.Space(C.Text("On iPhone, iPad and computers you can also type " + C.Bare(named), 12, bold: true), 8));
             connection.Children.Add(C.Space(C.Text(app.Engine.Browser.LocalAddressStatus, 12, "Muted"), 12));
             string print = app.Engine.Browser.CertificateFingerprint;
             if (app.Engine.Browser.Https)
@@ -102,18 +102,7 @@ internal sealed class PhonePage : IPage
         else
         {
             connection.Children.Add(C.Space(C.Text("Start browser sharing to show the phone link and QR code.", 13, "Muted"), 18));
-            connection.Children.Add(C.Button("Start browser sharing", () =>
-            {
-                app.Store.SetPreferences(app.Store.Preferences with
-                {
-                    BrowserSharingEnabled = true
-                });
-                if (!app.Engine.Running)
-                    app.ToggleReceiving();
-                else
-                    app.Engine.ApplySavedPreferences();
-                Refresh();
-            }, true, "phone"));
+            connection.Children.Add(C.Button("Start browser sharing", () => { app.StartBrowserSharing(); Refresh(); }, true, "phone"));
         }
         UpdateCode();
         UpdateSpeed();
@@ -155,7 +144,7 @@ internal sealed class NotesPage : IPage
     }
     private readonly Shell app;
     private readonly TextBox draft = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 130, MaxHeight = 250, MaxLength = SharedNotes.MaxCharacters, PlaceholderText = "Type a note or paste a link" };
-    private readonly ComboBox target = new() { MinWidth = 240 };
+    private readonly ComboBox target = new() { MinWidth = 260, MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly StackPanel notes = new();
     public Control View
     {
@@ -176,16 +165,16 @@ internal sealed class NotesPage : IPage
             Refresh();
             app.Tell("Text shared. Find it in Text & links on the receiving computer or its browser page.");
         }, true, "send");
-        View = C.Stack(C.Space(C.Text("Text & links", 28, bold: true), 9),
-            C.Space(C.Text("Share a note or link with a connected computer, or save it here for your phone. Nothing opens or copies automatically.", 13, "Muted"), 22),
-            C.Space(C.Card(C.Stack(C.Space(draft, 14), C.Inline(target, send), C.Space(C.Text("Up to 16,000 characters. Notes saved here are visible to connected browsers; optional access-code protection applies.", 11, "Muted"), 0, 12))), 24),
-            C.Heading("Shared on this computer", C.Small("Refresh", Refresh)), notes);
+        View = C.Stack(C.Header("Share", "Share text or a link", "Send a note or link to a nearby device."),
+            C.Space(C.Card(C.Stack(C.Space(C.Eyebrow("Message"), 8), C.Space(draft, 16), C.Space(C.Eyebrow("Send to"), 8), C.Inline(target, send), C.Space(C.Text("Up to 16,000 characters. Notes kept here are visible to connected browsers; an access code applies if you've turned one on. Nothing opens or copies automatically.", 11, "Muted"), 0, 12))), 28),
+            C.Heading("Shared on this " + Shell.Platform, C.Small("Refresh", Refresh)), notes);
     }
     public void Refresh()
     {
-        // Refresh only the list and recipients. Incoming notes never replace a typed draft.
-        string? selected = (target.SelectedItem as Destination)?.Peer?.Fingerprint;
-        Destination[] destinations = [new("This " + Shell.Platform + " · share with my browser", null), .. app.Engine.Peers.Where(p => p.Paired && !p.Blocked).Select(p => new Destination(p.Name, p))];
+        // Refresh only the list and recipients. Incoming notes never replace a typed draft. Text on Home preselects that PC once.
+        string? selected = app.NotePeerKey ?? (target.SelectedItem as Destination)?.Peer?.Fingerprint;
+        app.NotePeerKey = null;
+        Destination[] destinations = [new("This " + Shell.Platform + " · keep for my phone", null), .. app.Engine.Peers.Where(p => p.Paired && !p.Blocked).Select(p => new Destination(p.Name, p))];
         target.ItemsSource = destinations;
         target.SelectedItem = destinations.FirstOrDefault(item => item.Peer?.Fingerprint == selected) ?? destinations[0];
         notes.Children.Clear();

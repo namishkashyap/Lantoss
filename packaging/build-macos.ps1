@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-Builds dist/Lantoss-<version>-macOS-AppleSilicon.zip and dist/Lantoss-<version>-macOS-Intel.zip on Windows.
+Builds dist/hopo-<version>-macOS-AppleSilicon.zip and dist/hopo-<version>-macOS-Intel.zip on Windows.
 .DESCRIPTION
-For each runtime: publishes a self-contained single-file Lantoss (Contents/MacOS then holds only Mach-O code, which
-code signing requires), assembles Lantoss.app (Contents/Resources/Lantoss.icns, Contents/Info.plist, Contents/PkgInfo),
+For each runtime: publishes a self-contained single-file hopo (Contents/MacOS then holds only Mach-O code, which
+code signing requires), assembles hopo.app (Contents/Resources/hopo.icns, Contents/Info.plist, Contents/PkgInfo),
 seals and ad-hoc signs the whole bundle with rcodesign (so Info.plist and resources are covered and a downloaded copy
 gets macOS's normal "Open Anyway" prompt instead of "damaged"), puts install.sh and a double-clickable
-"Install Lantoss.command" next to it, zips them with Unix modes, and checks the zip with verify.cjs and tar.exe. The version comes from <Version> in source/Desktop/Lantoss.Desktop.csproj.
+"Install hopo.command" next to it, zips them with Unix modes, and checks the zip with verify.cjs and tar.exe. The version comes from <Version> in source/Desktop/Lantoss.Desktop.csproj.
 .PARAMETER MinimumMacOS
 LSMinimumSystemVersion. 14.0 is the oldest macOS that .NET 10 supported at release. The .NET 10 runtime
 binaries are built for macOS 12.0, and verify.cjs fails if any bundled binary needs a newer macOS than this value.
@@ -48,7 +48,7 @@ function Test-LantossSeal {
     param([Parameter(Mandatory = $true)][string]$Rcodesign, [Parameter(Mandatory = $true)][string]$App)
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    try { $text = (& $Rcodesign print-signature-info (Join-Path $App 'Contents\MacOS\Lantoss') 2>&1 | ForEach-Object { "$_" }) -join "`n" } finally { $ErrorActionPreference = $previous }
+    try { $text = (& $Rcodesign print-signature-info (Join-Path $App 'Contents\MacOS\hopo') 2>&1 | ForEach-Object { "$_" }) -join "`n" } finally { $ErrorActionPreference = $previous }
     $plist = (Get-FileHash -Algorithm SHA256 -Path (Join-Path $App 'Contents\Info.plist')).Hash.ToLowerInvariant()
     $seal = (Get-FileHash -Algorithm SHA256 -Path (Join-Path $App 'Contents\_CodeSignature\CodeResources')).Hash.ToLowerInvariant()
     if ($text -notmatch 'ADHOC' -or $text -notmatch "Info \(1\): $plist" -or $text -notmatch "Resources \(3\): $seal") { throw "$App is not sealed: its signature does not bind Info.plist and CodeResources" }
@@ -65,7 +65,7 @@ New-Item -ItemType Directory -Force -Path $LantossDist | Out-Null
 $macIcons = Join-Path $LantossWork 'icons-macos'
 Reset-LantossDirectory $macIcons
 & (Join-Path $PSScriptRoot 'create-icons.ps1') -OutputDir $macIcons -Sizes 16, 32, 64, 128, 256, 512, 1024 -ContentScale 0.8306 | Out-Null
-$icns = Join-Path $LantossWork 'Lantoss.icns'
+$icns = Join-Path $LantossWork 'hopo.icns'
 Invoke-LantossNative node (@($LantossPackJs, 'icns', $icns) + @(Get-ChildItem -Path $macIcons -Filter '*.png' | ForEach-Object { $_.FullName }))
 
 $rcodesign = Get-LantossRcodesign
@@ -86,22 +86,22 @@ foreach ($runtime in $Rid) {
     $pkgInfo = Join-Path $stage 'PkgInfo'
     [System.IO.File]::WriteAllText($pkgInfo, 'APPL????', [System.Text.Encoding]::ASCII)
 
-    $app = Join-Path $stage 'Lantoss.app'
+    $app = Join-Path $stage 'hopo.app'
     New-Item -ItemType Directory -Force -Path (Join-Path $app 'Contents\MacOS'), (Join-Path $app 'Contents\Resources') | Out-Null
     Copy-Item -Path (Join-Path $publish '*') -Destination (Join-Path $app 'Contents\MacOS') -Recurse
     Copy-Item $plist (Join-Path $app 'Contents\Info.plist')
     Copy-Item $pkgInfo (Join-Path $app 'Contents\PkgInfo')
-    Copy-Item $icns (Join-Path $app 'Contents\Resources\Lantoss.icns')
+    Copy-Item $icns (Join-Path $app 'Contents\Resources\hopo.icns')
     # Ad-hoc sign every Mach-O and seal the bundle (Contents/_CodeSignature/CodeResources binds Info.plist and resources).
     Invoke-LantossNative $rcodesign @('sign', $app)
     Test-LantossSeal $rcodesign $app
 
-    $name = "Lantoss-$version-macOS-$label"
+    $name = "hopo-$version-macOS-$label"
     $zip = Join-Path $LantossDist "$name.zip"
     Invoke-LantossNative node @($LantossPackJs, 'zip', $zip,
-        '--add', "$name/Lantoss.app=$app",
+        '--add', "$name/hopo.app=$app",
         '--add', "$name/install.sh=$install",
-        '--add', "$name/Install Lantoss.command=$install")
+        '--add', "$name/Install hopo.command=$install")
     Invoke-LantossNative node @($LantossVerifyJs, $zip, '--arch', $arch, '--version', $version)
     Test-LantossArchiveWithTar $zip
     $outputs += $zip

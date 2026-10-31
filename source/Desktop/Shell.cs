@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Ellipse = Avalonia.Controls.Shapes.Ellipse;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
@@ -30,7 +31,17 @@ internal interface IPage
 internal sealed class Shell : IDisposable
 {
     public static readonly string[] Pages = ["Home", "Send", "Transfers", "Devices", "Phone & browser", "Text & links", "Shared Spaces", "Sync", "History", "Settings"];
-    private static readonly string[] Icons = ["home", "send", "transfer", "devices", "phone", "file", "folder", "sync", "history", "settings"];
+    // Menu rows: page, title, subtitle (Share group only) and icon.
+    private static readonly (string Page, string Title, string Detail, string Icon)[] ShareMenu = [("Send", "Send files", "To a PC on your network", "send"), ("Shared Spaces", "Share a folder", "Shared spaces for your PCs", "folder"), ("Text & links", "Share text or a link", "Notes, addresses, URLs", "text"), ("Phone & browser", "Phone & browser", "Scan a QR code, no app needed", "phone")];
+    private static readonly (string Page, string Icon)[] ManageMenu = [("Transfers", "transfer"), ("Devices", "devices"), ("Sync", "sync"), ("History", "history"), ("Settings", "settings")];
+    private static readonly string[] Searchable = ["Send", "Transfers", "Devices", "Text & links", "Shared Spaces", "History"];
+    /// <summary>The name shown in the breadcrumb; page keys stay stable for navigation and renders.</summary>
+    public static string Title(string page) => page switch
+    {
+        "Send" => "Send files",
+        "Shared Spaces" => "Shared folders",
+        _ => page
+    };
     public static Shell Current { get; private set; } = null!;
     public Window Window
     {
@@ -57,17 +68,29 @@ internal sealed class Shell : IDisposable
     {
         get; set;
     }
+    /// <summary>A phone or browser chosen on Home or Send, preselected as the Send recipient.</summary>
+    public string? SelectedBrowserHandle
+    {
+        get; set;
+    }
+    /// <summary>A PC chosen with Text on Home, preselected once on Text &amp; links.</summary>
+    public string? NotePeerKey
+    {
+        get; set;
+    }
     public string CurrentPage { get; private set; } = "Home";
     public string Search => search.Text?.Trim() ?? "";
     public static string Platform => OperatingSystem.IsMacOS() ? "Mac" : OperatingSystem.IsLinux() ? "Linux PC" : "PC";
-    private readonly Dictionary<string, Button> navigation = [];
     private readonly DispatcherTimer networkTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private TextBox search = new();
-    private TextBlock feedback = new(), networkStatus = new(), pageTitle = new(), storageText = new();
+    private TextBlock feedback = new(), networkStatus = new(), pageTitle = new(), slash = new(), storageText = new();
     private ProgressBar storageBar = new();
     private ContentControl thisDevice = new(), content = new();
     private ScrollViewer scroll = new();
     private Button receiveToggle = new();
+    private Ellipse networkDot = new();
+    private Border header = new(), body = new(), menuPanel = new(), scrim = new();
+    private Panel menu = new();
     private IPage? page;
     private TrayIcon? tray;
     private bool exitRequested, closing, allowClose, disposed, selecting, sharingStoppedManually, trayNoticeShown;
@@ -81,7 +104,7 @@ internal sealed class Shell : IDisposable
         Dialogs = new(this);
         Window = new()
         {
-            Title = "Lantoss",
+            Title = "hopo",
             Width = 1280,
             Height = 840,
             MinWidth = 900,
@@ -98,7 +121,7 @@ internal sealed class Shell : IDisposable
         Engine.Status += message => Ui(() => Tell(message));
         Engine.PeersChanged += () => Ui(() => { if (CurrentPage is "Home" or "Devices" or "Send" or "Shared Spaces" or "Text & links") page?.Refresh(); });
         Engine.Browser.Changed += () => Ui(() => { if (CurrentPage is "Phone & browser" or "Shared Spaces" or "Devices" or "Home") page?.Refresh(); });
-        Engine.Browser.ApprovalRequested += device => Ui(() => { string text = device.Label + " wants to connect. Open Lantoss to allow it."; Tell(text); if (Store.Preferences.Notifications) Notify("New phone or browser", text); });
+        Engine.Browser.ApprovalRequested += device => Ui(() => { string text = device.Label + " wants to connect. Open hopo to allow it."; Tell(text); if (Store.Preferences.Notifications) Notify("New phone or browser", text); });
         Engine.Transfers.Changed += _ => Ui(() => { if (CurrentPage is "Home" or "Transfers" or "History") page?.Refresh(); });
         Engine.Transfers.PersistenceFailed += _ => Ui(() => Tell("History could not be saved. Check free space and permissions in the app's data folder."));
         Engine.Completed += record => Ui(() =>
@@ -107,6 +130,14 @@ internal sealed class Shell : IDisposable
                 Notify(record.Direction == "Received" ? "Files received" : "Transfer finished", $"{record.FileCount} files · {record.PeerName}");
         });
         Window.Closing += OnClosing;
+        Window.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape && menu.IsVisible)
+            {
+                CloseMenu();
+                e.Handled = true;
+            }
+        };
         networkTimer.Tick += (_, _) => RecoverNetwork();
         Window.Opened += (_, _) =>
         {
@@ -132,13 +163,14 @@ internal sealed class Shell : IDisposable
             settings.ColorValuesChanged += (_, _) => { if (Store.Preferences.Theme == "System") Ui(() => ApplyTheme("System")); };
         if (!preview)
             CreateTray();
+        Motion.Setup(preview);
         ApplyTheme(store.Preferences.Theme);
         if (store.RecoveryNotice != null)
             Tell(store.RecoveryNotice);
     }
     public static Stream? AppIcon()
     {
-        Uri uri = new("avares://Lantoss/Assets/lantoss-256.png");
+        Uri uri = new("avares://hopo/Assets/lantoss-256.png");
         return AssetLoader.Exists(uri) ? AssetLoader.Open(uri) : null;
     }
     public void Ui(Action action)
@@ -151,7 +183,7 @@ internal sealed class Shell : IDisposable
     {
         Tell(TransferEngine.HumanError(error));
         if (!Preview)
-            _ = Dialogs.MessageAsync("Lantoss", TransferEngine.HumanError(error));
+            _ = Dialogs.MessageAsync("hopo", TransferEngine.HumanError(error));
     }
     public void ShowWindow()
     {
@@ -173,104 +205,71 @@ internal sealed class Shell : IDisposable
     private void Build(string mode)
     {
         Window.Background = Theme.Brush("Background");
-        navigation.Clear();
-        StackPanel nav = new()
+        // The hopo field behind every page: a purple glow top-left, a green glow bottom-right and faint rings centred on the window.
+        Panel field = new()
         {
-            Spacing = 4
+            IsHitTestVisible = false,
+            ClipToBounds = true
         };
-        for (int index = 0; index < Pages.Length; index++)
-        {
-            string name = Pages[index];
-            Button button = new()
-            {
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Padding = new(12, 9),
-                CornerRadius = new(10),
-                BorderThickness = new(0)
-            };
-            button.Click += (_, _) => Navigate(name);
-            button.Tag = Icons[index];
-            navigation[name] = button;
-            nav.Children.Add(button);
-        }
-        ComboBox appearance = new()
-        {
-            ItemsSource = Appearance.Modes,
-            SelectedItem = mode,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Margin = new(0, 6, 0, 6)
-        };
-        appearance.SelectionChanged += (_, _) =>
-        {
-            if (appearance.SelectedItem is string selected && selected != Store.Preferences.Theme)
-            {
-                // Only the appearance preference changes, so switching cannot reset network or sync options.
-                Store.SetPreferences(Store.Preferences with
-                {
-                    Theme = selected
-                });
-                Dispatcher.UIThread.Post(() => ApplyTheme(selected));
-            }
-        };
-        Control logo = AppIcon() is { } stream ? new Image { Source = new Bitmap(stream), Width = 36, Height = 36 } : C.Icon("transfer", 30);
-        logo.Margin = new(0, 0, 12, 0);
-        TextBlock brand = C.Text("Lantoss", 21, bold: true);
+        // Each glow is the design's 1.25 W × 1.35 H ellipse (purple at −.40 W, −.55 H; green mirrored bottom-right), drawn by a window-relative brush so it follows every resize.
+        // They drift slowly: purple to (-14%, 10%) at 95% over 60 s, green to (18%, 12%) at 110% over 68 s, as shares of the glow.
+        RadialGradientBrush violet = (RadialGradientBrush)Theme.Glow(Theme.Dark ? "#8C3CFF" : "#8F5BFF", Theme.Dark ? 0.52 : 0.42, 0.225, 0.125, 0.625, 0.675), green = (RadialGradientBrush)Theme.Glow(Theme.Dark ? "#28F096" : "#24C98A", Theme.Dark ? 0.4 : 0.36, 0.775, 0.875, 0.625, 0.675);
+        field.Children.Add(new Border { Background = violet });
+        field.Children.Add(new Border { Background = green });
+        Motion.Drift(field, violet, -0.175, 0.135, 0.95, 60);
+        Motion.Drift(field, green, 0.225, 0.162, 1.1, 68);
+        field.Children.Add(new Border { Child = C.Rings(), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        TextBlock brand = C.Text("hopo", 17, bold: true);
+        brand.LetterSpacing = -0.2;
         brand.VerticalAlignment = VerticalAlignment.Center;
-        StackPanel top = C.Stack(C.Space(C.Inline(logo, brand), 22), C.Text("APPEARANCE", 10, "Muted", true), appearance,
-            C.Space(C.Text(mode == "System" ? "Following your system · " + (Theme.Dark ? "Dark" : "Light") : (Theme.Dark ? "Dark" : "Light") + " appearance", 11, "Muted"), 18), nav);
-        thisDevice = new()
-        {
-            Focusable = false
-        };
-        storageText = C.Text("", 11, "Muted");
-        storageBar = new()
-        {
-            Minimum = 0,
-            Maximum = 100,
-            Height = 5,
-            MinHeight = 5,
-            Foreground = Theme.Brush("Primary"),
-            Background = Theme.Brush("Border"),
-            Margin = new(4, 6, 4, 18)
-        };
-        StackPanel bottom = C.Stack(C.Space(new Border { Child = thisDevice, Padding = new(12), CornerRadius = new(12), Background = Theme.Brush("PrimarySoft") }, 22), C.Text("LOCAL STORAGE", 10, "Muted", true), storageText, storageBar,
-            C.Text("● No account. No cloud.", 11, "Muted"), C.Space(C.Text("Lantoss  /  2.0  ·  " + (OperatingSystem.IsMacOS() ? "macOS" : OperatingSystem.IsLinux() ? "Linux" : "Desktop"), 9, "Muted"), 0, 10));
-        DockPanel sideLayout = new();
-        DockPanel.SetDock(bottom, Dock.Bottom);
-        sideLayout.Children.Add(bottom);
-        sideLayout.Children.Add(top);
-        Border sidebar = new()
-        {
-            Background = Theme.Brush("Sidebar"),
-            BorderBrush = Theme.Brush("Border"),
-            BorderThickness = new(0, 0, 1, 0),
-            Child = new ScrollViewer { Content = new Border { Padding = new(18, 24, 18, 18), Child = sideLayout }, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }
-        };
+        StackPanel mark = C.Inline(C.Mark(), brand);
+        mark.Spacing = 10;
+        Button home = C.Ghost(new Button { Content = mark, Padding = new(4, 2), BorderThickness = new(1), CornerRadius = new(10), VerticalAlignment = VerticalAlignment.Center }, "Text");
+        home.Click += (_, _) => Navigate("Home");
+        Avalonia.Automation.AutomationProperties.SetName(home, "hopo home");
+        slash = C.Text("/", 14, "Muted/55");
+        pageTitle = C.Text(Title(CurrentPage), 14, "Muted");
+        slash.VerticalAlignment = pageTitle.VerticalAlignment = VerticalAlignment.Center;
+        StackPanel crumbs = C.Inline(home, slash, pageTitle);
+        crumbs.Spacing = 12;
         search = new()
         {
             PlaceholderText = "Search this view…",
-            Width = 210,
-            VerticalAlignment = VerticalAlignment.Center
+            Width = 200,
+            MinHeight = 40,
+            CornerRadius = new(12),
+            VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
         };
         search.TextChanged += (_, _) => page?.Refresh();
-        Button browser = C.Button("Open in browser", () => OpenBrowser(), icon: "phone");
-        receiveToggle = C.Button("Start server", ToggleReceiving, true);
-        StackPanel actions = C.Inline(search, browser, receiveToggle);
+        networkDot = C.Dot("Mint", 7);
+        networkStatus = C.Text("Receiving off", 12, "Text/85");
+        networkStatus.FontWeight = FontWeight.Medium;
+        networkStatus.TextWrapping = TextWrapping.NoWrap;
+        networkStatus.VerticalAlignment = VerticalAlignment.Center;
+        StackPanel chipRow = C.Inline(networkDot, networkStatus);
+        chipRow.Spacing = 7;
+        Border chip = new()
+        {
+            Child = chipRow,
+            Height = 32,
+            Padding = new(12, 0),
+            CornerRadius = new(10),
+            Background = Theme.Brush("Text/6"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        receiveToggle = C.Button("Start receiving", ToggleReceiving);
+        StackPanel actions = C.Inline(search, chip, receiveToggle, C.IconButton("menu", OpenMenu, "Open menu"));
         actions.Spacing = 10;
         actions.VerticalAlignment = VerticalAlignment.Center;
-        pageTitle = C.Text(CurrentPage, 21, bold: true);
-        pageTitle.VerticalAlignment = VerticalAlignment.Center;
         DockPanel headerLayout = new();
         DockPanel.SetDock(actions, Dock.Right);
         headerLayout.Children.Add(actions);
-        headerLayout.Children.Add(pageTitle);
-        Border header = new()
+        headerLayout.Children.Add(crumbs);
+        header = new()
         {
-            Background = Theme.Brush("Surface"),
-            BorderBrush = Theme.Brush("Border"),
-            BorderThickness = new(0, 0, 0, 1),
-            Padding = new(32, 0),
+            Padding = new(32, 18),
+            BorderBrush = Theme.Brush("Text/6"),
             Child = headerLayout
         };
         content = new()
@@ -279,58 +278,190 @@ internal sealed class Shell : IDisposable
         };
         scroll = new()
         {
-            Content = new Border { Padding = new(32, 28), Child = content },
+            Content = new Border { MaxWidth = 1120, Padding = new(32, 48, 32, 64), Child = content },
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
+        body = new();
         feedback = C.Text("Ready to share on your local network.", 11, "Muted");
         feedback.TextTrimming = TextTrimming.CharacterEllipsis;
         feedback.TextWrapping = TextWrapping.NoWrap;
-        networkStatus = C.Text("Receiving off", 11, "Muted");
-        DockPanel statusLayout = new();
-        DockPanel.SetDock(networkStatus, Dock.Right);
-        statusLayout.Children.Add(networkStatus);
-        statusLayout.Children.Add(feedback);
         Border status = new()
         {
-            Background = Theme.Brush("Surface"),
-            BorderBrush = Theme.Brush("Border"),
+            BorderBrush = Theme.Brush("Text/6"),
             BorderThickness = new(0, 1, 0, 0),
-            Padding = new(32, 8),
-            Child = statusLayout
+            Padding = new(32, 7),
+            Child = feedback
         };
         Grid main = new()
         {
-            RowDefinitions = new RowDefinitions("76,*,Auto")
+            RowDefinitions = new RowDefinitions("Auto,*,Auto")
         };
-        Grid.SetRow(scroll, 1);
+        Grid.SetRow(body, 1);
         Grid.SetRow(status, 2);
         main.Children.Add(header);
-        main.Children.Add(scroll);
+        main.Children.Add(body);
         main.Children.Add(status);
-        Grid root = new()
+        // The menu slides over a scrim from the right; the scrim, the close button and Escape dismiss it.
+        menuPanel = new()
         {
-            ColumnDefinitions = new ColumnDefinitions("236,*")
+            Width = 380,
+            Margin = new(18, 4, 18, 24),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            CornerRadius = new(24),
+            Padding = new(14),
+            Background = Theme.Brush("Menu"),
+            BorderBrush = Theme.Brush("GlassBorder"),
+            BorderThickness = new(1),
+            BoxShadow = Theme.Shadow(30, 80, 0.6)
         };
-        Grid.SetColumn(main, 1);
-        root.Children.Add(sidebar);
-        root.Children.Add(main);
-        Window.Content = root;
+        scrim = new()
+        {
+            Background = Theme.Brush("Scrim")
+        };
+        scrim.PointerPressed += (_, _) => CloseMenu();
+        menu = new Panel { IsVisible = false, Children = { scrim, menuPanel } };
+        Window.Content = new Panel { Children = { field, main, menu } };
+    }
+    public void CloseMenu() => menu.IsVisible = false;
+    public void OpenMenu()
+    {
+        TextBlock title = C.Text("Menu", 15, bold: true);
+        title.VerticalAlignment = VerticalAlignment.Center;
+        title.Margin = new(10, 0, 0, 0);
+        Button close = C.IconButton("close", CloseMenu, "Close menu");
+        DockPanel top = new()
+        {
+            Margin = new(0, 2, 0, 10)
+        };
+        DockPanel.SetDock(close, Dock.Right);
+        top.Children.Add(close);
+        top.Children.Add(title);
+        TextBlock share = C.Eyebrow("Share");
+        share.Margin = new(10, 6);
+        StackPanel items = C.Stack(top, share);
+        items.Spacing = 2;
+        foreach ((string target, string name, string detail, string icon) in ShareMenu)
+            items.Children.Add(MenuRow(target, name, detail, icon, true));
+        items.Children.Add(new Border { Height = 1, Background = Theme.Brush("Text/8"), Margin = new(10, 8) });
+        TextBlock manage = C.Eyebrow("Manage");
+        manage.Margin = new(10, 6);
+        items.Children.Add(manage);
+        int active = Engine.Transfers.Records.Count(record => !record.Terminal);
+        foreach ((string target, string icon) in ManageMenu)
+            items.Children.Add(MenuRow(target, target, target == "Transfers" && active > 0 ? active + " active" : "", icon, false));
+        thisDevice = new()
+        {
+            Focusable = false
+        };
+        storageText = C.Text("", 12, "Muted");
+        storageText.TextWrapping = TextWrapping.NoWrap;
+        storageBar = new()
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Height = 4,
+            MinHeight = 4,
+            CornerRadius = new(2),
+            Foreground = Theme.Brush("Accent"),
+            Background = Theme.Brush("Text/8")
+        };
+        DockPanel storage = new();
+        DockPanel.SetDock(storageText, Dock.Right);
+        storage.Children.Add(storageText);
+        storage.Children.Add(C.Text("Local storage", 12, "Muted"));
+        TextBlock appearance = C.Eyebrow("Appearance");
+        appearance.VerticalAlignment = VerticalAlignment.Center;
+        appearance.Width = 104;
+        DockPanel theme = new();
+        DockPanel.SetDock(appearance, Dock.Left);
+        theme.Children.Add(appearance);
+        theme.Children.Add(AppearancePicker(true));
+        StackPanel bottom = C.Stack(C.Space(new Border { Child = thisDevice, Padding = new(12), CornerRadius = new(14), Background = Theme.Brush("Text/4"), BorderBrush = Theme.Brush("Text/6"), BorderThickness = new(1) }, 14, 12),
+            C.Space(storage, 8), C.Space(storageBar, 10), C.Space(C.Text("No account. No cloud. · hopo 2.0", 12, "Muted"), 14), theme);
+        bottom.Margin = new(4, 0, 4, 2);
+        // The bottom block sits at the foot of the panel when it fits and scrolls with the rows when the window is short.
+        Grid layout = new()
+        {
+            RowDefinitions = new RowDefinitions("*,Auto"),
+            MinHeight = Math.Max(0, Window.ClientSize.Height - 28 - 30)
+        };
+        Grid.SetRow(bottom, 1);
+        layout.Children.Add(items);
+        layout.Children.Add(bottom);
+        menuPanel.Child = new ScrollViewer { Content = layout, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        UpdateStatus();
+        menu.IsVisible = true;
+        // The scrim fades in, the panel grows from the menu button and the rows fade up one after another.
+        menuPanel.RenderTransformOrigin = new RelativePoint(menuPanel.Width - 36, 38, RelativeUnit.Absolute);
+        Motion.Fade(scrim, 0.4);
+        Motion.Open(menuPanel);
+        Button[] rows = items.Children.OfType<Button>().Where(button => button.Classes.Contains("row")).ToArray();
+        for (int index = 0; index < rows.Length; index++)
+            Motion.Rise(rows[index], 6, 0.5, 0.12 + index * 0.04, Motion.Grow);
+    }
+    private Button MenuRow(string target, string title, string detail, string icon, bool share)
+    {
+        Border tile = C.Tile(icon, share ? "Primary" : "Text", 36, share ? "Accent" : null);
+        tile.Margin = new(0, 0, 14, 0);
+        tile.Classes.Add("tile");
+        DockPanel row = new();
+        DockPanel.SetDock(tile, Dock.Left);
+        row.Children.Add(tile);
+        if (!share && detail.Length > 0)
+        {
+            TextBlock count = C.Text(detail, 11, "Mint", true);
+            count.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(count, Dock.Right);
+            row.Children.Add(count);
+        }
+        Control text = share ? C.Stack(C.Medium(title, 13), C.Space(C.Text(detail, 11, "Muted"), 0, 1)) : C.Medium(title, 13);
+        text.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(text);
+        Button button = C.Ghost(new Button { Content = row, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Center, Padding = new(10, share ? 4 : 3), MinHeight = share ? 50 : 44, CornerRadius = new(14), BorderThickness = new(1) }, "Text");
+        button.Classes.Add("row");
+        if (target == CurrentPage)
+            Theme.SetButton(button.Resources, "Text/6", "Text", C.Clear, "Text/8");
+        button.Click += (_, _) => Navigate(target);
+        return button;
+    }
+    /// <summary>System, Light and Dark as one segmented control. Only the appearance preference changes, so switching cannot reset network or sync options.</summary>
+    public Control AppearancePicker(bool reopenMenu = false)
+    {
+        string mode = Store.Preferences.Theme;
+        Grid row = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,*,*")
+        };
+        for (int index = 0; index < Appearance.Modes.Length; index++)
+        {
+            string option = Appearance.Modes[index];
+            Button button = C.Small(option, () =>
+            {
+                if (option == Store.Preferences.Theme)
+                    return;
+                Store.SetPreferences(Store.Preferences with
+                {
+                    Theme = option
+                });
+                Dispatcher.UIThread.Post(() => { ApplyTheme(option); if (reopenMenu) OpenMenu(); });
+            }, option == mode);
+            button.HorizontalAlignment = HorizontalAlignment.Stretch;
+            button.Margin = new(index == 0 ? 0 : 3, 0, index == 2 ? 0 : 3, 0);
+            Grid.SetColumn(button, index);
+            row.Children.Add(button);
+        }
+        return reopenMenu ? row : C.Stack(C.Space(row, 6), C.Text(mode == "System" ? "Following your system · " + (Theme.Dark ? "Dark" : "Light") : (Theme.Dark ? "Dark" : "Light") + " appearance", 11, "Muted"));
     }
     public void Navigate(string destination)
     {
         CurrentPage = destination;
+        menu.IsVisible = false;
         search.Text = "";
-        pageTitle.Text = destination;
-        foreach ((string name, Button button) in navigation)
-        {
-            bool active = name == destination;
-            Theme.SetButton(button.Resources, active ? "Accent" : "Sidebar", active ? "OnAccent" : "Text", active ? "Accent" : "Sidebar", active ? "Primary" : "PrimarySoft");
-            Control glyph = C.Icon((string)button.Tag!, 18, active ? "OnAccent" : "Primary");
-            glyph.Margin = new(0, 0, 6, 0);
-            TextBlock label = C.Text(name, 13, active ? "OnAccent" : "Text", active);
-            label.VerticalAlignment = VerticalAlignment.Center;
-            button.Content = C.Inline(glyph, label);
-        }
+        bool home = destination == "Home";
+        pageTitle.Text = Title(destination);
+        slash.IsVisible = pageTitle.IsVisible = !home;
+        search.IsVisible = Searchable.Contains(destination);
+        header.BorderThickness = new(0, 0, 0, home ? 0 : 1);
         page = destination switch
         {
             "Home" => new HomePage(this),
@@ -344,24 +475,40 @@ internal sealed class Shell : IDisposable
             "History" => new HistoryPage(this),
             _ => new SettingsPage(this)
         };
-        content.Content = page.View;
-        scroll.Offset = default;
+        // Home is a full-window radar; every other page scrolls inside the centered 1120 px column.
+        if (home)
+        {
+            content.Content = null;
+            body.Child = page.View;
+        }
+        else
+        {
+            body.Child = scroll;
+            content.Content = page.View;
+            scroll.Offset = default;
+            Motion.Enter(page.View);
+        }
         page.Refresh();
     }
     public void RefreshPage() => page?.Refresh();
     public void UpdateStatus()
     {
-        receiveToggle.Content = Engine.Running ? "Stop sharing" : "Start server";
-        networkStatus.Text = Engine.Running ? "LAN · " + Engine.Endpoint : "Receiving off";
-        Control avatar = C.Avatar(Store.Preferences.DeviceName, Profiles.Picture(Store), 36);
-        avatar.Margin = new(0, 0, 10, 0);
-        TextBlock name = C.Text(Store.Preferences.DeviceName, 12, bold: true);
+        receiveToggle.Content = Engine.Running ? "Stop receiving" : "Start receiving";
+        if (Engine.Running)
+            Theme.SetButton(receiveToggle.Resources, "Glass", "Text", "GlassBorder", "Text/8");
+        else
+            Theme.SetButton(receiveToggle.Resources, "Accent", "OnAccent", "Accent", "#FFC567");
+        networkStatus.Text = Engine.Running ? "Receiving · " + (Engine.Adapter?.Address.ToString() ?? Engine.Endpoint) : "Receiving off";
+        networkDot.Fill = Theme.Brush(Engine.Running ? "Mint" : "Muted");
+        Control avatar = C.Avatar(Store.Preferences.DeviceName, Profiles.Picture(Store), 40);
+        avatar.Margin = new(0, 0, 12, 0);
+        TextBlock name = C.Text(Store.Preferences.DeviceName, 14, bold: true);
         name.TextWrapping = TextWrapping.NoWrap;
         name.TextTrimming = TextTrimming.CharacterEllipsis;
         DockPanel card = new();
         DockPanel.SetDock(avatar, Dock.Left);
         card.Children.Add(avatar);
-        StackPanel text = C.Stack(name, C.Space(C.Text("This " + Platform, 11, "Muted"), 0, 4));
+        StackPanel text = C.Stack(name, C.Space(C.Text("This " + Platform, 12, "Muted"), 0, 2));
         text.VerticalAlignment = VerticalAlignment.Center;
         card.Children.Add(text);
         thisDevice.Content = card;
@@ -397,7 +544,7 @@ internal sealed class Shell : IDisposable
             Engine.Start(network);
         }
         catch (System.Net.Sockets.SocketException error) when (error.SocketErrorCode == System.Net.Sockets.SocketError.AddressAlreadyInUse) { Engine.Start(network, 0); }
-        Tell("Ready to connect. Open Lantoss on the other device and click its name." + (OperatingSystem.IsMacOS() ? " If macOS asks, allow incoming connections and local network access." : ""));
+        Tell("Ready to connect. Open hopo on the other device and click its name." + (OperatingSystem.IsMacOS() ? " If macOS asks, allow incoming connections and local network access." : ""));
         UpdateStatus();
         sharingStoppedManually = false;
         networkSignature = string.Join(";", NetworkAdapter.Available().Select(adapter => adapter.Address + "/" + adapter.Mask).Order());
@@ -476,7 +623,8 @@ internal sealed class Shell : IDisposable
     }
     public async Task PickFilesAsync() => await AddSelectionsAsync(await PickFilesAsync("Choose files to send"));
     public async Task PickFoldersAsync() => await AddSelectionsAsync(await PickFoldersAsync("Choose folders to send", true));
-    public async Task AddSelectionsAsync(IEnumerable<string> paths)
+    /// <summary>Adds files and folders to the selection, then opens Send unless <paramref name="stay"/> keeps the current page (the Home Send panel).</summary>
+    public async Task AddSelectionsAsync(IEnumerable<string> paths, bool stay = false)
     {
         string[] added = paths.ToArray();
         if (added.Length == 0)
@@ -502,17 +650,47 @@ internal sealed class Shell : IDisposable
                 ManifestEntry[] entries = manifest.Entries.Where(entry => entry.SourcePath == root || entry.SourcePath.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
                 Selection.Add(new(root, Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)), entries.Sum(entry => entry.Size), entries.Count(entry => !entry.Directory), entries.Count(entry => entry.Directory)));
             }
-            Navigate("Send");
+            if (stay)
+                RefreshPage();
+            else
+                Navigate("Send");
             Tell($"{manifest.FileCount} files and {manifest.FolderCount} folders ready. Select a paired recipient.");
         }
         catch (Exception error) { Error(error); }
         finally { selecting = false; }
     }
-    public void SendSelected(Peer peer)
+    public void SendSelected(Peer peer, bool navigate = true)
     {
         _ = Engine.Send(peer, Selection.Select(item => item.Path));
-        Navigate("Transfers");
+        if (navigate)
+            Navigate("Transfers");
         Tell("Transfer queued. The recipient must approve before any file bytes are sent.");
+    }
+    /// <summary>Sends the selection to a paired PC, or lists it on one approved phone's page only.</summary>
+    public async Task SendToAsync(Peer? peer, BrowserDevice? device, bool navigate = true)
+    {
+        if (peer != null)
+        {
+            SendSelected(peer, navigate);
+            return;
+        }
+        if (device == null || Selection.Count == 0)
+            return;
+        string[] paths = Selection.Select(item => item.Path).ToArray();
+        await Task.Run(() => Engine.Browser.ShareAsync(paths, default, device.Handle));
+        Tell("Sent to " + device.Label + ". It appears on that phone's page under Files from your PC.");
+    }
+    /// <summary>Turns browser sharing on, starting the receiver first when it is off.</summary>
+    public void StartBrowserSharing()
+    {
+        Store.SetPreferences(Store.Preferences with
+        {
+            BrowserSharingEnabled = true
+        });
+        if (!Engine.Running)
+            ToggleReceiving();
+        else
+            Engine.ApplySavedPreferences();
     }
     /// <summary>Native notification: osascript on macOS and notify-send on Linux. Text is passed as arguments, never as script source.</summary>
     public void Notify(string title, string body)
@@ -532,7 +710,7 @@ internal sealed class Shell : IDisposable
             else if (OperatingSystem.IsLinux())
             {
                 info = new("notify-send");
-                foreach (string argument in new[] { "--app-name=Lantoss", title, body })
+                foreach (string argument in new[] { "--app-name=hopo", title, body })
                     info.ArgumentList.Add(argument);
             }
             else
@@ -554,7 +732,7 @@ internal sealed class Shell : IDisposable
         try
         {
             NativeMenu menu = new();
-            NativeMenuItem open = new("Open Lantoss"), start = new("Start sharing server"), stop = new("Stop sharing server"), exit = new("Exit Lantoss");
+            NativeMenuItem open = new("Open hopo"), start = new("Start sharing server"), stop = new("Stop sharing server"), exit = new("Exit hopo");
             open.Click += (_, _) => Ui(ShowWindow);
             start.Click += (_, _) => Ui(() => { try { if (!Engine.Running) ToggleReceiving(); } catch (Exception error) { Error(error); } });
             stop.Click += (_, _) => Ui(() => { if (Engine.Running) ToggleReceiving(); });
@@ -567,7 +745,7 @@ internal sealed class Shell : IDisposable
             tray = new()
             {
                 Icon = Window.Icon,
-                ToolTipText = "Lantoss — local file sharing",
+                ToolTipText = "hopo — local file sharing",
                 Menu = menu,
                 IsVisible = true
             };
@@ -596,14 +774,14 @@ internal sealed class Shell : IDisposable
             if (!trayNoticeShown)
             {
                 trayNoticeShown = true;
-                Notify("Lantoss is still running", "Receiving and sync continue. Use Exit Lantoss in the tray menu, or turn off keep-running in Settings.");
+                Notify("hopo is still running", "Receiving and sync continue. Use Exit hopo in the tray menu, or turn off keep-running in Settings.");
             }
             return;
         }
         exitRequested = false;
         if (closing)
             return;
-        if (Engine.Transfers.Records.Any(record => !record.Terminal) && !await Dialogs.ConfirmAsync("Close Lantoss", "Stop active transfers and close Lantoss? Files already verified and saved stay on disk."))
+        if (Engine.Transfers.Records.Any(record => !record.Terminal) && !await Dialogs.ConfirmAsync("Close hopo", "Stop active transfers and close hopo? Files already verified and saved stay on disk."))
             return;
         closing = true;
         Window.IsEnabled = false;
@@ -638,12 +816,19 @@ internal sealed class Shell : IDisposable
             foreach (string name in Pages)
             {
                 Navigate(name);
-                await Task.Delay(250);
-                Size size = Window.ClientSize;
-                using Avalonia.Media.Imaging.RenderTargetBitmap bitmap = new(new PixelSize((int)size.Width, (int)size.Height));
-                bitmap.Render(Window);
-                bitmap.Save(Path.Combine(folder, $"{mode}-{name.Replace(' ', '-').Replace("&", "and")}.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
+                await CaptureAsync($"{mode}-{name.Replace(' ', '-').Replace("&", "and")}.png");
             }
+            Navigate("Home");
+            OpenMenu();
+            await CaptureAsync(mode + "-Menu.png");
+        }
+        async Task CaptureAsync(string file)
+        {
+            await Task.Delay(250);
+            Size size = Window.ClientSize;
+            using Avalonia.Media.Imaging.RenderTargetBitmap bitmap = new(new PixelSize((int)size.Width, (int)size.Height));
+            bitmap.Render(Window);
+            bitmap.Save(Path.Combine(folder, file), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
         }
     }
     public void Dispose()
