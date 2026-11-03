@@ -6,7 +6,8 @@ namespace Lantoss.UI;
 /// <summary>Owns only Lantoss's current-user shell/startup entries. Preview mode never calls this class.</summary>
 internal sealed class WindowsIntegration
 {
-    private readonly string executable = DesktopRegistration.Executable(Environment.ProcessPath ?? "");
+    // The admin app registers the user app, so Explorer and autostart always open plain hopo.
+    private readonly string executable = DesktopRegistration.Executable(AppShell.UserExecutable);
     private string signature = "\0";
     public static void RemoveUserIntegration()
     {
@@ -111,7 +112,7 @@ internal sealed class WindowsIntegration
     /// Gives the window its own taskbar identity: app ID, relaunch command, the name "hopo" and the exe's icon. The Explorer
     /// package (1.9.0.0) would otherwise lend the process its old Lantoss logo, so taskbar buttons and new pins use these instead.
     /// </summary>
-    public static void Taskbar(IntPtr window, string executable)
+    public static void Taskbar(IntPtr window, string executable, bool admin = false)
     {
         Guid store = new("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99");
         if (SHGetPropertyStoreForWindow(window, ref store, out IPropertyStore properties) != 0)
@@ -119,7 +120,9 @@ internal sealed class WindowsIntegration
         try
         {
             // Relaunch details must be set with the ID: 2 command, 3 icon, 4 display name, 5 app ID.
-            foreach ((uint id, string value) in new[] { (2u, "\"" + executable + "\""), (3u, executable + ",0"), (4u, "hopo"), (5u, "hopo.LocalFileSharing") })
+            // hopo Admin is a separate taskbar app; run as Lantoss.exe --admin it relaunches the same way.
+            string command = "\"" + executable + "\"" + (admin && Path.GetFileName(executable).Equals("Lantoss.exe", StringComparison.OrdinalIgnoreCase) ? " --admin" : "");
+            foreach ((uint id, string value) in new[] { (2u, command), (3u, executable + ",0"), (4u, admin ? "hopo Admin" : "hopo"), (5u, admin ? "hopo.Admin" : "hopo.LocalFileSharing") })
             {
                 PropertyKey key = new()
                 {

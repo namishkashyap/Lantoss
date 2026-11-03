@@ -10,7 +10,7 @@ namespace Lantoss.UI;
 internal static class ExplorerPackage
 {
     public static bool Supported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
-    private static string AppDirectory => Path.GetDirectoryName(DesktopRegistration.Executable(Environment.ProcessPath ?? ""))!;
+    private static string AppDirectory => Path.GetDirectoryName(DesktopRegistration.Executable(AppShell.UserExecutable))!;
     private static X509Certificate2 Publisher()
     {
         using Stream source = Assembly.GetExecutingAssembly().GetManifestResourceStream("Lantoss.Explorer.Publisher")!;

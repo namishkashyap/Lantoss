@@ -85,6 +85,30 @@ internal static class UiRegressionChecks
                 throw new InvalidDataException("Pressing " + opener + " again must close its panel.");
         }
         passed++;
+        // A phone waiting for approval shows the floating card on Home and the same buttons in the Phone panel.
+        app.Engine.Browser.StartAsync(new("UI approval check", System.Net.IPAddress.Loopback, System.Net.IPAddress.Parse("255.0.0.0"), false), 0).GetAwaiter().GetResult();
+        using (System.Net.Http.HttpClient phone = new(new System.Net.Http.HttpClientHandler { UseProxy = false })
+        {
+            BaseAddress = new Uri(app.Engine.Browser.IpUrl)
+        })
+            phone.GetAsync("/api/session").GetAwaiter().GetResult();
+        app.Window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        app.Navigate("Home");
+        app.Render(Path.Combine(output, "Home-waiting.png"), 1440, 960);
+        DependencyObject waitingHome = (DependencyObject)app.Find<ContentControl>("PageContent").Content;
+        bool Offers(DependencyObject root, string text) => Descendants<Button>(root).Any(button => button.Content as string == text);
+        Border? waitingCard = Descendants<Border>(waitingHome).FirstOrDefault(item => System.Windows.Automation.AutomationProperties.GetName(item) == "Waiting for approval");
+        if (waitingCard?.Visibility != Visibility.Visible || !Offers(waitingCard, "Allow") || !Offers(waitingCard, "Always allow"))
+            throw new InvalidDataException("A waiting phone must show the floating approval card with Allow and Always allow on Home.");
+        Button phoneDock = Descendants<Button>(waitingHome).Last(item => System.Windows.Automation.AutomationProperties.GetName(item) == "Phone");
+        phoneDock.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        app.Render(Path.Combine(output, "Home-Phone-waiting.png"), 1440, 960);
+        Border? phonePanel = Descendants<Border>(waitingHome).FirstOrDefault(item => System.Windows.Automation.AutomationProperties.GetName(item) == "Open on your phone");
+        if (phonePanel == null || !Offers(phonePanel, "Always allow"))
+            throw new InvalidDataException("The Phone panel must offer to allow a waiting phone.");
+        phoneDock.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        app.Engine.Browser.Stop();
+        passed++;
         // User mode (plain "hopo") shows only Home, Send, Text & links and Transfers; an admin page falls back to Home.
         app.SetMode(false, false);
         string[] userPages = app.Find<StackPanel>("Navigation").Children.OfType<Button>().Where(button => button.Visibility == Visibility.Visible).Select(button => System.Windows.Automation.AutomationProperties.GetName(button)).ToArray();

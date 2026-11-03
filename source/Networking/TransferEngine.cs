@@ -495,7 +495,8 @@ public sealed partial class TransferEngine : IDisposable
             using CancellationTokenSource approvalTimeout = CancellationTokenSource.CreateLinkedTokenSource(work.Token);
             approvalTimeout.CancelAfter(TimeSpan.FromMinutes(2));
             string inbox = preferences.SenderFolders ? Profiles.SenderFolder(preferences.ReceiveFolder, peer.Name) : preferences.ReceiveFolder;
-            ReceiveDecision decision = await ApproveReceive(new(peer.Name, fingerprint, manifest, inbox, FileCatalog.FreeSpace(inbox), peer.KeyVerified, Address: peer.Address), approvalTimeout.Token);
+            // A trusted PC skips the prompt and lands in the usual inbox.
+            ReceiveDecision decision = peer.Trusted ? new(true, inbox) : await ApproveReceive(new(peer.Name, fingerprint, manifest, inbox, FileCatalog.FreeSpace(inbox), peer.KeyVerified, Address: peer.Address), approvalTimeout.Token);
             if (!decision.Accepted)
             {
                 job.State(TransferState.Declined, "Declined by the recipient.");

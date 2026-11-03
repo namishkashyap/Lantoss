@@ -114,6 +114,11 @@ public sealed class MetadataStore
         doc.Spaces = (doc.Spaces ?? []).Where(s => s is { Name: not null, Folder: not null } && Guid.TryParseExact(s.Id, "N", out _) && Enum.IsDefined(s.Access) && Valid(s.Name) && Path.IsPathFullyQualified(s.Folder)).DistinctBy(s => s.Id).Take(32).ToList();
         doc.History = (doc.History ?? []).Where(h => h != null).Take(300).ToList();
         doc.Preferences ??= new();
+        // Keep only well-formed trust entries, newest 64.
+        doc.Preferences = doc.Preferences with
+        {
+            TrustedBrowsers = (doc.Preferences.TrustedBrowsers ?? []).Where(t => t is { TokenHash.Length: 64, Label: not null } && t.TokenHash.All(char.IsAsciiHexDigit) && t.Label.Length <= 200).OrderByDescending(t => t.AddedUtc).Take(64).ToArray()
+        };
         if (!Valid(doc.Preferences.DeviceName ?? "") || doc.Preferences.Theme is not ("Light" or "Dark" or "System") || string.IsNullOrEmpty(doc.Preferences.ReceiveFolder) || !Path.IsPathFullyQualified(doc.Preferences.ReceiveFolder))
             doc.Preferences = new();
         return doc;

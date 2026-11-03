@@ -21,6 +21,8 @@ internal sealed class HomePage : IPage
     private readonly Canvas stage = new() { Width = Stage, Height = Stage }, devices = new() { Width = Stage, Height = Stage };
     private readonly System.Windows.Shapes.Path[] lines = new System.Windows.Shapes.Path[Rings.Length], glows = new System.Windows.Shapes.Path[Rings.Length], halos = new System.Windows.Shapes.Path[Rings.Length];
     private readonly Point[] samples = new Point[180];
+    // The floating "Waiting for approval" card: bottom right of Home, above the dock line, only while a phone or browser waits.
+    private readonly Border pending = new() { Width = 360, Padding = new(16), CornerRadius = new(18), BorderThickness = new(1), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 24, 104), Visibility = Visibility.Collapsed, Effect = new DropShadowEffect { BlurRadius = 40, ShadowDepth = 14, Opacity = 0.4, Direction = 270, RenderingBias = RenderingBias.Performance } };
     private readonly Border sheetHost = new() { HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 12) }, clickAway = new() { Background = Brushes.Transparent, Visibility = Visibility.Collapsed };
     private readonly Dictionary<string, Button> dock = [];
     private readonly TextBlock status = C.Text("", 12, "Muted");
@@ -208,6 +210,10 @@ internal sealed class HomePage : IPage
         layout.Children.Add(field);
         layout.Children.Add(clickAway);
         layout.Children.Add(bottom);
+        pending.SetResourceReference(Border.BackgroundProperty, "Surface");
+        pending.SetResourceReference(Border.BorderBrushProperty, "GlassEdge");
+        AutomationProperties.SetName(pending, "Waiting for approval");
+        layout.Children.Add(pending);
         // Dropping files anywhere on Home adds them to the selection and opens the Send panel.
         AutomationProperties.SetName(layout, "Drop files or folders to prepare a transfer");
         layout.DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
@@ -304,6 +310,51 @@ internal sealed class HomePage : IPage
         double speed = app.Engine.Transfers.Records.Where(r => !r.Terminal).Sum(r => r.BytesPerSecond);
         status.Text = speed > 0 ? $"{speed / 1048576:0.0} MB/s transferring" : "";
         status.Visibility = speed > 0 ? Visibility.Visible : Visibility.Collapsed;
+        int waiting = app.Engine.Browser.Devices.Count(b => !b.Approved);
+        bool appearing = waiting > 0 && pending.Visibility != Visibility.Visible;
+        pending.Visibility = waiting > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (waiting > 0)
+        {
+            Border badge = C.Badge(waiting.ToString(), "Danger", "DangerSoft");
+            DockPanel.SetDock(badge, Dock.Right);
+            DockPanel heading = new()
+            {
+                Margin = new(0, 0, 0, 10)
+            };
+            heading.Children.Add(badge);
+            heading.Children.Add(C.Text("Waiting for approval", 14, bold: true));
+            pending.Child = C.Stack(heading, Approvals(false));
+            if (appearing)
+                Motion.Rise(pending, 0, 16, 0.5);
+        }
+        // Keep an open Phone panel in step with phones arriving or being allowed.
+        if (sheet == "phone")
+            Open("phone", animate: false);
+    }
+    /// <summary>Waiting phones and browsers with Allow (plus Always allow and Block in hopo Admin). With <paramref name="connected"/>, hopo Admin also lists allowed phones that are not trusted yet.</summary>
+    private StackPanel Approvals(bool connected)
+    {
+        StackPanel rows = new();
+        foreach (BrowserDevice device in app.Engine.Browser.Devices.Where(b => !b.Approved || (connected && app.Admin && !b.Trusted)))
+        {
+            List<Button> buttons = [];
+            if (!device.Approved)
+                buttons.Add(C.Small("Allow", () => app.Engine.Browser.Approve(device.Handle)));
+            if (app.Admin)
+                buttons.Add(C.Small("Always allow", () => { app.Engine.Browser.Trust(device.Handle); app.Tell(device.Label + " is trusted: it connects and sends files without asking."); }));
+            if (app.Admin && !device.Approved)
+                buttons.Add(C.Small("Block", () => { if (MessageBox.Show(app.Window, "Block " + device.Address + "? " + device.Label + " cannot open the page until hopo restarts.", "Block browser", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Block(device.Handle); }));
+            buttons[0].Style = (Style)app.Window.FindResource("PrimaryButton");
+            buttons[0].MinHeight = 34;
+            buttons[0].Padding = new(12, 6, 12, 6);
+            for (int i = 1; i < buttons.Count; i++)
+                buttons[i].Margin = new(6, 0, 0, 0);
+            TextBlock name = C.Text(device.Label, 13, bold: true), where = C.Text(device.Address + (device.Approved ? " · allowed for now" : " · wants to connect"), 11, "Muted");
+            name.TextTrimming = TextTrimming.CharacterEllipsis;
+            name.TextWrapping = TextWrapping.NoWrap;
+            rows.Children.Add(C.Space(C.Stack(name, C.Space(where, 8, 2), C.Inline([.. buttons])), 12));
+        }
+        return rows;
     }
     /// <summary>A device: blinking dot with a radar ping and name tag. Hover or focus swaps the tag for its glass card.</summary>
     private void Device(int index, int count, string name, string color, string automation, string state, bool online, string address, string trust, Button first, Button? second)
@@ -832,7 +883,12 @@ internal sealed class HomePage : IPage
         DockPanel.SetDock(code, Dock.Left);
         row.Children.Add(code);
         row.Children.Add(words);
-        return Sheet("Open on your phone", row, action);
+        StackPanel approvals = Approvals(true);
+        if (approvals.Children.Count == 0)
+            return Sheet("Open on your phone", row, action);
+        approvals.Children.Insert(0, C.Eyebrow("Allow devices", new(0, 0, 0, 8)));
+        approvals.Margin = new(0, 0, 0, 6);
+        return Sheet("Open on your phone", approvals, row, action);
     }
 }
 

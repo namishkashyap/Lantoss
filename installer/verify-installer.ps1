@@ -18,7 +18,7 @@ function Read-LantossTable([string]$query,[int]$columns) {
 $props = Read-LantossTable 'SELECT `Property`,`Value` FROM `Property`' 2
 $properties = @{}
 foreach ($row in $props) { $properties[$row[0]]=$row[1] }
-if ($properties['ProductVersion'] -ne '2.2.0' -or $properties['ProductName'] -ne 'hopo' -or $properties['ALLUSERS']) { throw 'Not the intended per-user package.' }
+if ($properties['ProductVersion'] -ne '2.3.0' -or $properties['ProductName'] -ne 'hopo' -or $properties['ALLUSERS']) { throw 'Not the intended per-user package.' }
 $features = Read-LantossTable 'SELECT `Feature`,`Level` FROM `Feature`' 2
 foreach ($expected in @(@('Core','1'),@('Explorer','1'),@('Startup','2'),@('Desktop','2'))) {
     if (-not ($features | Where-Object { $_[0] -eq $expected[0] -and $_[1] -eq $expected[1] })) { throw ('Feature default mismatch: '+$expected[0]) }
@@ -31,7 +31,7 @@ $modern = Read-LantossTable 'SELECT `Action`,`Target` FROM `CustomAction`' 2
 if (-not ($modern | Where-Object { $_[0] -eq 'RegisterExplorerPackage' -and $_[1] -eq '--install-integration' })) { throw 'Modern package registration is missing.' }
 $shortcuts = Read-LantossTable 'SELECT `Name`,`Target`,`Arguments` FROM `Shortcut`' 3
 if (-not ($shortcuts | Where-Object { $_[2] -eq '--background' })) { throw 'Missing sharing-server shortcut.' }
-if (-not ($shortcuts | Where-Object { $_[0] -like '*hopo Admin' -and $_[2] -eq '--admin' })) { throw 'Missing hopo Admin shortcut.' }
+if (-not ($shortcuts | Where-Object { $_[0] -like '*hopo Admin' -and $_[1] -like '*HopoAdminExe*' })) { throw 'Missing hopo Admin shortcut.' }
 $sequence = Read-LantossTable 'SELECT `Action`,`Condition`,`Sequence` FROM `InstallExecuteSequence`' 3
 $cleanup = $sequence | Where-Object { $_[0] -eq 'RemoveUserIntegration' }
 $remove = $sequence | Where-Object { $_[0] -eq 'RemoveFiles' }
