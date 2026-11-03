@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <!-- Per-user MSI plus a signed sparse package for the native Windows 11 command. -->
-  <Package Name="hopo" Manufacturer="hopo" Version="2.2.0" Language="1033" Scope="perUser" UpgradeCode="C9C1C9EF-9399-4CAB-A89E-D84BE5C41067" Compressed="yes">
+  <Package Name="hopo" Manufacturer="hopo" Version="2.3.0" Language="1033" Scope="perUser" UpgradeCode="C9C1C9EF-9399-4CAB-A89E-D84BE5C41067" Compressed="yes">
     <MajorUpgrade DowngradeErrorMessage="A newer hopo version is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <Icon Id="LantossIcon" SourceFile="$(var.ReleaseDir)\source\UI\Lantoss.ico" />
@@ -15,8 +15,8 @@
         <Directory Id="INSTALLFOLDER" Name="hopo">
           <!-- hopo Admin: the same code published as its own app (hopoAdmin.exe); it asks for the admin PIN. -->
           <Component Id="AdminApplication" Guid="6F1D2B7E-3C4A-4E59-9B8D-2A7C5E9F1043">
-            <File Id="HopoAdminExe" Source="$(var.ReleaseDir)apphopoAdmin.exe" />
-            <RegistryValue Root="HKCU" Key="SoftwareLantossInstallation" Name="AdminPath" Value="[INSTALLFOLDER]hopoAdmin.exe" Type="string" KeyPath="yes" />
+            <File Id="HopoAdminExe" Source="$(var.ReleaseDir)\app\hopoAdmin.exe" />
+            <RegistryValue Root="HKCU" Key="Software\Lantoss\Installation" Name="AdminPath" Value="[INSTALLFOLDER]hopoAdmin.exe" Type="string" KeyPath="yes" />
           </Component>
           <Component Id="Application" Guid="20A4372C-84B0-4264-AB42-70866890481A">
             <File Id="LantossExe" Source="$(var.ReleaseDir)\app\Lantoss.exe" />

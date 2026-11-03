@@ -1,3 +1,14 @@
+2026-11-03 - hopo 2.3.0: trusted devices and a separate hopo Admin app
+
+Always allow a phone and it connects and sends files without asking again,
+even after hopo restarts. Trusted PCs send files without the accept prompt.
+A floating Waiting for approval card on Home, and the Phone panel, let you
+Allow, Always allow or Block a phone without opening another page.
+
+hopo Admin is now its own app (hopoAdmin.exe) with its own Start menu entry
+and taskbar button. It asks for the admin PIN when it opens. hopo and hopo
+Admin share the same data, so opening one closes the other.
+
 2026-11-03 - hopo 2.2.0: admin and user modes
 
 Windows has two apps in the Start menu. "hopo" is user mode: Home, Send
