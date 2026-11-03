@@ -1,3 +1,10 @@
+2026-11-03 - hopo 2.5.0: new phone and browser page
+
+The page phones and browsers open is rebuilt from the hopo design: tabs for
+Send, Get, Text & links and Folders, a PC card beside them, and a profile
+button for your name, picture and appearance. On a phone the tabs move to a
+bottom bar. hopo Users and hopo Admin both serve the new page.
+
 2026-11-03 - hopo 2.4.0: hopo Users and hopo Admin, smaller downloads
 
 hopo is now two separate Windows apps with their own setup files: hopo Users

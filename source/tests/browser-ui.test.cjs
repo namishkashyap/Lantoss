@@ -11,6 +11,9 @@ class Element {
   replaceChildren(...children) { this.children = children; }
   select() { this.selected = true; }
   remove() { this.removed = true; }
+  setAttribute(name, value) { (this.attributes ??= {})[name] = String(value); }
+  focus() { this.focused = true; }
+  contains(other) { return other === this; }
 }
 async function fixture(protectedMode, options = {}) {
   const elements = new Map();
@@ -21,7 +24,7 @@ async function fixture(protectedMode, options = {}) {
   const systemAppearance = { get matches() { return state.windowsDark; }, addEventListener: (event, callback) => systemChanges.push(callback) };
   const root = { dataset: {} };
   const sandbox = {
-    document: { getElementById: element, createElement: () => new Element(), documentElement: root, body: element('body'), execCommand: () => { state.clipboard = element('body').children.at(-1).value; return true; } }, AbortController,
+    document: { getElementById: element, createElement: () => new Element(), documentElement: root, body: element('body'), execCommand: () => { state.clipboard = element('body').children.at(-1).value; return true; }, addEventListener() {} }, AbortController,
     window: { matchMedia: () => systemAppearance },
     localStorage: { getItem: () => { if (options.blockedStorage) throw Error('Storage blocked'); return state.savedAppearance; }, setItem: (key, value) => { if (options.blockedStorage) throw Error('Storage blocked'); state.savedAppearance = value; } },
     URL, URLSearchParams, location: { search: '' }, performance, setTimeout: () => 0,
@@ -133,27 +136,27 @@ async function fixture(protectedMode, options = {}) {
   console.log('PASS Browser transfer activity displays measured speed, remaining time, progress, and completed averages');
   const themed = await fixture(false);
   assert.equal(themed.root.dataset.theme, 'light');
-  assert.equal(themed.element('appearance').value, 'System');
+  assert.equal(themed.element('appearance-System').attributes['aria-pressed'], 'true');
   themed.systemChanged(true); assert.equal(themed.root.dataset.theme, 'dark');
   console.log('PASS System appearance follows live device preference changes');
-  themed.element('appearance').value = 'Light'; themed.element('appearance').listeners.change[0]();
+  themed.element('appearance-Light').listeners.click[0]();
   themed.systemChanged(false); themed.systemChanged(true);
   assert.equal(themed.root.dataset.theme, 'light'); assert.equal(themed.state.savedAppearance, 'Light');
   const reopened = await fixture(false, { dark: true, saved: themed.state.savedAppearance });
   assert.equal(reopened.root.dataset.theme, 'light');
   console.log('PASS Explicit Light overrides the system and survives reopening');
-  themed.element('appearance').value = 'Dark'; themed.element('appearance').listeners.change[0]();
+  themed.element('appearance-Dark').listeners.click[0]();
   themed.systemChanged(false); assert.equal(themed.root.dataset.theme, 'dark');
-  themed.element('appearance').value = 'System'; themed.element('appearance').listeners.change[0]();
+  themed.element('appearance-System').listeners.click[0]();
   assert.equal(themed.root.dataset.theme, 'light');
   console.log('PASS Explicit Dark is independent and switching back to System resumes following');
   const blocked = await fixture(false, { dark: true, blockedStorage: true });
   assert.equal(blocked.element('sharing').hidden, false); assert.equal(blocked.root.dataset.theme, 'dark');
-  blocked.element('appearance').value = 'Light'; blocked.element('appearance').listeners.change[0]();
+  blocked.element('appearance-Light').listeners.click[0]();
   assert.equal(blocked.root.dataset.theme, 'light'); assert.equal(blocked.element('sharing').hidden, false);
   console.log('PASS Blocked browser storage still allows appearance changes and file sharing');
   const invalid = await fixture(false, { saved: 'obsolete-theme', dark: true });
-  assert.equal(invalid.element('appearance').value, 'System'); assert.equal(invalid.root.dataset.theme, 'dark');
+  assert.equal(invalid.element('appearance-System').attributes['aria-pressed'], 'true'); assert.equal(invalid.root.dataset.theme, 'dark');
   console.log('PASS Invalid saved appearance falls back to System');
   console.log('16 browser UI-state regression checks passed. These use a DOM harness, not a rendered browser.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
