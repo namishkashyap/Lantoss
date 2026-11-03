@@ -1,3 +1,9 @@
+2026-11-04 - hopo 2.5.1: rounder Home glow, brighter rings, faster menu
+
+The glow around This PC on Home is now a true circle. The wavy rings are
+thinner, there are three more of them (amber, sky blue and coral) and they
+glow more. The menu opens faster and animates every time, not only the first.
+
 2026-11-03 - hopo 2.5.0: new phone and browser page
 
 The page phones and browsers open is rebuilt from the hopo design: tabs for

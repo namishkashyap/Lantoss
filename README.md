@@ -8,7 +8,7 @@ is optional.
 
 | Version | Platforms | Download | Source |
 |---|---|---|---|
-| **2.5.0** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.5.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.5.0) | `main` |
+| **2.5.1** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.5.1](https://github.com/namishkashyap/Lantoss/releases/tag/v2.5.1) | `main` |
 | 2.0.2 | Same platforms, named Lantoss | [Release v2.0.2](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.2) | tag `v2.0.2` |
 | 2.0.0 | Same platforms | [Release v2.0.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.0) | tag `v2.0.0` |
 | 1.9.0 (previous) | Windows (MSI) | [Release v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0) | `release/1.x` |
@@ -50,7 +50,7 @@ on the same network, and phones need no app.
 
 ## Install on Windows
 
-Download and double-click **hopo-Users-Setup-2.5.0-x64.msi** (or **hopo-Admin-Setup-2.5.0-x64.msi** for the admin). Close the older app
+Download and double-click **hopo-Users-Setup-2.5.1-x64.msi** (or **hopo-Admin-Setup-2.5.1-x64.msi** for the admin). Close the older app
 using **Exit Lantoss** (or **Exit hopo**) in the Windows tray first. The installer installs for the
 current Windows account under LocalAppData/Programs/hopo, creates Start menu
 entries, and registers repair/uninstall in Windows Installed apps. The .NET
