@@ -1,11 +1,7 @@
 param(
     [string]$DotnetPath = 'dotnet',
     [string]$BuildRoot = '',
-    [switch]$SkipPublish,
-    [string]$CompilerPath = '',
-    [string]$SdkToolsPath = '',
-    [string]$SigningCertificatePath = '',
-    [switch]$NoTimestamp
+    [switch]$SkipPublish
 )
 $ErrorActionPreference = 'Stop'
 $lantossRelease = Split-Path -Parent $PSScriptRoot
@@ -13,15 +9,13 @@ if (-not $BuildRoot) { $BuildRoot = Join-Path $lantossRelease 'work' }
 $lantossBuild = [IO.Path]::GetFullPath($BuildRoot)
 New-Item -ItemType Directory -Force -Path $lantossBuild | Out-Null
 if (-not $SkipPublish) {
-    if (-not $CompilerPath -or -not $SdkToolsPath -or -not $SigningCertificatePath) { throw 'Pass CompilerPath (g++.exe), SdkToolsPath (x64 Windows SDK tools) and SigningCertificatePath, or build Explorer and the app first and use SkipPublish.' }
-    & (Join-Path $lantossRelease 'source\Explorer\build-explorer.ps1') -CompilerPath $CompilerPath -SdkToolsPath $SdkToolsPath -SigningCertificatePath $SigningCertificatePath -NoTimestamp:$NoTimestamp -BuildRoot (Join-Path $lantossBuild 'explorer')
     & (Join-Path $lantossRelease 'source\build.ps1') -Mode Publish -DotnetPath $DotnetPath -BuildRoot $lantossBuild
     if ($LASTEXITCODE) { throw 'App publication failed.' }
 }
-if ((Get-Item (Join-Path $lantossRelease 'app\Lantoss.exe')).VersionInfo.FileVersion -ne '2.3.0.0') { throw 'Publish hopo 2.3.0 first.' }
-if (-not (Test-Path -LiteralPath (Join-Path $lantossRelease 'app\hopoAdmin.exe'))) { throw 'Publish hopo Admin (hopoAdmin.exe) first.' }
-foreach ($lantossPayload in @('LantossExplorer.dll','Lantoss.Explorer.msix','RegisterPackage.ps1','Assets\Logo.png','Assets\SmallLogo.png')) {
-    if (-not (Test-Path -LiteralPath (Join-Path $lantossRelease ('app\'+$lantossPayload)))) { throw ('Build the Explorer integration first: '+$lantossPayload) }
+# The Windows 11 package is no longer shipped (it can only start Lantoss.exe); its script stays only to remove packages left by hopo 2.3 and earlier.
+Copy-Item -LiteralPath (Join-Path $lantossRelease 'source\Explorer\RegisterPackage.ps1') -Destination (Join-Path $lantossRelease 'app\RegisterPackage.ps1') -Force
+foreach ($lantossExe in @('hopoUsers.exe','hopoAdmin.exe')) {
+    if ((Get-Item (Join-Path $lantossRelease ('app\'+$lantossExe))).VersionInfo.FileVersion -ne '2.4.0.0') { throw ('Publish '+$lantossExe+' 2.4.0 first.') }
 }
 
 # Build-only tools are pinned and hash checked. No compiler or installer is installed on the host.
@@ -44,7 +38,10 @@ foreach ($lantossPackage in $lantossPackages) {
 }
 $lantossWix = Join-Path $lantossTools 'wix\tools\net6.0\any\wix.dll'
 $lantossUI = Join-Path $lantossTools 'wixtoolset.ui.wixext\wixext4\WixToolset.UI.wixext.dll'
-$lantossMsi = Join-Path $lantossRelease 'hopo-Setup-2.3.0-x64.msi'
-& $DotnetPath $lantossWix build (Join-Path $PSScriptRoot 'Lantoss.wxs') -arch x64 -ext $lantossUI -d ('ReleaseDir='+$lantossRelease) -out $lantossMsi -intermediatefolder (Join-Path $lantossBuild 'installer-objects') -pdbtype none -wx
-if ($LASTEXITCODE) { throw 'MSI compilation or validation failed.' }
-Get-FileHash -LiteralPath $lantossMsi -Algorithm SHA256
+# One setup per app, so each person installs only hopo Users or hopo Admin.
+foreach ($lantossApp in @('Users','Admin')) {
+    $lantossMsi = Join-Path $lantossRelease ('hopo-'+$lantossApp+'-Setup-2.4.0-x64.msi')
+    & $DotnetPath $lantossWix build (Join-Path $PSScriptRoot 'Lantoss.wxs') -arch x64 -ext $lantossUI -d ('ReleaseDir='+$lantossRelease) -d ('App='+$lantossApp) -out $lantossMsi -intermediatefolder (Join-Path $lantossBuild ('installer-objects-'+$lantossApp)) -pdbtype none -wx
+    if ($LASTEXITCODE) { throw 'MSI compilation or validation failed.' }
+    Get-FileHash -LiteralPath $lantossMsi -Algorithm SHA256
+}

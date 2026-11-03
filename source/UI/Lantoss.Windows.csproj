@@ -4,11 +4,13 @@
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition><EnableDefaultPageItems>false</EnableDefaultPageItems>
-    <AssemblyName>Lantoss</AssemblyName><Version>2.3.0</Version><Product>hopo</Product><Title>hopo</Title><AssemblyTitle>hopo</AssemblyTitle><Description>hopo: local Wi-Fi file sharing and folder sync</Description><ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>hopoUsers</AssemblyName><Version>2.4.0</Version><Product>hopo</Product><Title>hopo Users</Title><AssemblyTitle>hopo Users</AssemblyTitle><Description>hopo: local Wi-Fi file sharing and folder sync</Description><ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Lantoss.ico</ApplicationIcon>
+    <!-- English only: the bundled framework's other UI languages added about 6 MB to each app. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile><NuGetAudit>true</NuGetAudit><NuGetAuditMode>all</NuGetAuditMode><NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>
-  <!-- hopo Admin: the same app published as hopoAdmin.exe (build.ps1 -Mode Publish passes HopoAdmin=true). -->
+  <!-- hopo Admin: the same code published as its own app, hopoAdmin.exe (build.ps1 -Mode Publish passes HopoAdmin=true). -->
   <PropertyGroup Condition="'$(HopoAdmin)' == 'true'"><AssemblyName>hopoAdmin</AssemblyName><Title>hopo Admin</Title><AssemblyTitle>hopo Admin</AssemblyTitle></PropertyGroup>
   <ItemGroup><ProjectReference Include="../Core/Lantoss.Core.csproj"/><EmbeddedResource Include="Shell.xaml" LogicalName="Lantoss.Shell.xaml"/><EmbeddedResource Include="Lantoss.ico" LogicalName="Lantoss.ico"/></ItemGroup>
   <ItemGroup><PackageReference Include="QRCoder" Version="1.8.1" /></ItemGroup>

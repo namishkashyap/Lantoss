@@ -6,8 +6,8 @@ namespace Lantoss.UI;
 /// <summary>Owns only Lantoss's current-user shell/startup entries. Preview mode never calls this class.</summary>
 internal sealed class WindowsIntegration
 {
-    // The admin app registers the user app, so Explorer and autostart always open plain hopo.
-    private readonly string executable = DesktopRegistration.Executable(AppShell.UserExecutable);
+    // Each app is installed on its own, so Explorer and autostart open the app that registered them.
+    private readonly string executable = DesktopRegistration.Executable(Environment.ProcessPath ?? "");
     private string signature = "\0";
     public static void RemoveUserIntegration()
     {
@@ -48,7 +48,7 @@ internal sealed class WindowsIntegration
     {
         if (ExplorerPackage.Supported)
         {
-            if (enabled && !ExplorerPackage.InstalledHere)
+            if (enabled && !ExplorerPackage.InstalledHere && ExplorerPackage.Packaged)
                 ExplorerPackage.Install();
             else if (!enabled && ExplorerPackage.InstalledHere)
                 ExplorerPackage.Remove();
@@ -69,7 +69,7 @@ internal sealed class WindowsIntegration
     {
         if (!ShellEnabled)
             return;
-        if (ExplorerPackage.Supported)
+        if (ExplorerPackage.Packaged)
         {
             // The native command reads a tiny cached list; never touch the metadata store from Explorer.
             Peer[] targets = peers.Where(peer => peer.Paired && !peer.Blocked && peer.Fingerprint.Length == 64 && peer.Fingerprint.All(Uri.IsHexDigit))
@@ -120,9 +120,9 @@ internal sealed class WindowsIntegration
         try
         {
             // Relaunch details must be set with the ID: 2 command, 3 icon, 4 display name, 5 app ID.
-            // hopo Admin is a separate taskbar app; run as Lantoss.exe --admin it relaunches the same way.
-            string command = "\"" + executable + "\"" + (admin && Path.GetFileName(executable).Equals("Lantoss.exe", StringComparison.OrdinalIgnoreCase) ? " --admin" : "");
-            foreach ((uint id, string value) in new[] { (2u, command), (3u, executable + ",0"), (4u, admin ? "hopo Admin" : "hopo"), (5u, admin ? "hopo.Admin" : "hopo.LocalFileSharing") })
+            // hopo Admin is a separate taskbar app; run as hopoUsers.exe --admin it relaunches the same way.
+            string command = "\"" + executable + "\"" + (admin && Path.GetFileName(executable).Equals("hopoUsers.exe", StringComparison.OrdinalIgnoreCase) ? " --admin" : "");
+            foreach ((uint id, string value) in new[] { (2u, command), (3u, executable + ",0"), (4u, admin ? "hopo Admin" : "hopo Users"), (5u, admin ? "hopo.Admin" : "hopo.LocalFileSharing") })
             {
                 PropertyKey key = new()
                 {

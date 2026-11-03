@@ -33,40 +33,12 @@ public sealed record Preferences
     {
         get; init;
     }
-    /// <summary>The admin PIN as a salted PBKDF2 hash (<see cref="AdminPin"/>); empty until the admin creates one.</summary>
-    public string AdminPin { get; init; } = "";
     /// <summary>Phones and browsers allowed permanently: only the SHA-256 of each one's trust cookie is kept.</summary>
     public TrustedBrowser[] TrustedBrowsers { get; init; } = [];
 }
 
 /// <summary>A phone or browser that is approved on sight: <paramref name="TokenHash"/> is the hex SHA-256 of its trust cookie.</summary>
 public sealed record TrustedBrowser(string TokenHash, string Label, DateTime AddedUtc);
-
-/// <summary>The admin PIN for "hopo Admin": 4–12 digits, kept only as a salted PBKDF2-SHA256 hash. It locks the window, not the Windows account.</summary>
-public static class AdminPin
-{
-    private const int Rounds = 210_000;
-    public static bool Valid(string pin) => pin.Length is >= 4 and <= 12 && pin.All(char.IsAsciiDigit);
-    public static string Create(string pin)
-    {
-        if (!Valid(pin))
-            throw new InvalidDataException("Use 4 to 12 digits for the admin PIN.");
-        byte[] salt = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
-        return "v1:" + Convert.ToBase64String(salt) + ":" + Convert.ToBase64String(Hash(pin, salt));
-    }
-    public static bool Matches(string pin, string stored)
-    {
-        string[] parts = stored.Split(':');
-        if (parts.Length != 3 || parts[0] != "v1" || !Valid(pin))
-            return false;
-        try
-        {
-            return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(Hash(pin, Convert.FromBase64String(parts[1])), Convert.FromBase64String(parts[2]));
-        }
-        catch (FormatException) { return false; }
-    }
-    private static byte[] Hash(string pin, byte[] salt) => System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(System.Text.Encoding.UTF8.GetBytes(pin), salt, Rounds, System.Security.Cryptography.HashAlgorithmName.SHA256, 32);
-}
 
 public sealed record Peer
 {

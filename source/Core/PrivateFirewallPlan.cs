@@ -28,8 +28,8 @@ public sealed class PrivateFirewallPlan
     }
     public PrivateFirewallPlan(string program, IEnumerable<int> tcpPorts)
     {
-        if (!Path.IsPathFullyQualified(program) || !Path.GetFileName(program).Equals("Lantoss.exe", StringComparison.OrdinalIgnoreCase) || program.Any(char.IsControl))
-            throw new InvalidDataException("Choose the published Lantoss executable.");
+        if (!Path.IsPathFullyQualified(program) || !DesktopRegistration.IsApp(program) || program.Any(char.IsControl))
+            throw new InvalidDataException("Choose the published hopo Users or hopo Admin app.");
         Program = Path.GetFullPath(program);
         TcpPorts = tcpPorts.Distinct().Order().ToArray();
         // Native port, phone page HTTPS and its HTTP redirect.

@@ -114,7 +114,7 @@ internal sealed class SettingsPage : IPage
         };
         CheckBox explorer = new()
         {
-            Content = "Show Share with Lantoss in Explorer's right-click menu",
+            Content = "Show Share with hopo in Explorer's right-click menu",
             IsChecked = !app.Preview && app.Integration?.ShellEnabled == true,
             IsEnabled = !app.Preview
         };
@@ -200,7 +200,7 @@ internal sealed class SettingsPage : IPage
             app.UpdateStatus();
             app.Tell("Preferences saved. Discovery changes apply now. Existing jobs keep their chosen destination.");
         }, true);
-        StackPanel general = C.Stack(C.Heading("General"), C.Text("Profile picture", 12, bold: true), C.Space(pictureRow, 18, 8), C.Text("Name shown to other devices", 12, bold: true), name, C.Space(C.Text("Appearance", 12, bold: true), 8), C.Space(C.Text("Choose System, Light, or Dark in the menu. Changes save immediately; System follows Windows automatically.", 12, "Muted"), 16), C.Space(startup, 7), C.Space(automatic, 7), C.Space(tray, 7), C.Space(explorer, 7), C.Space(C.Text("Windows 11: Share with Lantoss appears in the main menu. Choose a remembered PC or open the device picker.", 11, "Muted"), 12), C.Space(autoConnect, 7), C.Space(notifications, 12), save);
+        StackPanel general = C.Stack(C.Heading("General"), C.Text("Profile picture", 12, bold: true), C.Space(pictureRow, 18, 8), C.Text("Name shown to other devices", 12, bold: true), name, C.Space(C.Text("Appearance", 12, bold: true), 8), C.Space(C.Text("Choose System, Light, or Dark in the menu. Changes save immediately; System follows Windows automatically.", 12, "Muted"), 16), C.Space(startup, 7), C.Space(automatic, 7), C.Space(tray, 7), C.Space(explorer, 7), C.Space(C.Text("Share with hopo is in the right-click menu (on Windows 11, under Show more options). Choose a remembered PC or open the device picker.", 11, "Muted"), 12), C.Space(autoConnect, 7), C.Space(notifications, 12), save);
         StackPanel transfers = C.Stack(C.Heading("Transfers"), C.Space(C.Text("Files are saved locally on this PC", 12, bold: true), 9), C.Space(folderText, 15), C.Space(folderPicker, 17), senderFolders,
             C.Space(C.Text("Manual transfers require approval. Linked-folder sync uses its separate one-time host permission. Keep both is the default for manual duplicates.", 12, "Muted"), 15), C.Text("Closing the window keeps the server running when the tray option is enabled. Use Exit hopo in the tray to stop it. Transfer pause/resume and bandwidth limits are not included.", 11, "Muted"));
         NetworkAdapter[] available = NetworkAdapter.Available();
