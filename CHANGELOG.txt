@@ -1,3 +1,14 @@
+2026-11-03 - hopo 2.2.0: admin and user modes
+
+Windows has two apps in the Start menu. "hopo" is user mode: Home, Send
+files, Text & links and Transfers. "hopo Admin" asks for an admin PIN (you
+create it the first time) and shows every page and setting. The menu
+switches between them, and the top bar shows ADMIN or USER.
+
+Home shows only devices that are on the network right now. PCs that are
+offline are listed on the new Past connections page. Home is now the first
+item in the menu.
+
 2026-10-31 - hopo 2.1.3: ring glow, taskbar icon, HTTP phone page
 
 The Home wave rings are smooth curves with a wide soft glow. The coloured

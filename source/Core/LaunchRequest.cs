@@ -9,7 +9,7 @@ public sealed record LaunchRequest(string Kind, string[] Paths, string? PeerKey 
             return ShellSelection.Read(args[1]);
         List<string> paths = [];
         string? key = null;
-        bool background = args.Contains("--background");
+        bool background = args.Contains("--background"), admin = args.Contains("--admin");
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--share")
@@ -18,14 +18,15 @@ public sealed record LaunchRequest(string Kind, string[] Paths, string? PeerKey 
                 key = ++i < args.Length ? args[i] : throw new InvalidDataException("Choose a recipient PC.");
             else if (args[i] == "--data-dir")
                 i++;
-            else if (args[i] != "--background")
+            else if (args[i] is not ("--background" or "--admin"))
                 throw new InvalidDataException("Unknown launch option: " + args[i]);
         }
-        return new LaunchRequest(paths.Count > 0 ? "share" : background ? "background" : "activate", paths.ToArray(), key).Checked();
+        // --admin opens (or switches the running window to) admin mode after the PIN.
+        return new LaunchRequest(paths.Count > 0 ? "share" : background ? "background" : admin ? "admin" : "activate", paths.ToArray(), key).Checked();
     }
     public LaunchRequest Checked()
     {
-        if (Kind is not ("share" or "activate" or "background") || Paths == null || Paths.Length > 256 || (Kind == "share") != (Paths.Length > 0) || (Kind != "share" && PeerKey != null))
+        if (Kind is not ("share" or "activate" or "background" or "admin") || Paths == null || Paths.Length > 256 || (Kind == "share") != (Paths.Length > 0) || (Kind != "share" && PeerKey != null))
             throw new InvalidDataException("Invalid Lantoss launch request.");
         if (PeerKey != null && (PeerKey.Length != 64 || !PeerKey.All(Uri.IsHexDigit)))
             throw new InvalidDataException("Invalid recipient identity.");
