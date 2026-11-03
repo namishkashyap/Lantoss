@@ -145,11 +145,11 @@ internal sealed class AppShell : IDisposable
             RefreshExplorerMenu();
         }
         // The menu mirrors the design: Share actions first, with a subtitle and amber tile, then Manage pages. Home is the hopo mark.
-        (string Group, string Name, string Label, string Detail, string Icon)[] items = [("Share", "Send", "Send files", "To a PC or phone on your network", "send"), ("Share", "Shared Spaces", "Share a folder", "Shared spaces for your PCs", "folder"), ("Share", "Text & links", "Share text or a link", "Notes, addresses, URLs", "file"), ("Share", "Phone & browser", "Phone & browser", "Scan a QR code, no app needed", "phone"), ("Manage", "Transfers", "Transfers", "", "transfer"), ("Manage", "Devices", "Devices", "", "devices"), ("Manage", "Sync", "Sync", "", "sync"), ("Manage", "History", "History", "", "history"), ("Manage", "Settings", "Settings", "", "settings")];
+        (string Group, string Name, string Label, string Detail, string Icon)[] items = [("", "Home", "Home", "", "home"), ("Share", "Send", "Send files", "To a PC or phone on your network", "send"), ("Share", "Shared Spaces", "Share a folder", "Shared spaces for your PCs", "folder"), ("Share", "Text & links", "Share text or a link", "Notes, addresses, URLs", "file"), ("Share", "Phone & browser", "Phone & browser", "Scan a QR code, no app needed", "phone"), ("Manage", "Transfers", "Transfers", "", "transfer"), ("Manage", "Devices", "Devices", "", "devices"), ("Manage", "Past connections", "Past connections", "Devices that are offline now", "history"), ("Manage", "Sync", "Sync", "", "sync"), ("Manage", "History", "History", "", "history"), ("Manage", "Settings", "Settings", "", "settings")];
         StackPanel menu = Find<StackPanel>("Navigation");
         foreach ((string group, string name, string label, string detail, string icon) in items)
         {
-            if (!menu.Children.OfType<TextBlock>().Any(heading => heading.Text == group.ToUpperInvariant()))
+            if (group.Length > 0 && !menu.Children.OfType<TextBlock>().Any(heading => heading.Text == group.ToUpperInvariant()))
             {
                 if (menu.Children.Count > 0)
                 {
@@ -188,6 +188,8 @@ internal sealed class AppShell : IDisposable
         Find<TextBox>("SearchBox").TextChanged += (_, _) => page?.Refresh();
         Find<Button>("ReceiveToggle").Click += (_, _) => { try { ToggleReceiving(); } catch (Exception e) { Error(e); } };
         Find<Button>("OpenBrowser").Click += (_, _) => { try { OpenBrowser(); } catch (Exception error) { Error(error); } };
+        Find<Button>("AdminButton").Click += (_, _) => { if (Admin) SetMode(false); else Unlock(); };
+        Find<Button>("PinButton").Click += (_, _) => AskPin(true);
         Window.Closing += OnClosing;
         if (!preview)
         {
@@ -217,7 +219,8 @@ internal sealed class AppShell : IDisposable
                 catch (Exception error) { ApplyTheme(Store.Preferences.Theme); Error(error); }
         };
         UpdateStatus();
-        Navigate("Home");
+        // Every launch starts in user mode; hopo Admin (--admin) asks for the PIN once the window is up. Previews render the admin view.
+        SetMode(preview, false);
         if (store.RecoveryNotice != null)
             Tell(store.RecoveryNotice);
     }
@@ -227,7 +230,124 @@ internal sealed class AppShell : IDisposable
         Window.WindowState = WindowState.Normal;
         Window.Activate();
     }
-    public void AcceptLaunch(LaunchRequest request) => explorerSharing.Accept(request);
+    public void AcceptLaunch(LaunchRequest request)
+    {
+        explorerSharing.Accept(request.Kind == "admin" ? request with
+        {
+            Kind = "activate"
+        } : request);
+        if (request.Kind == "admin" && !Admin)
+            Unlock();
+    }
+    /// <summary>Admin mode shows every page; user mode (the plain "hopo" app) hides device management, folders, sync, history, the phone page and settings. Previews render the admin view.</summary>
+    public bool Admin
+    {
+        get; private set;
+    }
+    public static readonly HashSet<string> AdminOnly = ["Devices", "Past connections", "Shared Spaces", "Sync", "History", "Phone & browser", "Settings"];
+    private int wrongPins;
+    private DateTime pinPausedUntil;
+    public void SetMode(bool admin, bool announce = true)
+    {
+        Admin = admin;
+        if (!preview)
+            Find<TextBlock>("ModeBadge").Text = admin ? "ADMIN" : "USER";
+        foreach ((string name, Button button) in navigation)
+            button.Visibility = admin || !AdminOnly.Contains(name) ? Visibility.Visible : Visibility.Collapsed;
+        Find<Button>("AdminButton").Content = admin ? "Switch to user mode" : "Admin mode…";
+        Find<Button>("PinButton").Visibility = Find<Button>("OpenBrowser").Visibility = admin ? Visibility.Visible : Visibility.Collapsed;
+        Find<Grid>("MenuLayer").Visibility = Visibility.Collapsed;
+        Navigate(AdminOnly.Contains(CurrentPage) && !admin ? "Home" : CurrentPage);
+        if (announce)
+            Tell(admin ? "Admin mode: every page and setting is available." : "User mode: Home, Send files, Text & links and Transfers.");
+    }
+    private void Unlock()
+    {
+        if (AskPin(Store.Preferences.AdminPin.Length == 0))
+            SetMode(true);
+    }
+    /// <summary>Asks for the admin PIN, or for a new one (first use and Change PIN). Five wrong tries pause entry for 30 s.</summary>
+    private bool AskPin(bool create)
+    {
+        if (!create && DateTime.UtcNow < pinPausedUntil)
+        {
+            MessageBox.Show(Window, "Too many wrong PINs. Try again in " + Math.Ceiling((pinPausedUntil - DateTime.UtcNow).TotalSeconds) + " seconds.", "hopo Admin", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+        Window dialog = new()
+        {
+            Owner = Window.IsVisible ? Window : null,
+            Title = "hopo Admin",
+            Width = 400,
+            SizeToContent = SizeToContent.Height,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = Window.IsVisible ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen
+        };
+        dialog.Resources.MergedDictionaries.Add(Window.Resources);
+        dialog.SetResourceReference(Control.BackgroundProperty, "Background");
+        PasswordBox first = new()
+        {
+            MaxLength = 12,
+            Margin = new(0, 6, 0, 12),
+            Padding = new(10, 8, 10, 8)
+        }, second = new()
+        {
+            MaxLength = 12,
+            Margin = new(0, 6, 0, 12),
+            Padding = new(10, 8, 10, 8)
+        };
+        System.Windows.Automation.AutomationProperties.SetName(first, create ? "New admin PIN" : "Admin PIN");
+        System.Windows.Automation.AutomationProperties.SetName(second, "Repeat the new admin PIN");
+        TextBlock problem = C.Text("", 12, "Danger");
+        bool accepted = false;
+        void Confirm()
+        {
+            if (create)
+            {
+                if (!AdminPin.Valid(first.Password) || first.Password != second.Password)
+                {
+                    problem.Text = !AdminPin.Valid(first.Password) ? "Use 4 to 12 digits." : "The two PINs are different.";
+                    return;
+                }
+                Store.SetPreferences(Store.Preferences with
+                {
+                    AdminPin = AdminPin.Create(first.Password)
+                });
+            }
+            else if (!AdminPin.Matches(first.Password, Store.Preferences.AdminPin))
+            {
+                first.Clear();
+                if (++wrongPins >= 5)
+                {
+                    (wrongPins, pinPausedUntil) = (0, DateTime.UtcNow.AddSeconds(30));
+                    dialog.Close();
+                    MessageBox.Show(Window, "Too many wrong PINs. Try again in 30 seconds.", "hopo Admin", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                problem.Text = "Wrong PIN.";
+                return;
+            }
+            (wrongPins, accepted) = (0, true);
+            dialog.Close();
+        }
+        first.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { if (create) second.Focus(); else Confirm(); } };
+        second.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Confirm(); };
+        StackPanel body = C.Stack(C.Text(create ? "Create an admin PIN" : "Enter the admin PIN", 17, bold: true), C.Space(C.Text(create ? "4 to 12 digits. You need it to open hopo Admin, which shows every page and setting." : "hopo Admin shows every page and setting.", 12, "Muted"), 8, 4), C.Text(create ? "New PIN" : "PIN", 12, bold: true), first);
+        if (create)
+        {
+            body.Children.Add(C.Text("Repeat the PIN", 12, bold: true));
+            body.Children.Add(second);
+        }
+        body.Children.Add(C.Space(problem, 8));
+        body.Children.Add(C.Button(create ? "Save PIN" : "Open hopo Admin", Confirm, true));
+        body.Margin = new(25);
+        dialog.Content = body;
+        dialog.Loaded += (_, _) => first.Focus();
+        dialog.ShowDialog();
+        if (accepted && create)
+            Tell("Admin PIN saved.");
+        return accepted;
+    }
     public void RefreshExplorerMenu()
     {
         if (preview || Integration == null)
@@ -329,6 +449,12 @@ internal sealed class AppShell : IDisposable
     }
     public void Navigate(string destination)
     {
+        // User mode keeps to Home, Send, Text & links and Transfers; anything else falls back to Home.
+        if (!Admin && AdminOnly.Contains(destination))
+        {
+            Tell(destination + " is for the admin. Open hopo Admin to use it.");
+            destination = "Home";
+        }
         CurrentPage = destination;
         page = null;
         Find<TextBox>("SearchBox").Text = "";
@@ -350,6 +476,7 @@ internal sealed class AppShell : IDisposable
             "Send" => new SendPage(this),
             "Transfers" => new TransfersPage(this),
             "Devices" => new DevicesPage(this),
+            "Past connections" => new PastConnectionsPage(this),
             "Phone & browser" => new PhoneBrowserPage(this),
             "Text & links" => new NotesPage(this),
             "Shared Spaces" => new SharedSpacesPage(this),

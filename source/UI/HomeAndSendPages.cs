@@ -163,6 +163,9 @@ internal sealed class HomePage : IPage
         };
         foreach ((string key, string text, string icon) in new[] { ("send", "Send files", "up"), ("folder", "Folder", "folder"), ("text", "Text", "lines"), ("phone", "Phone", "phone") })
         {
+            // Sharing a folder sets up a shared space, which is an admin task.
+            if (key == "folder" && !app.Admin)
+                continue;
             Button button = C.Button(text, () => Toggle(key), key == "send", icon);
             button.Margin = new(key == "send" ? 0 : 8, 0, 0, 0);
             dock[key] = button;
@@ -279,7 +282,8 @@ internal sealed class HomePage : IPage
     public void Refresh()
     {
         devices.Children.Clear();
-        Peer[] peers = app.Engine.Peers.Where(p => !p.Blocked && (p.Online || p.Paired) && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).OrderByDescending(p => p.Online).ThenBy(p => p.Name).Take(8).ToArray();
+        // Only devices on the network right now; offline PCs are listed under Past connections. Users see paired PCs only.
+        Peer[] peers = app.Engine.Peers.Where(p => p.Online && !p.Blocked && (app.Admin || p.Paired) && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).OrderBy(p => p.Name).Take(8).ToArray();
         BrowserDevice[] browsers = app.Engine.Browser.Devices.Where(b => b.Approved && b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(6).ToArray();
         int count = peers.Length + browsers.Length, index = 0;
         foreach (Peer peer in peers)
@@ -292,7 +296,8 @@ internal sealed class HomePage : IPage
             title.TextAlignment = detail.TextAlignment = TextAlignment.Center;
             Button find = C.Button("Find a device", () => app.Dialogs.Pair(), icon: "devices");
             find.HorizontalAlignment = HorizontalAlignment.Center;
-            Border card = C.Card(C.Stack(C.Space(title, 6), C.Space(detail, 14), find), 18);
+            // Pairing a new PC is an admin task, so user mode shows the hint without the button.
+            Border card = C.Card(app.Admin ? C.Stack(C.Space(title, 6), C.Space(detail, 14), find) : C.Stack(C.Space(title, 6), detail), 18);
             card.Width = 400;
             Place(devices, card, Middle - 200, Middle + 100);
         }
@@ -794,7 +799,8 @@ internal sealed class HomePage : IPage
             code.Child = new Image { Source = BitmapFrame.Create(image, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad) };
             AutomationProperties.SetName(code, "QR code for " + app.Engine.Browser.IpUrl);
             address = C.Bare(app.Engine.Browser.IpUrl);
-            action = C.Button("Open Phone & browser", () => { Close(); app.Navigate("Phone & browser"); }, true, "phone");
+            string url = app.Engine.Browser.IpUrl;
+            action = app.Admin ? C.Button("Open Phone & browser", () => { Close(); app.Navigate("Phone & browser"); }, true, "phone") : C.Button("Copy link", () => { Clipboard.SetText(url); app.Tell("Phone page link copied."); }, true, "phone");
         }
         else
         {
@@ -802,8 +808,8 @@ internal sealed class HomePage : IPage
             code.SetResourceReference(Border.BorderBrushProperty, "GlassBorder");
             code.BorderThickness = new(1);
             code.Child = C.Icon("phone", 30, "Muted");
-            address = "Browser sharing is off";
-            action = C.Button("Start browser sharing", () =>
+            address = app.Admin ? "Browser sharing is off" : "Browser sharing is off. Ask the admin to turn it on.";
+            action = !app.Admin ? C.Button("Close", Close) : C.Button("Start browser sharing", () =>
             {
                 app.Store.SetPreferences(app.Store.Preferences with
                 {

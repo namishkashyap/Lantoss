@@ -47,6 +47,10 @@ internal static partial class Program
         string file = Path.Combine(root, "Photo & family 😀.txt");
         LaunchRequest request = LaunchRequest.Parse(["--share-with", key.ToLowerInvariant(), "--share", file]);
         Check(request.Kind == "share" && request.Paths.SequenceEqual([file]) && request.PeerKey == key, "Explorer launch parsing preserves quoted Unicode paths and normalizes the saved key");
+        Check(LaunchRequest.Parse(["--admin"]).Kind == "admin" && LaunchRequest.Parse(["--admin"]).Paths.Length == 0, "hopo Admin asks the window for admin mode without sharing anything");
+        string pin = AdminPin.Create("4821");
+        Check(pin.StartsWith("v1:", StringComparison.Ordinal) && !pin.Contains("4821", StringComparison.Ordinal) && AdminPin.Matches("4821", pin) && !AdminPin.Matches("4822", pin) && !AdminPin.Matches("4821", "") && pin != AdminPin.Create("4821"), "The admin PIN is stored only as a salted hash and must match exactly");
+        Check(Rejected(() => AdminPin.Create("12a4")) && Rejected(() => AdminPin.Create("123")) && !AdminPin.Valid("1234567890123"), "The admin PIN must be 4 to 12 digits");
         Check(LaunchRequest.Parse(["--background"]).Kind == "background" && LaunchRequest.Parse([]).Kind == "activate", "Background startup stays separate from foreground activation");
         Check(Rejected(() => LaunchRequest.Parse(["--share", "relative.txt"])) && Rejected(() => LaunchRequest.Parse(["--share-with", "192.168.1.2", "--share", file])) && Rejected(() => LaunchRequest.Parse(["--execute", file])) && Rejected(() => new LaunchRequest("share", null!).Checked()), "Launch requests reject relative paths, network-address recipients, unknown operations and null path lists");
         string[] excessive = Enumerable.Range(0, 256).Select(index => Path.Combine(root, new string('x', 800) + index)).ToArray();

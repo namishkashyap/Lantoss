@@ -27,7 +27,10 @@ internal sealed class DevicesPage : IPage
     {
         status.Text = app.Engine.DiscoveryStatus;
         list.Children.Clear();
-        Peer[] peers = app.Engine.Peers.Where(p => p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).ToArray();
+        Peer[] peers = app.Engine.Peers.Where(p => p.Online && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).ToArray();
+        int past = app.Engine.Peers.Count(p => !p.Online);
+        if (past > 0)
+            list.Children.Add(C.Space(C.Inline(C.Text(past + (past == 1 ? " PC is" : " PCs are") + " offline now. ", 12, "Muted"), C.Small("Past connections", () => app.Navigate("Past connections"))), 14));
         if (peers.Length == 0)
             list.Children.Add(C.Empty("Waiting for your other PC…", "Open this version of hopo on the other PC and use the same Wi-Fi. Its name should appear automatically. If it stays missing, check Connection help in Settings or use Manual connection.", action: C.Button("Find nearby PCs", () => { if (!app.Engine.Running) app.ToggleReceiving(); app.Engine.RefreshDiscovery(); }, icon: "sync")));
         foreach (Peer peer in peers)
@@ -120,6 +123,39 @@ internal sealed class DevicesPage : IPage
     }
 }
 
+/// <summary>PCs that are not on the network right now, newest "last seen" first. Home and Devices show only PCs online now.</summary>
+internal sealed class PastConnectionsPage : IPage
+{
+    private readonly AppShell app;
+    private readonly StackPanel list = new();
+    public FrameworkElement View
+    {
+        get;
+    }
+    public PastConnectionsPage(AppShell app)
+    {
+        this.app = app;
+        View = C.Stack(C.Hero("Manage", "Past connections", "PCs you connected to before that are offline now. They return to Home by themselves when they are back on your Wi‑Fi."), list);
+    }
+    public void Refresh()
+    {
+        list.Children.Clear();
+        Peer[] peers = app.Engine.Peers.Where(p => !p.Online && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).OrderByDescending(p => p.LastSeenUtc).ToArray();
+        if (peers.Length == 0)
+            list.Children.Add(C.Empty("No past connections", "Every PC you know is online now, or you have not connected to one yet.", "history"));
+        foreach (Peer peer in peers)
+        {
+            string seen = peer.LastSeenUtc == DateTime.MinValue ? "Not seen on this network yet" : "Last seen " + peer.LastSeenUtc.ToLocalTime().ToString("d MMM yyyy, HH:mm");
+            Button? action = peer.Blocked ? C.Small("Unblock", () => { app.Store.ForgetPeer(peer.Fingerprint, false); Refresh(); }) : peer.Paired ? C.Small("Unpair", () => { if (MessageBox.Show(app.Window, "Unpair " + peer.Name + "? It must be approved again before it can send or receive.", "Unpair device", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes) { app.Engine.Forget(peer, false); Refresh(); } }) : null;
+            Border trust = C.Badge(peer.Blocked ? "Blocked" : peer.TrustLabel, peer.Blocked ? "Danger" : "Muted", peer.Blocked ? "DangerSoft" : "Background");
+            trust.HorizontalAlignment = HorizontalAlignment.Left;
+            StackPanel details = C.Stack(C.Space(C.Person(peer.Name, null, seen + " · " + peer.Address, 44, "Muted"), 12), C.Space(trust, action == null ? 0 : 12));
+            if (action != null)
+                details.Children.Add(C.Inline(action));
+            list.Children.Add(C.Space(C.Card(details), 14));
+        }
+    }
+}
 internal sealed class HistoryPage : IPage
 {
     private readonly AppShell app;

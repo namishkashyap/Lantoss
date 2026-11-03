@@ -63,8 +63,8 @@ internal static class UiRegressionChecks
             throw new InvalidDataException("The window must use the new brand.");
         app.ShowMenu(true);
         app.Render(Path.Combine(output, "Menu.png"), 1440, 960);
-        if (app.Find<Grid>("MenuLayer").Visibility != Visibility.Visible || app.Find<StackPanel>("Navigation").Children.OfType<Button>().Count() != 9)
-            throw new InvalidDataException("The menu must open with the Share and Manage pages.");
+        if (app.Find<Grid>("MenuLayer").Visibility != Visibility.Visible || app.Find<StackPanel>("Navigation").Children.OfType<Button>().Count() != 11 || app.Find<StackPanel>("Navigation").Children.OfType<Button>().Count(button => System.Windows.Automation.AutomationProperties.GetName(button) is "Home" or "Past connections") != 2)
+            throw new InvalidDataException("The menu must open with Home, the Share and Manage pages and Past connections.");
         app.Find<StackPanel>("Navigation").Children.OfType<Button>().First(button => System.Windows.Automation.AutomationProperties.GetName(button) == "Devices").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
         if (app.CurrentPage != "Devices" || app.Find<Grid>("MenuLayer").Visibility != Visibility.Collapsed)
             throw new InvalidDataException("Choosing a menu page must open it and close the menu.");
@@ -84,6 +84,15 @@ internal static class UiRegressionChecks
             if (Descendants<Border>((DependencyObject)app.Find<ContentControl>("PageContent").Content).Any(item => System.Windows.Automation.AutomationProperties.GetName(item) == panel))
                 throw new InvalidDataException("Pressing " + opener + " again must close its panel.");
         }
+        passed++;
+        // User mode (plain "hopo") shows only Home, Send, Text & links and Transfers; an admin page falls back to Home.
+        app.SetMode(false, false);
+        string[] userPages = app.Find<StackPanel>("Navigation").Children.OfType<Button>().Where(button => button.Visibility == Visibility.Visible).Select(button => System.Windows.Automation.AutomationProperties.GetName(button)).ToArray();
+        app.Navigate("Settings");
+        app.Render(Path.Combine(output, "User-Home.png"), 1440, 960);
+        if (!userPages.SequenceEqual(["Home", "Send files", "Share text or a link", "Transfers"]) || app.CurrentPage != "Home" || Descendants<Button>((DependencyObject)app.Find<ContentControl>("PageContent").Content).Any(item => System.Windows.Automation.AutomationProperties.GetName(item) == "Folder"))
+            throw new InvalidDataException("User mode must hide the admin pages and the Folder dock button: " + string.Join(", ", userPages));
+        app.SetMode(true, false);
         passed++;
         app.Navigate("Home");
         passed++;

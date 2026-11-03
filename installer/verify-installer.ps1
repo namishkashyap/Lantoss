@@ -31,6 +31,7 @@ $modern = Read-LantossTable 'SELECT `Action`,`Target` FROM `CustomAction`' 2
 if (-not ($modern | Where-Object { $_[0] -eq 'RegisterExplorerPackage' -and $_[1] -eq '--install-integration' })) { throw 'Modern package registration is missing.' }
 $shortcuts = Read-LantossTable 'SELECT `Name`,`Target`,`Arguments` FROM `Shortcut`' 3
 if (-not ($shortcuts | Where-Object { $_[2] -eq '--background' })) { throw 'Missing sharing-server shortcut.' }
+if (-not ($shortcuts | Where-Object { $_[0] -like '*hopo Admin' -and $_[2] -eq '--admin' })) { throw 'Missing hopo Admin shortcut.' }
 $sequence = Read-LantossTable 'SELECT `Action`,`Condition`,`Sequence` FROM `InstallExecuteSequence`' 3
 $cleanup = $sequence | Where-Object { $_[0] -eq 'RemoveUserIntegration' }
 $remove = $sequence | Where-Object { $_[0] -eq 'RemoveFiles' }

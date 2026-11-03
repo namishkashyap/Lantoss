@@ -56,6 +56,7 @@
       <Directory Id="LantossMenu" Name="hopo">
         <Component Id="StartMenu" Guid="A011CD1B-FF04-4D11-A596-BE6A2B5FA9FA">
           <Shortcut Id="StartLantoss" Name="hopo" Target="[#LantossExe]" WorkingDirectory="INSTALLFOLDER" Icon="LantossIcon" />
+          <Shortcut Id="StartLantossAdmin" Name="hopo Admin" Description="hopo with every page and setting (asks for the admin PIN)" Target="[#LantossExe]" Arguments="--admin" WorkingDirectory="INSTALLFOLDER" Icon="LantossIcon" />
           <Shortcut Id="StartLantossServer" Name="hopo in the tray" Target="[#LantossExe]" Arguments="--background" WorkingDirectory="INSTALLFOLDER" Icon="LantossIcon" />
           <RemoveFolder Id="RemoveStartMenu" On="uninstall" />
           <RegistryValue Root="HKCU" Key="Software\Lantoss\Installation" Name="StartMenu" Value="1" Type="integer" KeyPath="yes" />
