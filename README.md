@@ -8,7 +8,7 @@ is optional.
 
 | Version | Platforms | Download | Source |
 |---|---|---|---|
-| **2.3.0** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.3.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.3.0) | `main` |
+| **2.4.0** (current) | Windows (MSI) · macOS (Apple Silicon, Intel) · Linux (.deb, .tar.gz; x64, arm64) | [Release v2.4.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.4.0) | `main` |
 | 2.0.2 | Same platforms, named Lantoss | [Release v2.0.2](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.2) | tag `v2.0.2` |
 | 2.0.0 | Same platforms | [Release v2.0.0](https://github.com/namishkashyap/Lantoss/releases/tag/v2.0.0) | tag `v2.0.0` |
 | 1.9.0 (previous) | Windows (MSI) | [Release v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0) | `release/1.x` |
@@ -33,7 +33,7 @@ on the same network, and phones need no app.
   - The Windows MSI replaces Lantoss 2.0.x.
   - The macOS installer removes `Lantoss.app`.
   - The Linux `.deb` replaces the `lantoss` package.
-- On Windows the program file is still `Lantoss.exe` and the Windows 11 Explorer menu still reads *Share with Lantoss*, until that menu is rebuilt.
+- On Windows hopo is two separate apps, **hopo Users** (`hopoUsers.exe`) and **hopo Admin** (`hopoAdmin.exe`), each with its own setup. *Share with hopo* is in the classic right-click menu (on Windows 11, under Show more options).
 
 ## New in 2.0
 
@@ -50,7 +50,7 @@ on the same network, and phones need no app.
 
 ## Install on Windows
 
-Download and double-click **hopo-Setup-2.3.0-x64.msi**. Close the older app
+Download and double-click **hopo-Users-Setup-2.4.0-x64.msi** (or **hopo-Admin-Setup-2.4.0-x64.msi** for the admin). Close the older app
 using **Exit Lantoss** (or **Exit hopo**) in the Windows tray first. The installer installs for the
 current Windows account under LocalAppData/Programs/hopo, creates Start menu
 entries, and registers repair/uninstall in Windows Installed apps. The .NET
@@ -179,7 +179,7 @@ With the .NET 10 SDK on Windows, run from the repository root:
 
 ```powershell
 .\source\build.ps1 -Mode Publish
-.\app\Lantoss.exe
+.\app\hopoUsers.exe
 ```
 
 The standalone executable is generated locally. Build outputs and runtime
@@ -209,7 +209,7 @@ for the architecture, build commands and a guide to the key source files.
 
 ## Start
 
-Build the standalone app using the steps above, then run `app\Lantoss.exe` on
+Build the standalone app using the steps above, then run `app\hopoUsers.exe` on
 your Windows PC. If using a prebuilt distribution ZIP, extract it first. Close
 any older copy before starting. A published executable includes the x64 runtime;
 the SDK is needed to build from source, not to run the published app.
@@ -343,7 +343,7 @@ is automatic by default. Approve the Windows administrator prompt when asked;
 manual firewall rule entry is not required. The prompt may identify Windows
 PowerShell, which runs the bundled app's fixed rule setup commands.
 
-The rules cover this exact Lantoss executable, its current native/browser TCP
+The rules cover this exact hopo executable, its current native/browser TCP
 ports, and UDP discovery ports 5353/48587, restricted to Private networks and the
 local IPv4 subnet. The helper verifies the resulting rules. A previous local
 block for this executable has only its Private scope removed; Public/Domain
@@ -401,7 +401,7 @@ cancellation/failure cleans temporary files while keeping completed files.
 With an official .NET 10 SDK on Windows, run from this folder:
 
 ```powershell
-.\app\Lantoss.exe
+.\app\hopoUsers.exe
 .\source\build.ps1 -Mode Build
 .\source\build.ps1 -Mode CheckFormat
 .\source\build.ps1 -Mode Test

@@ -53,7 +53,6 @@ internal static class Program
                 {
                     Kind = "admin"
                 };
-            bool handedOver = false;
             string adminMarker = "Local\\hopo-admin-" + DesktopInstance.Key(data);
             if (instance != null)
             {
@@ -86,7 +85,6 @@ internal static class Program
                     catch (AbandonedMutexException) { ownsInstance = true; }
                     if (!ownsInstance)
                         return 0;
-                    handedOver = true;
                 }
             }
             System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
@@ -133,13 +131,6 @@ internal static class Program
             }
             // hopo Admin marks itself, so a starting hopo takes over instead of only bringing it forward.
             using Mutex? adminFlag = AppShell.AdminApp ? new Mutex(false, adminMarker) : null;
-            if (AppShell.AdminApp && !shell.UnlockAdmin())
-            {
-                // Cancelling the PIN after a handover reopens plain hopo, so the PC keeps receiving.
-                if (handedOver)
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppShell.UserExecutable) { UseShellExecute = false });
-                return 0;
-            }
             using DesktopInstance bridge = new(data, request => shell.Ui(() => shell.AcceptLaunch(request)));
             shell.Window.Loaded += (_, _) =>
             {

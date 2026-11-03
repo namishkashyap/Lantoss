@@ -7,12 +7,15 @@ public static class DesktopRegistration
 {
     public const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     public const string SettingsKey = @"Software\Lantoss\Desktop";
+    /// <summary>The two Windows apps: hopo Users and hopo Admin, each installed on its own.</summary>
+    public static readonly string[] AppNames = ["hopoUsers.exe", "hopoAdmin.exe"];
+    public static bool IsApp(string executable) => AppNames.Contains(Path.GetFileName(executable), StringComparer.OrdinalIgnoreCase);
     public static readonly string[] MenuKeys = [@"Software\Classes\*\shell\Lantoss", @"Software\Classes\Directory\shell\Lantoss"];
 
     public static string Executable(string executable)
     {
-        if (!Path.IsPathFullyQualified(executable) || !Path.GetFileName(executable).Equals("Lantoss.exe", StringComparison.OrdinalIgnoreCase) || executable.Any(char.IsControl) || executable.Contains('"'))
-            throw new InvalidDataException("Use the installed Lantoss executable.");
+        if (!Path.IsPathFullyQualified(executable) || !IsApp(executable) || executable.Any(char.IsControl) || executable.Contains('"'))
+            throw new InvalidDataException("Use the installed hopo Users or hopo Admin app.");
         return Path.GetFullPath(executable);
     }
     public static string StartupCommand(string executable) => '"' + Executable(executable) + "\" --background";
@@ -25,7 +28,7 @@ public static class DesktopRegistration
         List<RegistryText> plan = [];
         foreach (string root in MenuKeys)
         {
-            plan.Add(new(root, "MUIVerb", "Share with Lantoss"));
+            plan.Add(new(root, "MUIVerb", "Share with hopo"));
             plan.Add(new(root, "SubCommands", ""));
             plan.Add(new(root, "Icon", '"' + app + "\",0"));
             Add("00.choose", "Choose a PC…", null);

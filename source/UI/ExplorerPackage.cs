@@ -10,7 +10,9 @@ namespace Lantoss.UI;
 internal static class ExplorerPackage
 {
     public static bool Supported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
-    private static string AppDirectory => Path.GetDirectoryName(DesktopRegistration.Executable(AppShell.UserExecutable))!;
+    /// <summary>The Windows 11 menu package ships with the app. hopo 2.4 setups leave it out (it can only start Lantoss.exe), so the classic right-click entry is used and old packages are only removed.</summary>
+    public static bool Packaged => Supported && File.Exists(Path.Combine(AppDirectory, "Lantoss.Explorer.msix"));
+    private static string AppDirectory => Path.GetDirectoryName(DesktopRegistration.Executable(Environment.ProcessPath ?? ""))!;
     private static X509Certificate2 Publisher()
     {
         using Stream source = Assembly.GetExecutingAssembly().GetManifestResourceStream("Lantoss.Explorer.Publisher")!;

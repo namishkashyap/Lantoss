@@ -22,7 +22,7 @@ internal static partial class Program
         string inbox = Path.Combine(Path.GetTempPath(), "Lantoss Inbox");
         Check(Profiles.SenderFolder(inbox, "Ana (iPhone · Safari)") == Path.Combine(inbox, "Ana (iPhone · Safari)") && Profiles.SenderFolder(inbox, "..") == Path.Combine(inbox, "Unknown sender") && Profiles.SenderFolder(inbox, "CON") == Path.Combine(inbox, "Unknown sender") && Profiles.SenderFolder(inbox, "a/b\\c:d") == Path.Combine(inbox, "a_b_c_d"), "Sender folders stay one safe folder below the inbox");
         Check(Profiles.DeviceLabel("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1") == "iPhone · Safari" && Profiles.DeviceLabel("Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36") == "Android phone · Chrome", "Browser devices are labelled by device type and browser");
-        PrivateFirewallPlan curly = new(Path.Combine(Path.GetTempPath(), "a\u2019;Start-Process calc;\u2018", "Lantoss.exe"), [48585]);
+        PrivateFirewallPlan curly = new(Path.Combine(Path.GetTempPath(), "a\u2019;Start-Process calc;\u2018", "hopoUsers.exe"), [48585]);
         Check(curly.SetupScript.Contains("a\u2019\u2019;Start-Process calc;\u2018\u2018", StringComparison.Ordinal), "Curly single quotes in the app path are escaped in the elevated firewall script");
         MetadataStore store = Store("Version 2 portal");
         using BrowserPortal portal = new(store, new(store), new(), true);

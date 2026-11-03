@@ -66,10 +66,10 @@ do not claim names on the user's real Wi-Fi.
 
 ```powershell
 .\source\build.ps1 -Mode Publish
-.\app\Lantoss.exe
+.\app\hopoUsers.exe
 ```
 
-`Publish` creates `app\Lantoss.exe` for Windows x64 with the .NET runtime included.
+`Publish` creates `app\hopoUsers.exe` (hopo Users) and `app\hopoAdmin.exe` (hopo Admin) for Windows x64, each with the .NET runtime included.
 The receiving PC does not need the SDK. If distributing the executable, include
 the root third-party license and notice files with it. This is an unsigned
 development build. The generated `app` folder is ignored by Git.

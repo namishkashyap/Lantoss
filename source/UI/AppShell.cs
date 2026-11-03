@@ -188,8 +188,6 @@ internal sealed class AppShell : IDisposable
         Find<TextBox>("SearchBox").TextChanged += (_, _) => page?.Refresh();
         Find<Button>("ReceiveToggle").Click += (_, _) => { try { ToggleReceiving(); } catch (Exception e) { Error(e); } };
         Find<Button>("OpenBrowser").Click += (_, _) => { try { OpenBrowser(); } catch (Exception error) { Error(error); } };
-        Find<Button>("AdminButton").Click += (_, _) => { try { OpenOtherApp(); } catch (Exception error) { Error(error); } };
-        Find<Button>("PinButton").Click += (_, _) => AskPin(true);
         Window.Closing += OnClosing;
         if (!preview)
         {
@@ -221,8 +219,8 @@ internal sealed class AppShell : IDisposable
         UpdateStatus();
         // Every launch starts in user mode; hopo Admin (--admin) asks for the PIN once the window is up. Previews render the admin view.
         SetMode(AdminApp || preview, false);
-        if (AdminApp)
-            Window.Title = "hopo Admin";
+        if (!preview)
+            Window.Title = AdminApp ? "hopo Admin" : "hopo Users";
         if (store.RecoveryNotice != null)
             Tell(store.RecoveryNotice);
     }
@@ -245,17 +243,8 @@ internal sealed class AppShell : IDisposable
             Kind = "activate"
         } : request);
     }
-    /// <summary>"hopo Admin" is its own executable (hopoAdmin.exe); <c>--admin</c> runs Lantoss.exe as the admin app for development.</summary>
+    /// <summary>"hopo Admin" is its own executable (hopoAdmin.exe); <c>--admin</c> runs hopoUsers.exe as the admin app for development.</summary>
     public static bool AdminApp { get; } = string.Equals(Assembly.GetEntryAssembly()?.GetName().Name, "hopoAdmin", StringComparison.OrdinalIgnoreCase) || Environment.GetCommandLineArgs().Contains("--admin");
-    /// <summary>The user app next to this one: Explorer, autostart and "Open hopo" always use it.</summary>
-    public static string UserExecutable
-    {
-        get
-        {
-            string self = Environment.ProcessPath ?? "", sibling = Path.Combine(Path.GetDirectoryName(self) ?? "", "Lantoss.exe");
-            return File.Exists(sibling) ? sibling : self;
-        }
-    }
     private void HandOver(bool toAdmin)
     {
         int running = Engine.Transfers.Records.Count(record => !record.Terminal);
@@ -265,24 +254,12 @@ internal sealed class AppShell : IDisposable
         exitRequested = true;
         Window.Close();
     }
-    /// <summary>Starts the other app; it asks this one to close and takes over the same data.</summary>
-    private void OpenOtherApp()
-    {
-        string folder = Path.GetDirectoryName(Environment.ProcessPath ?? "") ?? "", admin = Path.Combine(folder, "hopoAdmin.exe");
-        ProcessStartInfo start = AdminApp ? new(UserExecutable) : File.Exists(admin) ? new(admin) : new(UserExecutable, "--admin");
-        start.UseShellExecute = false;
-        Process.Start(start);
-    }
-    /// <summary>The admin app asks for the PIN (or a new one) before it opens; false means cancelled.</summary>
-    public bool UnlockAdmin() => AskPin(Store.Preferences.AdminPin.Length == 0);
     /// <summary>The admin app shows every page; the user app (plain "hopo") hides device management, folders, sync, history, the phone page and settings. Previews render the admin view.</summary>
     public bool Admin
     {
         get; private set;
     }
     public static readonly HashSet<string> AdminOnly = ["Devices", "Past connections", "Shared Spaces", "Sync", "History", "Phone & browser", "Settings"];
-    private int wrongPins;
-    private DateTime pinPausedUntil;
     public void SetMode(bool admin, bool announce = true)
     {
         Admin = admin;
@@ -290,94 +267,11 @@ internal sealed class AppShell : IDisposable
             Find<TextBlock>("ModeBadge").Text = admin ? "ADMIN" : "USER";
         foreach ((string name, Button button) in navigation)
             button.Visibility = admin || !AdminOnly.Contains(name) ? Visibility.Visible : Visibility.Collapsed;
-        Find<Button>("AdminButton").Content = admin ? "Open hopo" : "Open hopo Admin";
-        Find<Button>("PinButton").Visibility = Find<Button>("OpenBrowser").Visibility = admin ? Visibility.Visible : Visibility.Collapsed;
+        Find<Button>("OpenBrowser").Visibility = admin ? Visibility.Visible : Visibility.Collapsed;
         Find<Grid>("MenuLayer").Visibility = Visibility.Collapsed;
         Navigate(AdminOnly.Contains(CurrentPage) && !admin ? "Home" : CurrentPage);
         if (announce)
             Tell(admin ? "hopo Admin: every page and setting is available." : "hopo: Home, Send files, Text & links and Transfers.");
-    }
-    /// <summary>Asks for the admin PIN, or for a new one (first use and Change PIN). Five wrong tries pause entry for 30 s.</summary>
-    private bool AskPin(bool create)
-    {
-        if (!create && DateTime.UtcNow < pinPausedUntil)
-        {
-            MessageBox.Show(Window, "Too many wrong PINs. Try again in " + Math.Ceiling((pinPausedUntil - DateTime.UtcNow).TotalSeconds) + " seconds.", "hopo Admin", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
-        }
-        Window dialog = new()
-        {
-            Owner = Window.IsVisible ? Window : null,
-            Title = "hopo Admin",
-            Width = 400,
-            SizeToContent = SizeToContent.Height,
-            ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = Window.IsVisible ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen
-        };
-        dialog.Resources.MergedDictionaries.Add(Window.Resources);
-        dialog.SetResourceReference(Control.BackgroundProperty, "Background");
-        PasswordBox first = new()
-        {
-            MaxLength = 12,
-            Margin = new(0, 6, 0, 12),
-            Padding = new(10, 8, 10, 8)
-        }, second = new()
-        {
-            MaxLength = 12,
-            Margin = new(0, 6, 0, 12),
-            Padding = new(10, 8, 10, 8)
-        };
-        System.Windows.Automation.AutomationProperties.SetName(first, create ? "New admin PIN" : "Admin PIN");
-        System.Windows.Automation.AutomationProperties.SetName(second, "Repeat the new admin PIN");
-        TextBlock problem = C.Text("", 12, "Danger");
-        bool accepted = false;
-        void Confirm()
-        {
-            if (create)
-            {
-                if (!AdminPin.Valid(first.Password) || first.Password != second.Password)
-                {
-                    problem.Text = !AdminPin.Valid(first.Password) ? "Use 4 to 12 digits." : "The two PINs are different.";
-                    return;
-                }
-                Store.SetPreferences(Store.Preferences with
-                {
-                    AdminPin = AdminPin.Create(first.Password)
-                });
-            }
-            else if (!AdminPin.Matches(first.Password, Store.Preferences.AdminPin))
-            {
-                first.Clear();
-                if (++wrongPins >= 5)
-                {
-                    (wrongPins, pinPausedUntil) = (0, DateTime.UtcNow.AddSeconds(30));
-                    dialog.Close();
-                    MessageBox.Show(Window, "Too many wrong PINs. Try again in 30 seconds.", "hopo Admin", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-                problem.Text = "Wrong PIN.";
-                return;
-            }
-            (wrongPins, accepted) = (0, true);
-            dialog.Close();
-        }
-        first.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { if (create) second.Focus(); else Confirm(); } };
-        second.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Confirm(); };
-        StackPanel body = C.Stack(C.Text(create ? "Create an admin PIN" : "Enter the admin PIN", 17, bold: true), C.Space(C.Text(create ? "4 to 12 digits. You need it to open hopo Admin, which shows every page and setting." : "hopo Admin shows every page and setting.", 12, "Muted"), 8, 4), C.Text(create ? "New PIN" : "PIN", 12, bold: true), first);
-        if (create)
-        {
-            body.Children.Add(C.Text("Repeat the PIN", 12, bold: true));
-            body.Children.Add(second);
-        }
-        body.Children.Add(C.Space(problem, 8));
-        body.Children.Add(C.Button(create ? "Save PIN" : "Open hopo Admin", Confirm, true));
-        body.Margin = new(25);
-        dialog.Content = body;
-        dialog.Loaded += (_, _) => first.Focus();
-        dialog.ShowDialog();
-        if (accepted && create)
-            Tell("Admin PIN saved.");
-        return accepted;
     }
     public void RefreshExplorerMenu()
     {

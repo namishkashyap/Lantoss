@@ -7,7 +7,7 @@ internal static partial class Program
     private static async Task DesktopCasesAsync()
     {
         ShellSelectionCases();
-        string executable = Path.Combine(root, "Installed app & photos", "Lantoss.exe");
+        string executable = Path.Combine(root, "Installed app & photos", "hopoUsers.exe");
         string key = new('A', 64);
         Peer saved = new()
         {
@@ -27,7 +27,7 @@ internal static partial class Program
             Paired = false
         };
         RegistryText[] menu = DesktopRegistration.Menu(executable, [saved, blocked, nearby]);
-        Check(menu.Count(item => item.Name == "MUIVerb" && item.Value == "Share with Lantoss") == 2 && menu.All(item => DesktopRegistration.MenuKeys.Any(root => item.Key == root || item.Key.StartsWith(root + "\\", StringComparison.Ordinal))), "Explorer registration is confined to Lantoss's two current-user file/folder menu roots");
+        Check(menu.Count(item => item.Name == "MUIVerb" && item.Value == "Share with hopo") == 2 && menu.All(item => DesktopRegistration.MenuKeys.Any(root => item.Key == root || item.Key.StartsWith(root + "\\", StringComparison.Ordinal))), "Explorer registration is confined to Lantoss's two current-user file/folder menu roots");
         Check(menu.Count(item => item.Name == "MUIVerb" && item.Value == "Choose a PC…") == 2 && DesktopRegistration.Menu(executable, []).Any(item => item.Value == "Choose a PC…"), "The Explorer submenu has a recipient picker before any PC is paired");
         Check(menu.Any(item => item.Value == "Family && Photos 😀") && menu.Where(item => item.Key.EndsWith("\\command", StringComparison.Ordinal)).All(item => !item.Value.Contains("Family", StringComparison.Ordinal)), "Device labels preserve Unicode while escaping menu accelerators and stay out of launch commands");
         string command = '"' + executable + "\" --share-with " + key + " --share \"%1\"";
@@ -43,14 +43,11 @@ internal static partial class Program
             }
             catch (Exception error) when (error is InvalidDataException or ArgumentException) { return true; }
         }
-        Check(Rejected(() => DesktopRegistration.Menu("Lantoss.exe", [])) && Rejected(() => DesktopRegistration.Menu(Path.Combine(root, "cmd.exe"), [])), "Desktop registration rejects a relative executable or a different program");
+        Check(Rejected(() => DesktopRegistration.Menu("hopoUsers.exe", [])) && Rejected(() => DesktopRegistration.Menu(Path.Combine(root, "cmd.exe"), [])), "Desktop registration rejects a relative executable or a different program");
         string file = Path.Combine(root, "Photo & family 😀.txt");
         LaunchRequest request = LaunchRequest.Parse(["--share-with", key.ToLowerInvariant(), "--share", file]);
         Check(request.Kind == "share" && request.Paths.SequenceEqual([file]) && request.PeerKey == key, "Explorer launch parsing preserves quoted Unicode paths and normalizes the saved key");
         Check(LaunchRequest.Parse(["--admin"]).Kind == "admin" && LaunchRequest.Parse(["--admin"]).Paths.Length == 0, "hopo Admin asks the window for admin mode without sharing anything");
-        string pin = AdminPin.Create("4821");
-        Check(pin.StartsWith("v1:", StringComparison.Ordinal) && !pin.Contains("4821", StringComparison.Ordinal) && AdminPin.Matches("4821", pin) && !AdminPin.Matches("4822", pin) && !AdminPin.Matches("4821", "") && pin != AdminPin.Create("4821"), "The admin PIN is stored only as a salted hash and must match exactly");
-        Check(Rejected(() => AdminPin.Create("12a4")) && Rejected(() => AdminPin.Create("123")) && !AdminPin.Valid("1234567890123"), "The admin PIN must be 4 to 12 digits");
         Check(LaunchRequest.Parse(["--background"]).Kind == "background" && LaunchRequest.Parse([]).Kind == "activate", "Background startup stays separate from foreground activation");
         Check(Rejected(() => LaunchRequest.Parse(["--share", "relative.txt"])) && Rejected(() => LaunchRequest.Parse(["--share-with", "192.168.1.2", "--share", file])) && Rejected(() => LaunchRequest.Parse(["--execute", file])) && Rejected(() => new LaunchRequest("share", null!).Checked()), "Launch requests reject relative paths, network-address recipients, unknown operations and null path lists");
         string[] excessive = Enumerable.Range(0, 256).Select(index => Path.Combine(root, new string('x', 800) + index)).ToArray();
