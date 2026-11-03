@@ -25,3 +25,4 @@ checked, what is still unverified, and how to roll it back.
 | 2026-11-03 | [hopo 2.3.0, trusted devices, in-app approvals, two apps](2026-11-03-hopo-2.3.0-trusted-devices-two-apps.md) |
 | 2026-11-03 | [hopo 2.4.0, separate hopo Users and hopo Admin, smaller downloads](2026-11-03-hopo-2.4.0-separate-users-admin.md) |
 | 2026-11-03 | [hopo 2.5.0, phone and browser page from the design](2026-11-03-hopo-2.5.0-web-design.md) |
+| 2026-11-04 | [Home rings, glow and menu animation](2026-11-04-home-rings-menu-motion.md) |
