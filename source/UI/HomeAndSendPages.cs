@@ -13,9 +13,9 @@ internal sealed class HomePage : IPage
 {
     // The nearby field is drawn on the design's fixed 640 px stage and scaled down on small windows.
     private const double Stage = 640, Middle = Stage / 2;
-    // Seven of the design's twelve wave rings: radius, wave height, lobes, colour, spin seconds, reversed, morph seconds, pointer pull.
+    // Ten wave rings (the design's seven plus amber, sky blue and coral): radius, wave height, lobes, colour, spin seconds, reversed, morph seconds, pointer pull.
     // Spin is 1.5× and morph 1.6× the design's timing, for a calmer field.
-    private static readonly (double R, double A, int N, string Color, double Spin, bool Reverse, double Morph, double Pull)[] Rings = [(268, 9, 14, "#B57CFF", 135, false, 11.2, 14), (273, 10, 18, "#3FE0FF", 195, true, 14.4, 8), (277, 8, 22, "#3DF5A0", 165, false, 9.6, 12), (282, 11, 12, "#FF6AD5", 240, true, 16, 6), (290, 9, 16, "#D49BFF", 285, true, 15.2, 9), (284, 10, 20, "#5CF0D0", 262.5, false, 13.6, 10), (299, 5, 28, "#A7B6FF", 360, true, 12, 15)];
+    private static readonly (double R, double A, int N, string Color, double Spin, bool Reverse, double Morph, double Pull)[] Rings = [(268, 9, 14, "#B57CFF", 135, false, 11.2, 14), (273, 10, 18, "#3FE0FF", 195, true, 14.4, 8), (277, 8, 22, "#3DF5A0", 165, false, 9.6, 12), (282, 11, 12, "#FF6AD5", 240, true, 16, 6), (290, 9, 16, "#D49BFF", 285, true, 15.2, 9), (284, 10, 20, "#5CF0D0", 262.5, false, 13.6, 10), (299, 5, 28, "#A7B6FF", 360, true, 12, 15), (271, 7, 16, "#F5B54A", 210, true, 12.8, 11), (287, 8, 24, "#6FB7FF", 300, false, 10.4, 7), (294, 7, 13, "#FF8A80", 225, true, 14.8, 12)];
     private static readonly KeySpline Settle = Frozen(new KeySpline(0.22, 1, 0.36, 1));
     private readonly AppShell app;
     private readonly Canvas stage = new() { Width = Stage, Height = Stage }, devices = new() { Width = Stage, Height = Stage };
@@ -52,21 +52,21 @@ internal sealed class HomePage : IPage
         {
             SolidColorBrush ink = new((Color)ColorConverter.ConvertFromString(Rings[i].Color));
             ink.Freeze();
-            // The glow is two wide, faint copies of the line (9 px and 3.5 px) rather than a blur, which would redraw every frame.
+            // The glow is two wide, faint copies of the line (12 px and 4 px) rather than a blur, which would redraw every frame.
             (halos[i], glows[i], lines[i]) = (new()
             {
                 Stroke = ink,
-                StrokeThickness = 9,
+                StrokeThickness = 12,
                 StrokeLineJoin = PenLineJoin.Round
             }, new()
             {
                 Stroke = ink,
-                StrokeThickness = 3.5,
+                StrokeThickness = 4,
                 StrokeLineJoin = PenLineJoin.Round
             }, new()
             {
                 Stroke = ink,
-                StrokeThickness = 0.7,
+                StrokeThickness = 0.5,
                 StrokeLineJoin = PenLineJoin.Round
             });
             glowLayer.Children.Add(halos[i]);
@@ -120,14 +120,20 @@ internal sealed class HomePage : IPage
             grow.BeginAnimation(ScaleTransform.ScaleYProperty, spread);
             ripple.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromSeconds(12), RepeatBehavior = RepeatBehavior.Forever, BeginTime = begin, KeyFrames = { new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)), new LinearDoubleKeyFrame(0.45, KeyTime.FromPercent(0.18)), new LinearDoubleKeyFrame(0, KeyTime.FromPercent(1)) } });
         }
+        // A radial gradient, not a blurred shadow: the GPU blur drew a 60 px glow as a rounded square.
+        RadialGradientBrush haze = new()
+        {
+            GradientStops = { new(Color.FromArgb(0, 181, 124, 255), 0.5), new(Color.FromArgb(90, 181, 124, 255), 0.56), new(Color.FromArgb(32, 181, 124, 255), 0.74), new(Color.FromArgb(0, 181, 124, 255), 1) }
+        };
+        haze.Freeze();
         Ellipse aura = new()
         {
-            Width = 150,
-            Height = 150,
-            Effect = new DropShadowEffect { Color = Color.FromRgb(181, 124, 255), BlurRadius = 60, ShadowDepth = 0, Opacity = 0.35 }
+            Width = 270,
+            Height = 270,
+            Fill = haze,
+            IsHitTestVisible = false
         };
-        aura.SetResourceReference(Shape.FillProperty, "Glass");
-        Place(stage, aura, Middle - 75, Middle - 75);
+        Place(stage, aura, Middle - 135, Middle - 135);
         Border self = new()
         {
             Width = 150,
@@ -281,8 +287,8 @@ internal sealed class HomePage : IPage
             geometry.Freeze();
             lines[i].Data = glows[i].Data = halos[i].Data = geometry;
             lines[i].Opacity = 0.55 + 0.45 * (0.5 - 0.5 * Math.Cos(2 * Math.PI * (clock + i * 0.6) / 7));
-            glows[i].Opacity = lines[i].Opacity * 0.22;
-            halos[i].Opacity = lines[i].Opacity * 0.08;
+            glows[i].Opacity = lines[i].Opacity * 0.3;
+            halos[i].Opacity = lines[i].Opacity * 0.12;
         }
     }
     public void Refresh()

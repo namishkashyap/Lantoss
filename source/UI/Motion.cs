@@ -120,6 +120,9 @@ internal static class Motion
         if (!On)
             return;
         TranslateTransform shift = Shift(element);
+        // Drop any earlier rise, whose held end values would otherwise hide the new start values.
+        element.BeginAnimation(UIElement.OpacityProperty, null);
+        shift.BeginAnimation(TranslateTransform.YProperty, null);
         element.Opacity = 0;
         shift.Y = distance;
         To(element, UIElement.OpacityProperty, 1, seconds, Bezier.Out, delay);
@@ -151,17 +154,16 @@ internal static class Motion
     {
         if (!On)
             return;
-        scrim.Opacity = 0;
-        To(scrim, UIElement.OpacityProperty, 1, 0.4);
+        // Explicit From values: the last open's animations still hold 1, so a plain To(1) would have nothing to animate on the second open.
         (ScaleTransform scale, _) = Transforms(panel);
         panel.RenderTransformOrigin = new(1 - 36 / Math.Max(panel.ActualWidth, 380), 38 / Math.Max(panel.ActualHeight, 400));
-        scale.ScaleX = scale.ScaleY = 0.1;
-        To(scale, ScaleTransform.ScaleXProperty, 1, 0.58, Bezier.Pop);
-        To(scale, ScaleTransform.ScaleYProperty, 1, 0.58, Bezier.Pop);
-        panel.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromSeconds(0.58), KeyFrames = { new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)), new LinearDoubleKeyFrame(1, KeyTime.FromPercent(0.4)) } });
+        scrim.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.25)));
+        foreach (DependencyProperty axis in new[] { ScaleTransform.ScaleXProperty, ScaleTransform.ScaleYProperty })
+            scale.BeginAnimation(axis, new DoubleAnimation(0.1, 1, TimeSpan.FromSeconds(0.36)) { EasingFunction = Bezier.Pop });
+        panel.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromSeconds(0.36), KeyFrames = { new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)), new LinearDoubleKeyFrame(1, KeyTime.FromPercent(0.35)) } });
         int i = 0;
         foreach (UIElement row in rows)
-            Rise(row, 0.12 + 0.04 * i++, 6, 0.5);
+            Rise(row, 0.05 + 0.03 * i++, 6, 0.32);
     }
     /// <summary>Menu row hover: shift 2 px right; the icon tile tilts ±4° and grows 4%.</summary>
     public static void Row(Button row, int index)
