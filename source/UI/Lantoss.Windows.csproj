@@ -4,7 +4,7 @@
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition><EnableDefaultPageItems>false</EnableDefaultPageItems>
-    <AssemblyName>hopoUsers</AssemblyName><Version>2.5.0</Version><Product>hopo</Product><Title>hopo Users</Title><AssemblyTitle>hopo Users</AssemblyTitle><Description>hopo: local Wi-Fi file sharing and folder sync</Description><ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>hopoUsers</AssemblyName><Version>2.5.1</Version><Product>hopo</Product><Title>hopo Users</Title><AssemblyTitle>hopo Users</AssemblyTitle><Description>hopo: local Wi-Fi file sharing and folder sync</Description><ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Lantoss.ico</ApplicationIcon>
     <!-- English only: the bundled framework's other UI languages added about 6 MB to each app. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
