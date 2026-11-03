@@ -50,6 +50,10 @@ internal sealed class DevicesPage : IPage
                 Button favorite = C.Small(peer.Favorite ? "Unfavorite" : "Favorite", () => app.Engine.EditPeer(peer with { Favorite = !peer.Favorite }));
                 favorite.Margin = new(7, 0, 0, 0);
                 actions.Children.Add(favorite);
+                // A trusted PC sends files without the accept prompt.
+                Button trusted = C.Small(peer.Trusted ? "Stop trusting" : "Trust", () => app.Engine.EditPeer(peer with { Trusted = !peer.Trusted }));
+                trusted.Margin = new(7, 0, 0, 0);
+                actions.Children.Add(trusted);
                 Button rename = C.Small("Rename", () => Rename(peer));
                 rename.Margin = new(7, 0, 0, 0);
                 actions.Children.Add(rename);
@@ -71,7 +75,7 @@ internal sealed class DevicesPage : IPage
             };
             connectionDetails.SetResourceReference(Control.ForegroundProperty, "Muted");
             string availability = peer.Online ? peer.Paired ? "Ready to send · remembered PC" : peer.RequiresCode ? "Ready to connect · access code required" : peer.SupportsDirectConnect ? "Ready to connect · no code needed" : peer.SupportsQuickPair ? "Ready to connect · comparison approval" : "Update both PCs for connection without typing, or use manual connection." : "Offline or not yet checked. Open hopo on that PC.";
-            Border trust = C.Badge(peer.TrustLabel, peer.Paired ? "Success" : "Muted", peer.Paired ? "SuccessSoft" : "Background");
+            Border trust = C.Badge(peer.Trusted && peer.Paired ? "Trusted · files arrive without asking" : peer.TrustLabel, peer.Paired ? "Success" : "Muted", peer.Paired ? "SuccessSoft" : "Background");
             trust.HorizontalAlignment = HorizontalAlignment.Left;
             StackPanel details = C.Stack(C.Space(name, 12), C.Space(trust, 10), C.Space(C.Text(availability, 12, "Muted"), 16), actions, connectionDetails);
             list.Children.Add(C.Space(C.Card(details), 14));
@@ -86,13 +90,21 @@ internal sealed class DevicesPage : IPage
             string seen = DateTime.UtcNow - browser.LastSeenUtc < TimeSpan.FromMinutes(1) ? "active now" : "active " + browser.LastSeenUtc.ToLocalTime().ToString("HH:mm");
             Button block = C.Small("Block", () => { if (MessageBox.Show(app.Window, "Block " + browser.Address + "? " + browser.Label + " is disconnected and this address cannot open the page until hopo restarts.", "Block browser", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes) app.Engine.Browser.Block(browser.Handle); });
             block.Margin = new(8, 0, 0, 0);
-            StackPanel actions = browser.Approved ? C.Inline(disconnect, block) : C.Inline(C.Small("Allow", () => app.Engine.Browser.Approve(browser.Handle)), block);
-            Border state = C.Badge(browser.Approved ? "Allowed" : "Waiting for Allow", browser.Approved ? "Success" : "Danger", browser.Approved ? "SuccessSoft" : "DangerSoft");
+            Button always = C.Small("Always allow", () => app.Engine.Browser.Trust(browser.Handle));
+            always.Margin = new(0, 0, 8, 0);
+            StackPanel actions = browser.Trusted ? C.Inline(disconnect, block) : browser.Approved ? C.Inline(always, disconnect, block) : C.Inline(C.Small("Allow", () => app.Engine.Browser.Approve(browser.Handle)), block);
+            Border state = C.Badge(browser.Trusted ? "Trusted" : browser.Approved ? "Allowed" : "Waiting for Allow", browser.Approved ? "Success" : "Danger", browser.Approved ? "SuccessSoft" : "DangerSoft");
             state.HorizontalAlignment = HorizontalAlignment.Left;
             StackPanel details = C.Stack(C.Space(C.Person(browser.Label, browser.Picture, browser.Address + " · connected " + browser.ConnectedUtc.ToLocalTime().ToString("HH:mm") + " · " + seen, 44), 12), C.Space(state, 10),
                 C.Space(C.Text(browser.Approved ? browser.Name.Length > 0 ? "Name and picture are chosen on that device." : "This browser has not set a name yet." : "Allow only a phone you recognise. Until then it cannot see files, folders or notes.", 11, "Muted"), 12), actions);
             list.Children.Add(C.Space(C.Card(details), 14));
         }
+        TrustedBrowser[] trustedBrowsers = app.Store.Preferences.TrustedBrowsers;
+        list.Children.Add(C.Space(C.Heading("Trusted phones and browsers", C.Badge(trustedBrowsers.Length.ToString(), "Muted", "Background")), 12, 14));
+        if (trustedBrowsers.Length == 0)
+            list.Children.Add(C.Space(C.Text("None yet. Choose Always allow for a phone, and it will connect and send files without asking.", 12, "Muted"), 14));
+        foreach (TrustedBrowser remembered in trustedBrowsers)
+            list.Children.Add(C.Space(C.Card(C.Stack(C.Space(C.Person(remembered.Label, null, "Trusted since " + remembered.AddedUtc.ToLocalTime().ToString("d MMM yyyy, HH:mm"), 40), 12), C.Small("Stop trusting", () => { app.Engine.Browser.Untrust(remembered.TokenHash); Refresh(); }))), 14));
         foreach (string address in app.Engine.Browser.BlockedAddresses)
             list.Children.Add(C.Space(C.Card(C.Stack(C.Space(C.Text("Blocked address " + address, 13, bold: true), 10), C.Small("Unblock", () => { app.Engine.Browser.Unblock(address); Refresh(); }))), 14));
     }

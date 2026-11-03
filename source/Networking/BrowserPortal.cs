@@ -25,7 +25,7 @@ public sealed record BrowserLogin(string Code);
 public sealed record BrowserNote(string Content);
 public sealed record BrowserProfile(string? Name, string? Picture);
 /// <summary>A connected browser as shown in the PC's device list. Name and picture are chosen by the visitor and are not authenticated.</summary>
-public sealed record BrowserDevice(string Handle, string Name, string Device, string Address, DateTime ConnectedUtc, DateTime LastSeenUtc, byte[]? Picture, bool Approved = true)
+public sealed record BrowserDevice(string Handle, string Name, string Device, string Address, DateTime ConnectedUtc, DateTime LastSeenUtc, byte[]? Picture, bool Approved = true, bool Trusted = false)
 {
     public string Label => Name.Length > 0 ? Name + " (" + Device + ")" : Device;
 }
@@ -83,6 +83,14 @@ public sealed partial class BrowserPortal : IDisposable
         {
             get; set;
         }
+        /// <summary>The hash of the trust cookie this browser was trusted with, or empty: trusted browsers connect and upload without prompts.</summary>
+        public string TrustHash { get; set; } = "";
+        public bool Trusted => TrustHash.Length > 0;
+        /// <summary>A new trust cookie to hand to this browser on its next request.</summary>
+        public string? PendingTrust
+        {
+            get; set;
+        }
         public CancellationTokenSource Cancellation { get; } = new();
     }
     private sealed class Offer(string id, string session, string folder, Manifest manifest, TransferJob job, string spaceId = "", string spaceRoot = "")
@@ -109,6 +117,17 @@ public sealed partial class BrowserPortal : IDisposable
     public string CertificateFingerprint => certificate == null ? "" : Convert.ToHexString(SHA256.HashData(certificate.RawData));
     public int[] Ports => new[] { IpUrl, HttpUrl }.Where(url => url.Length > 0).Select(url => new Uri(url).Port).Distinct().ToArray();
     private string CookieName => Https ? "__Host-LantossSession" : "LantossSession";
+    private string TrustCookieName => Https ? "__Host-LantossTrust" : "LantossTrust";
+    private static string TrustHash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    /// <summary>The hash of a trust cookie this PC still trusts, or empty.</summary>
+    private string TrustedHash(HttpContext context)
+    {
+        string? token = context.Request.Cookies[TrustCookieName];
+        if (token is not { Length: 64 })
+            return "";
+        byte[] hash = Convert.FromHexString(TrustHash(token));
+        return store.Preferences.TrustedBrowsers.FirstOrDefault(t => CryptographicOperations.FixedTimeEquals(Convert.FromHexString(t.TokenHash), hash))?.TokenHash ?? "";
+    }
     public Func<ReceiveRequest, CancellationToken, Task<ReceiveDecision>>? ApproveReceive
     {
         get; set;
@@ -472,10 +491,13 @@ public sealed partial class BrowserPortal : IDisposable
             // A full table gives up the least recently seen browser, waiting ones first, instead of refusing every new phone.
             if (sessions.Count >= 64)
                 End(sessions.Values.OrderBy(s => s.Approved).ThenBy(s => s.LastSeenUtc).First());
+            string trusted = TrustedHash(context);
             session = new(RandomToken(), RandomToken(), address, DateTime.UtcNow, generation, Profiles.DeviceLabel(context.Request.Headers.UserAgent.ToString()))
             {
-                Approved = approved
+                Approved = approved || trusted.Length > 0,
+                TrustHash = trusted
             };
+            approved = session.Approved;
             sessions[session.Id] = session;
             context.Response.Cookies.Append(CookieName, session.Id, new CookieOptions { HttpOnly = true, Secure = Https, SameSite = SameSiteMode.Strict, Path = "/", MaxAge = TimeSpan.FromHours(12), IsEssential = true });
         }
@@ -489,7 +511,7 @@ public sealed partial class BrowserPortal : IDisposable
             sessions.Remove(old.Id);
         }
     }
-    private static BrowserDevice Device(Session s) => new(s.Handle, s.Name, s.Device, s.Address, s.CreatedUtc, s.LastSeenUtc, s.Picture, s.Approved);
+    private static BrowserDevice Device(Session s) => new(s.Handle, s.Name, s.Device, s.Address, s.CreatedUtc, s.LastSeenUtc, s.Picture, s.Approved, s.Trusted);
     public BrowserDevice[] Devices
     {
         get
@@ -508,6 +530,36 @@ public sealed partial class BrowserPortal : IDisposable
                 return;
             waiting.Approved = true;
         }
+        Changed?.Invoke();
+    }
+    /// <summary>Allows the browser permanently: it is approved now, gets a trust cookie on its next request, and later connects and uploads without prompts.</summary>
+    public void Trust(string handle)
+    {
+        string token = RandomToken(), hash = TrustHash(token), label;
+        lock (gate)
+        {
+            if (sessions.Values.FirstOrDefault(s => s.Handle == handle) is not Session found)
+                return;
+            (found.Approved, found.TrustHash, found.PendingTrust, label) = (true, hash, token, found.Label);
+        }
+        Preferences preferences = store.Preferences;
+        store.SetPreferences(preferences with
+        {
+            TrustedBrowsers = [new(hash, label, DateTime.UtcNow), .. preferences.TrustedBrowsers.Take(63)]
+        });
+        Changed?.Invoke();
+    }
+    /// <summary>Stops trusting a remembered browser; any of its open sessions stay connected but ask again for uploads.</summary>
+    public void Untrust(string tokenHash)
+    {
+        Preferences preferences = store.Preferences;
+        store.SetPreferences(preferences with
+        {
+            TrustedBrowsers = preferences.TrustedBrowsers.Where(t => t.TokenHash != tokenHash).ToArray()
+        });
+        lock (gate)
+            foreach (Session session in sessions.Values.Where(s => s.TrustHash == tokenHash))
+                session.TrustHash = "";
         Changed?.Invoke();
     }
     /// <summary>Disconnects the browser and refuses its address until Lantoss restarts or the block is lifted.</summary>
@@ -609,9 +661,16 @@ public sealed partial class BrowserPortal : IDisposable
                 return;
             }
             Session? session = GetSession(context);
+            // Hand a newly trusted browser its long-lived trust cookie on its next request.
+            if (session?.PendingTrust is string trust)
+            {
+                context.Response.Cookies.Append(TrustCookieName, trust, new CookieOptions { HttpOnly = true, Secure = Https, SameSite = SameSiteMode.Strict, Path = "/", MaxAge = TimeSpan.FromDays(365), IsEssential = true });
+                session.PendingTrust = null;
+            }
             if (get && path == "/api/session")
             {
-                if (session == null && !store.Preferences.RequireConnectionCode)
+                // A trusted browser is approved on sight, even when the access code is required.
+                if (session == null && (!store.Preferences.RequireConnectionCode || TrustedHash(context).Length > 0))
                     session = CreateSession(context, !store.Preferences.ApproveNewDevices);
                 await Json(context, new
                 {
@@ -916,7 +975,7 @@ public sealed partial class BrowserPortal : IDisposable
             string folder = requestedFolder;
             if (FileCatalog.FreeSpace(folder) < total + 64L * 1024 * 1024)
                 throw new IOException("The destination does not have enough free space.");
-            ReceiveDecision decision = ApproveReceive == null ? new(false, folder) : await ApproveReceive(new(targetSpace == null ? session.Label : session.Label + " → " + targetSpace.Name, "", manifest, folder, FileCatalog.FreeSpace(folder), false, true, targetSpace != null, session.Address, session.Picture), approval.Token);
+            ReceiveDecision decision = session.Trusted ? new(true, folder) : ApproveReceive == null ? new(false, folder) : await ApproveReceive(new(targetSpace == null ? session.Label : session.Label + " → " + targetSpace.Name, "", manifest, folder, FileCatalog.FreeSpace(folder), false, true, targetSpace != null, session.Address, session.Picture), approval.Token);
             if (!decision.Accepted)
             {
                 // Three declines within two minutes start a 30-second cooldown, so a declined device cannot flood the PC with prompts.

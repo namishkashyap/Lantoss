@@ -19,6 +19,7 @@ if (-not $SkipPublish) {
     if ($LASTEXITCODE) { throw 'App publication failed.' }
 }
 if ((Get-Item (Join-Path $lantossRelease 'app\Lantoss.exe')).VersionInfo.FileVersion -ne '2.2.0.0') { throw 'Publish hopo 2.2.0 first.' }
+if (-not (Test-Path -LiteralPath (Join-Path $lantossRelease 'app\hopoAdmin.exe'))) { throw 'Publish hopo Admin (hopoAdmin.exe) first.' }
 foreach ($lantossPayload in @('LantossExplorer.dll','Lantoss.Explorer.msix','RegisterPackage.ps1','Assets\Logo.png','Assets\SmallLogo.png')) {
     if (-not (Test-Path -LiteralPath (Join-Path $lantossRelease ('app\'+$lantossPayload)))) { throw ('Build the Explorer integration first: '+$lantossPayload) }
 }

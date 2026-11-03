@@ -47,6 +47,14 @@ internal static class Program
         try
         {
             LaunchRequest? launch = preview ? null : LaunchRequest.Parse(args);
+            // hopoAdmin.exe opened plainly still asks for the admin app.
+            if (launch?.Kind == "activate" && AppShell.AdminApp)
+                launch = launch with
+                {
+                    Kind = "admin"
+                };
+            bool handedOver = false;
+            string adminMarker = "Local\\hopo-admin-" + DesktopInstance.Key(data);
             if (instance != null)
             {
                 try
@@ -56,6 +64,10 @@ internal static class Program
                 catch (AbandonedMutexException) { ownsInstance = true; }
                 if (!ownsInstance)
                 {
+                    // Is the other app (admin vs user) the one running? Then it closes and this one takes over the same data.
+                    bool adminRunning = Mutex.TryOpenExisting(adminMarker, out Mutex? marker);
+                    marker?.Dispose();
+                    bool switching = launch!.Kind is "admin" or "activate" && adminRunning != AppShell.AdminApp;
                     try
                     {
                         DesktopInstance.ForwardAsync(data, launch!).GetAwaiter().GetResult();
@@ -65,7 +77,16 @@ internal static class Program
                         MessageBox.Show("The running instance could not receive this request. Close the older hopo, Lantoss or FlowShare version and try again.\n\n" + error.Message, "hopo");
                         return 1;
                     }
-                    return 0;
+                    if (!switching)
+                        return 0;
+                    try
+                    {
+                        ownsInstance = instance.WaitOne(TimeSpan.FromSeconds(30));
+                    }
+                    catch (AbandonedMutexException) { ownsInstance = true; }
+                    if (!ownsInstance)
+                        return 0;
+                    handedOver = true;
                 }
             }
             System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
@@ -108,6 +129,15 @@ internal static class Program
                     shell.Navigate(Option("--page", "Home"));
                     shell.Render(Option("--preview", Path.Combine(data, "preview.png")), int.Parse(Option("--width", "1440")), int.Parse(Option("--height", "900")));
                 }
+                return 0;
+            }
+            // hopo Admin marks itself, so a starting hopo takes over instead of only bringing it forward.
+            using Mutex? adminFlag = AppShell.AdminApp ? new Mutex(false, adminMarker) : null;
+            if (AppShell.AdminApp && !shell.UnlockAdmin())
+            {
+                // Cancelling the PIN after a handover reopens plain hopo, so the PC keeps receiving.
+                if (handedOver)
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppShell.UserExecutable) { UseShellExecute = false });
                 return 0;
             }
             using DesktopInstance bridge = new(data, request => shell.Ui(() => shell.AcceptLaunch(request)));

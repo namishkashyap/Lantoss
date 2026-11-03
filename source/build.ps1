@@ -50,6 +50,8 @@ try {
     }
     elseif ($Mode -eq 'Publish') {
         Invoke-LantossDotnet (@('publish', (Join-Path $lantossSourceRoot 'UI\Lantoss.Windows.csproj'), '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:EnableCompressionInSingleFile=true', '-p:DebugType=None', '-o', (Join-Path $lantossReleaseRoot 'app')) + $lantossSharedArgs)
+        # hopo Admin is the same app published as its own executable; separate artifacts keep the two builds apart.
+        Invoke-LantossDotnet (@('publish', (Join-Path $lantossSourceRoot 'UI\Lantoss.Windows.csproj'), '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:EnableCompressionInSingleFile=true', '-p:DebugType=None', '-p:AssemblyName=hopoAdmin', '-p:AssemblyTitle=hopo Admin', '-o', (Join-Path $lantossReleaseRoot 'app')) + ($lantossSharedArgs -replace [regex]::Escape($lantossArtifacts), ($lantossArtifacts + '-admin')))
     }
     else { Invoke-LantossDotnet (@('build', (Join-Path $lantossSourceRoot 'UI\Lantoss.Windows.csproj')) + $lantossSharedArgs) }
 }

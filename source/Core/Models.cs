@@ -35,7 +35,12 @@ public sealed record Preferences
     }
     /// <summary>The admin PIN as a salted PBKDF2 hash (<see cref="AdminPin"/>); empty until the admin creates one.</summary>
     public string AdminPin { get; init; } = "";
+    /// <summary>Phones and browsers allowed permanently: only the SHA-256 of each one's trust cookie is kept.</summary>
+    public TrustedBrowser[] TrustedBrowsers { get; init; } = [];
 }
+
+/// <summary>A phone or browser that is approved on sight: <paramref name="TokenHash"/> is the hex SHA-256 of its trust cookie.</summary>
+public sealed record TrustedBrowser(string TokenHash, string Label, DateTime AddedUtc);
 
 /// <summary>The admin PIN for "hopo Admin": 4–12 digits, kept only as a salted PBKDF2-SHA256 hash. It locks the window, not the Windows account.</summary>
 public static class AdminPin
@@ -109,6 +114,11 @@ public sealed record Peer
         get; init;
     }
     public bool Favorite
+    {
+        get; init;
+    }
+    /// <summary>Files from a trusted PC are accepted without the approval prompt.</summary>
+    public bool Trusted
     {
         get; init;
     }

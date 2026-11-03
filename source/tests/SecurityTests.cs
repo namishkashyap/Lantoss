@@ -62,7 +62,45 @@ internal static partial class Program
         SharedSpace limited = new(Guid.NewGuid().ToString("N"), "Photos", root, AllowedPeers: [first.Fingerprint]);
         Check(limited.Allows(first.Fingerprint) && !limited.Allows(second.Fingerprint) && new SharedSpace(limited.Id, "Photos", root).Allows(second.Fingerprint), "A space can be limited to chosen PCs; existing spaces stay open to all paired PCs");
         await SecurePortalAsync();
+        await TrustedBrowserAsync();
         await SecurePairingAsync(first, second);
+    }
+    /// <summary>Always allow: the phone gets a trust cookie (only its hash is saved), a fresh browser with that cookie connects and uploads without prompts, and removing the trust asks again.</summary>
+    private static async Task TrustedBrowserAsync()
+    {
+        MetadataStore store = SecureStore("Trusted browser");
+        using BrowserPortal portal = new(store, new(store), new PairingCode(), true);
+        int prompts = 0;
+        portal.ApproveReceive = (request, _) => { prompts++; return Task.FromResult(new ReceiveDecision(false, request.DefaultFolder)); };
+        await portal.StartAsync(Loopback, 0);
+        using HttpClient phone = BrowserClient(portal.IpUrl);
+        await ConnectBrowser(phone);
+        portal.Trust(portal.Devices.Single().Handle);
+        HttpResponseMessage handed = await phone.GetAsync("/api/session");
+        string token = (handed.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? set) ? set : []).Select(cookie => cookie.Split(';')[0]).FirstOrDefault(cookie => cookie.StartsWith("LantossTrust=", StringComparison.Ordinal))?["LantossTrust=".Length..] ?? "";
+        Check(token.Length == 64 && store.Preferences.TrustedBrowsers.Single().TokenHash != token && portal.Devices.Single() is { Approved: true, Trusted: true }, "Always allow approves the phone and hands it a trust cookie, saving only its hash");
+        HttpClient Returning()
+        {
+            CookieContainer jar = new();
+            jar.Add(new Uri(portal.IpUrl), new Cookie("LantossTrust", token));
+            return new(new HttpClientHandler { CookieContainer = jar, UseProxy = false })
+            {
+                BaseAddress = new Uri(portal.IpUrl)
+            };
+        }
+        using HttpClient returning = Returning();
+        await ConnectBrowser(returning);
+        JsonElement session = await Body(await returning.GetAsync("/api/session"));
+        HttpResponseMessage offer = await returning.PostAsJsonAsync("/api/upload-offers", new
+        {
+            files = new[] { new { name = "trusted.txt", size = 3 } }
+        });
+        Check(session.GetProperty("connected").GetBoolean() && offer.IsSuccessStatusCode && prompts == 0, "A trusted phone connects without approval and its uploads need no prompt");
+        portal.Untrust(store.Preferences.TrustedBrowsers.Single().TokenHash);
+        using HttpClient stale = Returning();
+        await ConnectBrowser(stale);
+        JsonElement again = await Body(await stale.GetAsync("/api/session"));
+        Check(store.Preferences.TrustedBrowsers.Length == 0 && again.GetProperty("waiting").GetBoolean(), "Removing a trusted phone asks for approval again");
     }
     private static async Task SecurePortalAsync()
     {
