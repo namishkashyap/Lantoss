@@ -1,60 +1,98 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>hopo · Home sharing</title><link rel="stylesheet" href="/portal.css">
   <script src="/portal.js" defer></script>
 </head>
 <body>
-  <div class="aurora" aria-hidden="true"><span class="glow glow-a"></span><span class="glow glow-b"></span><span class="rings"></span></div>
-  <header><a class="brand" href="/"><svg class="mark" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><circle cx="13" cy="13" r="3.5" fill="#F5B54A"/><circle cx="13" cy="13" r="7.5" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><circle cx="13" cy="13" r="11.5" stroke="currentColor" stroke-opacity=".25" stroke-width="1.2"/><circle class="mark-dot" cx="20.5" cy="8" r="1.8"/></svg>hopo</a><div class="header-actions"><label class="appearance" for="appearance">Appearance <select id="appearance"><option value="System">System</option><option value="Light">Light</option><option value="Dark">Dark</option></select></label><span class="pill">Home Wi-Fi</span></div></header>
-  <main>
-    <div class="host"><img id="host-picture" alt="" hidden><p class="eyebrow" id="device">YOUR PC, WITHIN REACH</p></div>
-    <h1>A little closer.<br>Share from here.</h1>
-    <p class="intro">Photos, files, and the things you want to send. Your phone and PC, on the same Wi-Fi.</p>
-    <div id="notice" role="status" aria-live="polite"></div>
-    <p id="security" class="security"></p>
-    <section id="waiting" class="card" hidden>
-      <span class="symbol pulse"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><h2>Waiting for <span id="waiting-host">the PC</span> to allow this phone</h2>
-      <p>On the PC, open hopo and choose <strong>Allow</strong> next to this phone in <strong>Phone &amp; browser</strong> or <strong>Devices</strong>. This page continues by itself.</p>
-    </section>
-    <section id="login" class="card" hidden>
-      <span class="symbol"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h2>This PC asks for a code</h2>
-      <p>Find the access code in hopo’s <strong>Phone &amp; browser</strong> screen.</p>
-      <form id="login-form"><label for="code">Access code</label><input id="code" name="code" maxlength="24" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required><button type="submit" id="connect">Connect</button></form>
-    </section>
-    <div id="sharing" hidden>
-      <div class="connected"><span class="dot"></span><span id="connection-label">Connected · no code needed</span></div>
-      <section class="card profile-card">
-        <div class="section-title"><span id="me-avatar" class="avatar" aria-hidden="true">?</span><div><h2>You on this PC</h2><p>Your name and picture appear in the PC's device list and on files you send.</p></div></div>
-        <form id="profile-form"><label for="profile-name">Your name</label><input id="profile-name" maxlength="40" autocomplete="nickname" placeholder="For example, Priya's phone">
-          <div class="profile-actions"><label class="file-button">Choose picture<input id="profile-picture" class="file-input" type="file" accept="image/*"></label><button type="button" id="profile-clear" class="secondary">Remove picture</button><button type="submit" id="profile-save">Save</button></div></form>
-      </section>
-      <section id="devices-card" class="card" hidden><h2>Other PCs on your Wi-Fi</h2><p>Choose the PC whose files or text you want to access.</p><div id="browser-devices" class="space-list"></div></section>
-      <section class="card notes-card">
-        <div class="section-title"><span class="symbol"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></span><div><h2>Text &amp; links</h2><p>Shared with this PC. Find received notes in the app's Text &amp; links area.</p></div><button id="notes-refresh" class="icon-button" aria-label="Refresh shared notes"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button></div>
-        <form id="note-form"><label for="note-content">Text or link</label><textarea id="note-content" maxlength="16000" rows="4" placeholder="Paste a link or write a note…" required></textarea><button id="note-send" type="submit">Share with this PC</button></form>
-        <div id="notes-list" class="downloads"></div>
-      </section>
-      <section class="card spaces-card">
-        <div class="section-title"><span class="symbol"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><div><h2>Shared Spaces</h2><p>Folders your PC has chosen to share. Permissions are set by the host.</p></div><button id="spaces-refresh" class="icon-button" aria-label="Refresh shared spaces"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button></div>
-        <div id="spaces" class="space-list"></div>
-        <div id="space-browser" hidden><div class="space-navigation"><button id="space-up" class="secondary">↑ Up</button><strong id="space-path"></strong><button id="inbox" class="secondary">Use PC inbox instead</button></div><div id="space-entries" class="downloads"></div></div>
-      </section>
-      <section class="card send-card">
-        <div class="section-title"><span class="symbol"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span><div><h2 id="send-title">Send to your PC</h2><p id="upload-hint">Pick files or photos. Approve the request on your PC.</p></div></div>
-        <label class="picker" for="files"><span class="picker-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><strong>Choose files or photos</strong><span>Up to 100 files · 2 GiB each</span></label>
-        <input id="files" type="file" multiple class="file-input">
-        <ul id="selection" class="selection"></ul>
-        <div class="actions"><button id="send" disabled><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Send to PC</button><button id="cancel" class="secondary" hidden>Cancel</button></div>
-        <div id="transfer" hidden><p id="transfer-label" role="status" aria-live="polite"></p><p id="transfer-speed" class="speed"></p><progress id="progress" max="100" value="0" aria-label="Upload progress"></progress></div>
-      </section>
-      <section class="card activity-card"><div class="section-title"><span class="symbol mint"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></svg></span><div><h2>Live transfers</h2><p>Your browser’s uploads and downloads · measured speed and estimated time.</p></div></div><div id="live-transfers"></div></section>
-      <section class="card receive-card">
-        <div class="section-title"><span class="symbol mint"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span><div><h2>Get files from your PC</h2><p>Only files selected in hopo appear here.</p></div><button id="refresh" class="icon-button" aria-label="Refresh shared files"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button></div>
-        <div id="downloads" class="downloads"></div>
-      </section>
+  <div class="aurora" aria-hidden="true"><span class="glow glow-a"></span><span class="glow glow-b"></span></div>
+  <header class="wrap">
+    <div class="bar">
+      <a class="brand" href="/"><svg class="mark" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><circle cx="13" cy="13" r="3.5" fill="#F5B54A"/><circle cx="13" cy="13" r="7.5" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><circle cx="13" cy="13" r="11.5" stroke="currentColor" stroke-opacity=".25" stroke-width="1.2"/><circle class="mark-dot" cx="20.5" cy="8" r="1.8"/></svg>hopo</a>
+      <div class="bar-actions"><span id="connected-chip" class="chip live hide-sm" hidden><span class="dot" aria-hidden="true"></span>Connected to <span id="chip-host">your PC</span></span>
+        <button type="button" id="profile-button" class="avatar-button" aria-label="Your profile and appearance" aria-expanded="false" aria-controls="profile"><span id="me-avatar" class="avatar" aria-hidden="true">?</span></button></div>
     </div>
-    <footer><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><div><strong>Local sharing · private to your Wi-Fi</strong><p>The page is encrypted with your PC's own certificate. A new phone waits for Allow on the PC, or enters the access code.</p><p>No account. No cloud. Keep hopo open on your PC.</p></div></footer>
+    <section id="profile" class="glass pop" aria-label="Your profile" hidden>
+      <div class="profile-head"><span id="profile-avatar" class="avatar large" aria-hidden="true">?</span><div><div class="strong">You on <span id="profile-host">this PC</span></div><div class="small muted">Your name and picture show on the PC.</div></div></div>
+      <form id="profile-form"><label for="profile-name">Your name</label><input id="profile-name" class="in" maxlength="40" autocomplete="nickname" placeholder="For example, Priya's phone">
+        <div class="row-actions"><label class="b sm grow file-button">Choose picture<input id="profile-picture" class="file-input" type="file" accept="image/*"></label><button type="button" id="profile-clear" class="b q sm">Remove</button></div>
+        <span class="small muted" id="appearance-label">Appearance</span>
+        <div class="segments" role="group" aria-labelledby="appearance-label"><button type="button" id="appearance-System" class="seg" aria-pressed="false">System</button><button type="button" id="appearance-Light" class="seg" aria-pressed="false">Light</button><button type="button" id="appearance-Dark" class="seg" aria-pressed="false">Dark</button></div>
+        <button type="submit" id="profile-save" class="b p">Save</button></form>
+    </section>
+  </header>
+  <main class="wrap layout">
+    <div class="column">
+      <div id="pc-strip" class="glass pc-strip sm-only"><span class="pc-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></svg></span><div class="grow"><div class="strong" id="strip-name">Your PC</div><div class="small mint" id="strip-status">Connecting…</div></div><span class="blink" aria-hidden="true"></span></div>
+      <div class="heading hide-sm"><h1>Share with <span id="device">your PC</span></h1><p class="muted">Files, photos, notes and links, straight to your PC over Wi-Fi.</p></div>
+      <div id="notice" role="status" aria-live="polite"></div>
+      <section id="waiting" class="glass card" hidden>
+        <span class="tile pulse accent"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><h2>Waiting for <span id="waiting-host">the PC</span> to allow this phone</h2>
+        <p class="muted">On the PC, choose <strong>Allow</strong> or <strong>Always allow</strong> in the <strong>Waiting for approval</strong> card on Home, or in <strong>Phone</strong>. This page continues by itself.</p>
+      </section>
+      <section id="login" class="glass card" hidden>
+        <span class="tile accent"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h2>This PC asks for a code</h2>
+        <p class="muted">Find the access code in hopo’s <strong>Phone &amp; browser</strong> screen.</p>
+        <form id="login-form"><label for="code">Access code</label><input id="code" class="in" name="code" maxlength="24" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required><button type="submit" id="connect" class="b p">Connect</button></form>
+      </section>
+      <div id="sharing" hidden>
+        <nav class="tabs" role="tablist" aria-label="What to share">
+          <button type="button" role="tab" id="tab-send" class="tab on" aria-selected="true" aria-controls="panel-send"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg><span>Send<span class="long"> to PC</span></span></button>
+          <button type="button" role="tab" id="tab-get" class="tab" aria-selected="false" aria-controls="panel-get"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"/></svg><span>Get<span class="long"> from PC</span></span></button>
+          <button type="button" role="tab" id="tab-text" class="tab" aria-selected="false" aria-controls="panel-text"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 11h14M5 16h9"/></svg><span>Text<span class="long"> &amp; links</span></span><span id="notes-count" class="cnt" hidden></span></button>
+          <button type="button" role="tab" id="tab-folders" class="tab" aria-selected="false" aria-controls="panel-folders"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Folders</span><span id="spaces-count" class="cnt" hidden></span></button>
+        </nav>
+        <div id="panel-send" class="panel" role="tabpanel" aria-labelledby="tab-send">
+          <h1 class="sm-only">Send to your PC</h1>
+          <section class="glass card stack">
+            <span id="send-title" class="eb" hidden>Send to your PC</span>
+            <label id="picker" class="picker" for="files"><span class="picker-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span class="strong big">Choose files or photos</span><span class="small muted">Up to 100 files · 2 GB each</span></label>
+            <input id="files" type="file" multiple class="file-input">
+            <div id="selection-head" class="split" hidden><span id="selection-summary" class="strong"></span><div class="row-actions"><label class="b sm" for="files">Add more</label><button type="button" id="selection-clear" class="b q sm">Clear</button></div></div>
+            <ul id="selection" class="list selection"></ul>
+            <div class="send-foot"><span id="upload-hint" class="small muted grow">Pick files or photos. Approve the request on your PC.</span><button type="button" id="cancel" class="b q" hidden>Cancel</button><button type="button" id="send" class="b p" disabled><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"/></svg>Send to PC</button></div>
+            <div id="transfer" hidden><div class="split small"><span id="transfer-label" role="status" aria-live="polite"></span><span id="transfer-speed" class="speed mono"></span></div><progress id="progress" max="100" value="0" aria-label="Upload progress"></progress></div>
+          </section>
+          <section class="glass card stack tight" aria-label="Live transfers"><span class="eb">Live transfers</span><div id="live-transfers"></div></section>
+        </div>
+        <div id="panel-get" class="panel" role="tabpanel" aria-labelledby="tab-get" hidden>
+          <h1 class="sm-only">Get from your PC</h1>
+          <section class="glass card stack"><div id="downloads" class="list"></div><button type="button" id="refresh" class="b sm center"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4"/></svg>Check again</button></section>
+        </div>
+        <div id="panel-text" class="panel" role="tabpanel" aria-labelledby="tab-text" hidden>
+          <h1 class="sm-only">Text &amp; links</h1>
+          <section class="glass card stack">
+            <form id="note-form" class="stack"><div class="split"><label for="note-content" class="small muted plain">Send a note or link</label><button type="button" id="notes-refresh" class="b q sm" aria-label="Refresh shared notes"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4"/></svg></button></div>
+              <div class="compose"><textarea id="note-content" class="in" maxlength="16000" rows="2" placeholder="Paste a link or write a note…" required></textarea><button id="note-send" type="submit" class="b p">Share</button></div></form>
+            <div id="notes-list" class="list divided"></div>
+          </section>
+        </div>
+        <div id="panel-folders" class="panel" role="tabpanel" aria-labelledby="tab-folders" hidden>
+          <h1 class="sm-only">Shared folders</h1>
+          <section class="glass card stack">
+            <div class="split"><span class="small muted">Folders <span id="folders-host">your PC</span> has chosen to share. The PC sets the permissions.</span><button type="button" id="spaces-refresh" class="b q sm" aria-label="Refresh shared folders"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4"/></svg></button></div>
+            <div id="spaces" class="list"></div>
+            <div id="space-browser" hidden><div class="space-navigation"><button type="button" id="space-up" class="b sm">↑ Up</button><strong id="space-path" class="grow"></strong><button type="button" id="space-upload" class="b p sm">Upload here</button><button type="button" id="inbox" class="b q sm">Use PC inbox instead</button></div><div id="space-entries" class="list"></div></div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="glass card pc-card hide-sm">
+        <div class="radar" aria-hidden="true"><span class="ring outer"></span><span class="ring inner"></span><span class="rip"></span><span class="rip late"></span>
+          <span class="pc-core"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></svg><img id="host-picture" alt="" hidden></span>
+          <span class="you-dot blink"></span><span class="you">You</span></div>
+        <div><div class="strong big" id="host-name">Your PC</div><div class="small muted mono" id="host-address">Home Wi-Fi</div></div>
+        <span id="pc-chip" class="chip safe"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span id="connection-label">Connecting…</span></span>
+      </section>
+      <section id="devices-card" class="glass card stack tight" hidden><span class="eb">Other PCs on your Wi-Fi</span><span class="small muted">Choose the PC whose files or text you want to access.</span><div id="browser-devices" class="list"></div></section>
+      <section class="glass card stack tight">
+        <span class="eb">Good to know</span>
+        <div class="tip"><span class="tip-dot phone" aria-hidden="true"></span><span><strong>Local sharing · private to your Wi-Fi</strong>. No account, no cloud.</span></div>
+        <div class="tip"><span class="tip-dot mint" aria-hidden="true"></span>Keep hopo open on the PC while sharing.</div>
+        <div class="tip"><span class="tip-dot accent" aria-hidden="true"></span><span id="security">Checking the connection…</span></div>
+      </section>
+    </aside>
   </main>
 </body></html>

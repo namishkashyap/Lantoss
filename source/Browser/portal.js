@@ -3,19 +3,38 @@ const $ = id => document.getElementById(id);
 // Appearance is a per-browser preference; a phone follows its own system, not the host PC.
 // Storage can be blocked in private browsers. Keep sharing and the current choice working then.
 const systemAppearance = window.matchMedia('(prefers-color-scheme: dark)');
+const appearanceModes = ['System', 'Light', 'Dark'];
 let appearanceMode = 'System';
-try { const saved = localStorage.getItem('lantoss.appearance'); if (['System', 'Light', 'Dark'].includes(saved)) appearanceMode = saved; } catch { }
+try { const saved = localStorage.getItem('lantoss.appearance'); if (appearanceModes.includes(saved)) appearanceMode = saved; } catch { }
 function applyAppearance() {
   document.documentElement.dataset.theme = appearanceMode === 'System' ? (systemAppearance.matches ? 'dark' : 'light') : appearanceMode.toLowerCase();
-  $('appearance').value = appearanceMode;
+  for (const mode of appearanceModes) $('appearance-' + mode).setAttribute('aria-pressed', String(mode === appearanceMode));
 }
-$('appearance').addEventListener('change', () => {
-  appearanceMode = ['System', 'Light', 'Dark'].includes($('appearance').value) ? $('appearance').value : 'System';
+for (const mode of appearanceModes) $('appearance-' + mode).addEventListener('click', () => {
+  appearanceMode = mode;
   try { localStorage.setItem('lantoss.appearance', appearanceMode); } catch { }
   applyAppearance();
 });
 systemAppearance.addEventListener('change', () => { if (appearanceMode === 'System') applyAppearance(); });
 applyAppearance();
+// Tabs follow the design: Send, Get, Text & links and Folders. Arrow keys move between them.
+const tabNames = ['send', 'get', 'text', 'folders'];
+function showTab(name) {
+  for (const tab of tabNames) { const on = tab === name; $('tab-' + tab).className = on ? 'tab on' : 'tab'; $('tab-' + tab).setAttribute('aria-selected', String(on)); $('tab-' + tab).tabIndex = on ? 0 : -1; $('panel-' + tab).hidden = !on; }
+}
+tabNames.forEach((tab, index) => {
+  $('tab-' + tab).addEventListener('click', () => showTab(tab));
+  $('tab-' + tab).addEventListener('keydown', event => { const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0; if (!step) return; event.preventDefault(); const next = tabNames[(index + step + tabNames.length) % tabNames.length]; showTab(next); $('tab-' + next).focus(); });
+});
+showTab('send');
+function toggleProfile(open = $('profile').hidden) { $('profile').hidden = !open; $('profile-button').setAttribute('aria-expanded', String(open)); if (open) $('profile-name').focus(); }
+$('profile-button').addEventListener('click', () => toggleProfile());
+$('profile').addEventListener('keydown', event => { if (event.key === 'Escape') { toggleProfile(false); $('profile-button').focus(); } });
+document.addEventListener('click', event => { if (!$('profile').hidden && !$('profile').contains(event.target) && !$('profile-button').contains(event.target)) toggleProfile(false); });
+const showHost = name => { for (const id of ['device', 'chip-host', 'host-name', 'strip-name', 'profile-host', 'folders-host']) $(id).textContent = name; };
+const photo = name => /\.(jpe?g|png|gif|webp|heic|heif|bmp|avif|tiff?)$/i.test(name);
+const fileKind = name => photo(name) ? 'Photo' : name.includes('.') ? name.split('.').pop().toUpperCase().slice(0, 6) : 'File';
+$('host-address').textContent = (location.hostname ? location.hostname + ' · ' : '') + 'Home Wi-Fi';
 
 let csrf = '', selected = [], busy = false, activeUpload = null, offerAbort = null, offerId = '', cancelled = false;
 let activeSpace = null, activeFolder = '', transferPolling = false, spaceLoad = 0;
@@ -28,9 +47,9 @@ const validSelection = () => selected.length > 0 && selected.length <= 100 && se
 function updateTarget() {
   const readOnly = activeSpace && !activeSpace.canUpload;
   $('files').disabled = busy || !!readOnly;
-  $('spaces-refresh').disabled = busy;
+  $('spaces-refresh').disabled = busy; $('selection-clear').disabled = busy;
   $('send').disabled = busy || !!readOnly || !validSelection();
-  $('send-title').textContent = activeSpace ? `Upload to ${activeSpace.name}` : 'Send to your PC';
+  $('send-title').textContent = activeSpace ? `Upload to ${activeSpace.name}` : 'Send to your PC'; $('send-title').hidden = !activeSpace;
   $('upload-hint').textContent = readOnly ? 'This space is read only. Use PC inbox instead to send files.' : activeSpace ? `Destination: ${activeFolder || 'space root'}. Approve the batch on the PC.` : 'Pick files or photos. Approve the request on your PC.';
 }
 async function request(path, options = {}) {
@@ -46,10 +65,13 @@ let profile = { name: '', picture: '' };
 try { const saved = JSON.parse(localStorage.getItem('lantoss.profile') || '{}'); profile = { name: typeof saved.name === 'string' ? saved.name.slice(0, 40) : '', picture: typeof saved.picture === 'string' && saved.picture.startsWith('data:image/jpeg;base64,') ? saved.picture : '' }; } catch { }
 function showProfile() {
   $('profile-name').value = profile.name;
-  const avatar = $('me-avatar'); avatar.textContent = '';
-  if (profile.picture) { const image = document.createElement('img'); image.src = profile.picture; image.alt = ''; avatar.append(image); }
-  else avatar.textContent = (profile.name.trim()[0] || '?').toUpperCase();
+  for (const id of ['me-avatar', 'profile-avatar']) {
+    const avatar = $(id); avatar.replaceChildren(); avatar.textContent = '';
+    if (profile.picture) { const image = document.createElement('img'); image.src = profile.picture; image.alt = ''; avatar.append(image); }
+    else avatar.textContent = profile.name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(word => [...word][0]).join('').toUpperCase() || '?';
+  }
 }
+showProfile();
 function sendProfile() { return request('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: profile.name, picture: profile.picture || null }) }); }
 // Pictures are cropped and re-encoded here so only a small JPEG leaves the phone.
 function resizePicture(file) {
@@ -64,7 +86,7 @@ $('profile-picture').addEventListener('change', async () => { const file = $('pr
 $('profile-clear').addEventListener('click', () => { profile.picture = ''; showProfile(); notice('Press Save to remove your picture from the PC.'); });
 $('profile-form').addEventListener('submit', async event => {
   event.preventDefault(); profile.name = $('profile-name').value.trim().slice(0, 40); $('profile-save').disabled = true;
-  try { await sendProfile(); try { localStorage.setItem('lantoss.profile', JSON.stringify(profile)); } catch { } showProfile(); notice('Saved. The PC now shows your name' + (profile.picture ? ' and picture.' : '.')); }
+  try { await sendProfile(); try { localStorage.setItem('lantoss.profile', JSON.stringify(profile)); } catch { } showProfile(); toggleProfile(false); notice('Saved. The PC now shows your name' + (profile.picture ? ' and picture.' : '.')); }
   catch (error) { notice(error.message, true); }
   finally { $('profile-save').disabled = false; }
 });
@@ -72,11 +94,13 @@ let waitTimer = 0, knownPersonal = new Set();
 async function connect() {
   try {
     const session = await request('/api/session');
-    $('device').textContent = session.name;
+    showHost(session.name);
     $('login').hidden = session.connected || session.waiting || !session.requiresCode;
     $('waiting').hidden = !session.waiting;
-    $('sharing').hidden = !session.connected;
+    $('sharing').hidden = !session.connected; $('connected-chip').hidden = !session.connected;
     $('security').textContent = session.encrypted ? 'Encrypted (HTTPS)' + (session.certificate ? ' · certificate ' + session.certificate : '') : 'Not encrypted · use only on trusted Wi-Fi';
+    $('pc-chip').className = session.encrypted ? 'chip safe' : 'chip safe open';
+    if (!session.connected) $('connection-label').textContent = $('strip-status').textContent = session.waiting ? 'Waiting for Allow on the PC' : session.requiresCode ? 'Access code needed' : 'Not connected';
     if (session.waiting) {
       csrf = session.csrf; $('waiting-host').textContent = session.name;
       if (profile.name || profile.picture) { try { await sendProfile(); } catch { } }
@@ -85,7 +109,7 @@ async function connect() {
     }
     if (session.connected) {
       csrf = session.csrf;
-      $('connection-label').textContent = (session.encrypted ? 'Encrypted · ' : 'Not encrypted · ') + (session.requiresCode ? 'code protection on' : 'allowed by the PC');
+      $('connection-label').textContent = $('strip-status').textContent = (session.encrypted ? 'Encrypted · ' : 'Not encrypted · ') + (session.requiresCode ? 'code protection on' : 'approved by the PC');
       $('host-picture').hidden = !session.hasPicture;
       if (session.hasPicture) $('host-picture').src = '/api/picture?' + Date.now();
       showProfile();
@@ -109,21 +133,22 @@ $('login-form').addEventListener('submit', async event => {
 async function refreshFiles() {
   const files = await request('/api/files');
   const fresh = files.filter(file => file.personal && !knownPersonal.has(file.id));
-  if (fresh.length) notice(`${$('device').textContent} sent you ${fresh.length} ${fresh.length === 1 ? 'file' : 'files'}. Find ${fresh.length === 1 ? 'it' : 'them'} under Get files from your PC.`);
+  if (fresh.length) notice(`${$('device').textContent} sent you ${fresh.length} ${fresh.length === 1 ? 'file' : 'files'}. Find ${fresh.length === 1 ? 'it' : 'them'} under Get from PC.`);
   for (const file of fresh) knownPersonal.add(file.id);
   $('downloads').replaceChildren();
   if (!files.length) {
-    const empty = document.createElement('div'); empty.className = 'empty';
-    empty.textContent = 'Nothing shared yet. On your PC, open Phone & browser and choose files to share.';
-    $('downloads').append(empty);
+    const empty = document.createElement('div'); empty.className = 'empty big';
+    const title = document.createElement('strong'); title.textContent = 'Nothing shared yet';
+    const text = document.createElement('span'); text.textContent = 'On your PC, open Phone & browser and pick files. They’ll show up here to download.';
+    empty.append(title, text); $('downloads').append(empty);
   }
   for (const file of files) {
-    const row = document.createElement('div'); row.className = 'file-row';
+    const row = document.createElement('div'); row.className = photo(file.name) ? 'file-row photo' : 'file-row';
     const details = document.createElement('div');
     const name = document.createElement('div'); name.className = 'file-name'; name.textContent = file.name;
-    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = bytes(file.size) + (file.personal ? ' · sent to you' : '');
+    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = `${fileKind(file.name)} · ${bytes(file.size)}` + (file.personal ? ' · sent to you' : '');
     details.append(name, meta);
-    const download = document.createElement('a'); download.className = 'download'; download.href = '/api/download/' + encodeURIComponent(file.id); download.textContent = 'Download ↓';
+    const download = document.createElement('a'); download.className = 'b p sm'; download.href = '/api/download/' + encodeURIComponent(file.id); download.textContent = 'Download';
     row.append(details, download); $('downloads').append(row);
   }
 }
@@ -134,11 +159,12 @@ async function refreshSpaces(reloadFolder = true) {
   const spaces = await request('/api/spaces');
   if (spaceLoad !== previousLoad || busy) return;
   $('spaces').replaceChildren();
+  $('spaces-count').textContent = spaces.length; $('spaces-count').hidden = !spaces.length;
   if (!spaces.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Create a space from a folder in the Windows app. Only those folders will appear here.'; $('spaces').append(empty); }
   for (const space of spaces) {
     const button = document.createElement('button'); button.className = 'space-card'; button.disabled = !space.available;
     const title = document.createElement('strong'); title.textContent = space.name;
-    const permission = document.createElement('span'); permission.textContent = !space.available ? 'Folder unavailable' : space.canUpload ? 'Read & upload →' : 'Read only →';
+    const permission = document.createElement('span'); permission.textContent = !space.available ? 'Folder unavailable' : space.canUpload ? 'Read & upload' : 'Read only';
     button.append(title, permission); button.addEventListener('click', () => openSpace(space).catch(error => notice(error.message, true))); $('spaces').append(button);
   }
   if (activeSpace) {
@@ -148,7 +174,7 @@ async function refreshSpaces(reloadFolder = true) {
   } else {
     const wanted = new URLSearchParams(location.search).get('space');
     const initial = spaces.find(space => space.id === wanted && space.available);
-    if (initial) await openSpace(initial);
+    if (initial) { await openSpace(initial); showTab('folders'); }
   }
 }
 async function openSpace(space, path = '') {
@@ -158,14 +184,14 @@ async function openSpace(space, path = '') {
   if (load !== spaceLoad) return;
   activeSpace = space; activeFolder = path; $('space-browser').hidden = false;
   $('space-path').textContent = `${space.name}${path ? ' / ' + path : ''}`;
-  $('space-up').disabled = !path;
+  $('space-up').disabled = !path; $('space-upload').hidden = !space.canUpload;
   $('space-entries').replaceChildren();
   if (!entries.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'This folder is empty.'; $('space-entries').append(empty); }
   for (const entry of entries) {
-    const row = document.createElement('div'); row.className = 'file-row';
-    const label = document.createElement('div'); label.className = 'file-name'; label.textContent = `${entry.directory ? '▤ ' : ''}${entry.name}`;
-    const action = document.createElement(entry.directory ? 'button' : 'a'); action.className = 'download';
-    if (entry.directory) { action.textContent = 'Open folder →'; action.addEventListener('click', () => openSpace(space, entry.path).catch(error => notice(error.message, true))); }
+    const row = document.createElement('div'); row.className = entry.directory ? 'file-row folder' : photo(entry.name) ? 'file-row photo' : 'file-row';
+    const label = document.createElement('div'); label.className = 'file-name'; label.textContent = entry.name;
+    const action = document.createElement(entry.directory ? 'button' : 'a'); action.className = entry.directory ? 'b sm' : 'b q sm';
+    if (entry.directory) { action.type = 'button'; action.textContent = 'Open'; action.addEventListener('click', () => openSpace(space, entry.path).catch(error => notice(error.message, true))); }
     else { action.textContent = `Download · ${bytes(entry.size)}`; action.href = `/api/spaces/${encodeURIComponent(space.id)}/download?path=${encodeURIComponent(entry.path)}`; }
     row.append(label, action); $('space-entries').append(row);
   }
@@ -187,16 +213,17 @@ async function refreshNotes() {
   if (snapshot.revision === notesRevision) return;
   notesRevision = snapshot.revision;
   $('notes-list').replaceChildren();
+  $('notes-count').textContent = snapshot.notes.length; $('notes-count').hidden = !snapshot.notes.length;
   if (!snapshot.notes.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Shared text and links appear here.'; $('notes-list').append(empty); }
   for (const note of snapshot.notes) {
-    const row = document.createElement('div'); row.className = 'note-row';
+    const row = document.createElement('div'); row.className = note.kind === 'link' ? 'note-row link' : 'note-row';
     const text = document.createElement('div'); text.className = 'note-content'; text.textContent = note.content;
-    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = `${note.sender} · ${new Date(note.createdUtc).toLocaleString()}`;
+    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = `From ${note.sender} · ${new Date(note.createdUtc).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`;
     const actions = document.createElement('div'); actions.className = 'actions';
-    const copy = document.createElement('button'); copy.className = 'secondary'; copy.textContent = 'Copy'; copy.addEventListener('click', () => void copyNote(note.content)); actions.append(copy);
+    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'b sm'; copy.textContent = 'Copy'; copy.addEventListener('click', () => void copyNote(note.content)); actions.append(copy);
     // Link detection is repeated on the client. No received HTML or executable URL is evaluated.
     if (note.kind === 'link') {
-      try { const uri = new URL(note.content); if (['http:', 'https:'].includes(uri.protocol)) { const link = document.createElement('a'); link.href = uri.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Open link ↗'; actions.append(link); } } catch { }
+      try { const uri = new URL(note.content); if (['http:', 'https:'].includes(uri.protocol)) { const link = document.createElement('a'); link.href = uri.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.className = 'b q sm'; link.textContent = 'Open'; actions.append(link); } } catch { }
     }
     row.append(text, meta, actions); $('notes-list').append(row);
   }
@@ -231,10 +258,11 @@ async function pollBrowserDevices() { try { if (!$('sharing').hidden && !documen
 setTimeout(pollBrowserDevices, 15000);
 $('space-up').addEventListener('click', () => { if (activeSpace && !busy) { const parent = activeFolder.includes('/') ? activeFolder.slice(0, activeFolder.lastIndexOf('/')) : ''; void openSpace(activeSpace, parent).catch(error => notice(error.message, true)); } });
 $('inbox').addEventListener('click', () => { if (busy) return; spaceLoad++; activeSpace = null; activeFolder = ''; $('space-browser').hidden = true; updateTarget(); });
+$('space-upload').addEventListener('click', () => showTab('send'));
 async function refreshTransfers() {
   const transfers = await request('/api/transfers');
   $('live-transfers').replaceChildren();
-  if (!transfers.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Transfer a file to see progress, current speed, and time remaining here.'; $('live-transfers').append(empty); }
+  if (!transfers.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Progress, speed and time left appear here while files move.'; $('live-transfers').append(empty); }
   for (const transfer of transfers) {
     const row = document.createElement('div'); row.className = 'transfer-row';
     const title = document.createElement('strong'); title.textContent = `${transfer.direction === 'Sent' ? 'Download' : 'Upload'} · ${transfer.title}`;
@@ -252,15 +280,25 @@ function startTransferPolling() {
 $('files').addEventListener('change', () => {
   if (busy) return;
   selected = Array.from($('files').files);
-  $('selection').replaceChildren();
-  for (const file of selected.slice(0, 100)) {
-    const row = document.createElement('li'); row.textContent = file.name;
-    const size = document.createElement('small'); size.textContent = bytes(file.size); row.append(size); $('selection').append(row);
-  }
+  showSelection();
   const invalid = selected.length > 100 || selected.some(file => file.size > 2147483648) || selected.reduce((sum, file) => sum + file.size, 0) > 10737418240;
   updateTarget();
   notice(invalid ? 'Choose up to 100 files, 2 GiB each, and 10 GiB total.' : '', invalid);
 });
+// Chosen files replace the picker with a list, its total, Add more and Clear.
+function showSelection() {
+  $('selection').replaceChildren();
+  for (const file of selected.slice(0, 100)) {
+    const row = document.createElement('li'); row.className = photo(file.name) ? 'file-row photo' : 'file-row';
+    const details = document.createElement('div');
+    const name = document.createElement('div'); name.className = 'file-name'; name.textContent = file.name;
+    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = `${fileKind(file.name)} · ${bytes(file.size)}`;
+    details.append(name, meta); row.append(details); $('selection').append(row);
+  }
+  $('picker').hidden = selected.length > 0; $('selection-head').hidden = !selected.length;
+  $('selection-summary').textContent = `${selected.length} ${selected.length === 1 ? 'file' : 'files'} · ${bytes(selected.reduce((sum, file) => sum + file.size, 0))}`;
+}
+$('selection-clear').addEventListener('click', () => { if (busy) return; selected = []; $('files').value = ''; showSelection(); updateTarget(); notice(''); });
 function upload(file, index, before, total) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest(); activeUpload = xhr;
@@ -299,7 +337,7 @@ $('send').addEventListener('click', async () => {
     }
     $('progress').value = 100; $('transfer-label').textContent = `${selected.length} ${selected.length === 1 ? 'file saved' : 'files saved'} on your PC.`;
     $('transfer-speed').textContent = `Average upload: ${rateText(total / Math.max(.001, (performance.now() - startedAt) / 1000))}`;
-    notice('Done. Your files are saved on the PC.'); selected = []; $('selection').replaceChildren(); $('files').value = ''; offerId = '';
+    notice('Done. Your files are saved on the PC.'); selected = []; $('files').value = ''; showSelection(); offerId = '';
   } catch (error) {
     notice(error.message, true); $('transfer-label').textContent = 'Transfer stopped. You can choose files and try again.';
     if (offerId) await request(`/api/uploads/${encodeURIComponent(offerId)}/cancel`, { method: 'POST' }).catch(() => {});
