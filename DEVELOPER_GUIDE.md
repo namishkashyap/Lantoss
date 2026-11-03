@@ -96,13 +96,13 @@ node .\source\tests\browser-ui.test.cjs
 Use `-DotnetPath` for a specific SDK executable and `-BuildRoot` for an alternate
 intermediate directory. Node.js is needed only for browser regression checks.
 NuGet restore performs the normal package vulnerability checks. `Publish` creates
-the self-contained Windows x64 app in `app/Lantoss.exe`.
+the self-contained Windows x64 app in `app/hopoUsers.exe` (and the admin app, `app/hopoAdmin.exe`).
 
 The explicit diagnostic modes use scratch metadata and memory-only identities:
 
 ```powershell
-.\app\Lantoss.exe --ui-regression .\work\ui-checks --data-dir .\work\ui-state
-.\app\Lantoss.exe --ui-smoke .\work\screens --data-dir .\work\smoke-state
+.\app\hopoUsers.exe --ui-regression .\work\ui-checks --data-dir .\work\ui-state
+.\app\hopoUsers.exe --ui-smoke .\work\screens --data-dir .\work\smoke-state
 ```
 
 Normal LAN startup and UAC are disabled in previews. `--preview-browser` is a

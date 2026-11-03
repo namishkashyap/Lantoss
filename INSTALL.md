@@ -5,17 +5,18 @@ the browser page. hopo was called Lantoss until 2.0.2; installing 2.1 replaces i
 pairings and history. Install hopo on every computer you want to share between,
 and keep them on the same trusted home Wi-Fi or Ethernet.
 
-Get the files from the **[v2.3.0 release](https://github.com/namishkashyap/Lantoss/releases/tag/v2.3.0)**.
+Get the files from the **[v2.4.0 release](https://github.com/namishkashyap/Lantoss/releases/tag/v2.4.0)**.
 The previous Windows-only version stays available as [v1.9.0](https://github.com/namishkashyap/Lantoss/releases/tag/v1.9.0).
 
 | Your computer | Download |
 |---|---|
-| Windows 10/11 (64-bit) | `hopo-Setup-2.3.0-x64.msi` |
-| Mac with Apple Silicon (M1 or later) | `hopo-2.3.0-macOS-AppleSilicon.zip` |
-| Mac with an Intel processor | `hopo-2.3.0-macOS-Intel.zip` |
-| Ubuntu, Debian, Linux Mint, Pop!_OS (64-bit PC) | `hopo_2.3.0_amd64.deb` |
-| Raspberry Pi OS or other Debian-based ARM64 | `hopo_2.3.0_arm64.deb` |
-| Any other Linux (Fedora, Arch, openSUSE…) | `hopo-2.3.0-linux-x64.tar.gz` or `hopo-2.3.0-linux-arm64.tar.gz` |
+| Windows 10/11 (64-bit), people who share files | `hopo-Users-Setup-2.4.0-x64.msi` (or just `hopoUsers.exe`) |
+| Windows 10/11 (64-bit), the admin | `hopo-Admin-Setup-2.4.0-x64.msi` (or just `hopoAdmin.exe`) |
+| Mac with Apple Silicon (M1 or later) | `hopo-2.4.0-macOS-AppleSilicon.zip` |
+| Mac with an Intel processor | `hopo-2.4.0-macOS-Intel.zip` |
+| Ubuntu, Debian, Linux Mint, Pop!_OS (64-bit PC) | `hopo_2.4.0_amd64.deb` |
+| Raspberry Pi OS or other Debian-based ARM64 | `hopo_2.4.0_arm64.deb` |
+| Any other Linux (Fedora, Arch, openSUSE…) | `hopo-2.4.0-linux-x64.tar.gz` or `hopo-2.4.0-linux-arm64.tar.gz` |
 
 These are development builds. They are not signed by Microsoft or notarized by
 Apple, so each system asks you to confirm the first launch, as described below.
@@ -25,12 +26,17 @@ Apple, so each system asks you to confirm the first launch, as described below.
 ## Windows
 
 ### Install
-1. If an older Lantoss is running, right-click its tray icon and choose **Exit Lantoss**.
-2. Double-click `hopo-Setup-2.3.0-x64.msi`. If SmartScreen appears, choose **More info → Run anyway**.
-3. Follow the setup. In **Custom Setup** you can add a desktop shortcut and **Launch hopo at sign-in**.
-   The **Explorer sharing** feature adds *Share with Lantoss* to the right-click menu. On Windows 11
-   it asks once to trust the "Lantoss Development" publisher, then asks for administrator approval.
-4. Start **hopo** from the Start menu.
+hopo comes as two separate apps. Give each person only the one they need:
+- **hopo Users** (`hopo-Users-Setup-2.4.0-x64.msi`): Home, Send files, Text & links and Transfers.
+- **hopo Admin** (`hopo-Admin-Setup-2.4.0-x64.msi`): every page, including Devices, shared folders, Sync, History and Settings.
+
+`hopoUsers.exe` and `hopoAdmin.exe` from the release also run on their own without installing.
+
+1. If an older hopo or Lantoss is running, right-click its tray icon and choose **Exit**.
+2. Double-click the setup file. If SmartScreen appears, choose **More info → Run anyway**.
+3. Follow the setup. In **Custom Setup** you can add a desktop shortcut and **Launch at sign-in**.
+   The **Share in Explorer** feature adds *Share with hopo* to the right-click menu (on Windows 11, under **Show more options**).
+4. Start **hopo Users** or **hopo Admin** from the Start menu.
 
 ### First run
 - Approve the Windows administrator prompt if hopo offers to set up **Private-network** firewall access.
@@ -63,9 +69,9 @@ Requires macOS 14 Sonoma or later.
    - Terminal users can instead run `sh install.sh` in the unpacked folder.
 
    **Saw "Lantoss is damaged and can't be opened" with the 2.0.0 download?** That build wasn't sealed.
-   Click **Cancel** (not Move to Bin), download 2.3.0, and do step 3.
+   Click **Cancel** (not Move to Bin), download 2.4.0, and do step 3.
    Or run this in Terminal, adjusting the path to where you unpacked it:
-   `xattr -cr ~/Downloads/hopo-2.3.0-macOS-AppleSilicon/hopo.app`.
+   `xattr -cr ~/Downloads/hopo-2.4.0-macOS-AppleSilicon/hopo.app`.
 
    <details><summary>Prefer to do it by hand?</summary>
 
@@ -98,15 +104,15 @@ hopo needs a desktop session (X11 or Wayland with XWayland).
 
 ### Debian, Ubuntu and derivatives (.deb)
 ```sh
-sudo apt install ./hopo_2.3.0_amd64.deb      # or hopo_2.3.0_arm64.deb
+sudo apt install ./hopo_2.4.0_amd64.deb      # or hopo_2.4.0_arm64.deb
 ```
 Then start **hopo** from your applications menu, or run `hopo`.
 Uninstall with `sudo apt remove hopo`.
 
 ### Any distribution (.tar.gz)
 ```sh
-tar -xzf hopo-2.3.0-linux-x64.tar.gz
-cd hopo-2.3.0
+tar -xzf hopo-2.4.0-linux-x64.tar.gz
+cd hopo-2.4.0
 ./install.sh            # installs for your user: ~/.local/opt/hopo and a menu entry
 # sudo ./install.sh     # or system-wide into /opt/hopo
 ```

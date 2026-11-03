@@ -1,3 +1,13 @@
+2026-11-03 - hopo 2.4.0: hopo Users and hopo Admin, smaller downloads
+
+hopo is now two separate Windows apps with their own setup files: hopo Users
+(hopoUsers.exe, formerly Lantoss.exe) and hopo Admin (hopoAdmin.exe). There
+is no admin PIN and no switching between them; give each person the app they
+need. Each setup holds one app, so downloads are about half the size of 2.3.
+
+Share with hopo is in the right-click menu (on Windows 11 under Show more
+options). The Windows 11 menu package from earlier versions is removed.
+
 2026-11-03 - hopo 2.3.0: trusted devices and a separate hopo Admin app
 
 Always allow a phone and it connects and sends files without asking again,
