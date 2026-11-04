@@ -296,7 +296,7 @@ internal sealed class HomePage : IPage
         devices.Children.Clear();
         // Only devices on the network right now; offline PCs are listed under Past connections. Users see paired PCs only.
         Peer[] peers = app.Engine.Peers.Where(p => p.Online && !p.Blocked && (app.Admin || p.Paired) && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).OrderBy(p => p.Name).Take(8).ToArray();
-        BrowserDevice[] browsers = app.Engine.Browser.Devices.Where(b => b.Approved && b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(6).ToArray();
+        BrowserDevice[] browsers = app.Engine.Browser.Browsers.Where(b => b.Approved && b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(6).ToArray();
         int count = peers.Length + browsers.Length, index = 0;
         foreach (Peer peer in peers)
             Device(index++, count, peer.Name, peer.Online ? "Mint" : "Muted", peer.Name + (peer.Online ? ", on Wi‑Fi" : ", offline"), peer.Online ? "Online" : "Offline", peer.Online, "Wi‑Fi · " + peer.Address, peer.TrustLabel, peer.Paired ? C.Small("Send files", () => Open("send", peer.Fingerprint)) : C.Small("Connect", () => app.Dialogs.Pair(peer)), peer.Paired ? C.Small("Text", () => Open("text", peer.Fingerprint)) : null);
@@ -718,7 +718,7 @@ internal sealed class HomePage : IPage
     private Border SendSheet()
     {
         Peer[] peers = app.Engine.Peers.Where(p => p.Paired && !p.Blocked).OrderByDescending(p => p.Online).ThenBy(p => p.Name).ToArray();
-        BrowserDevice[] phones = app.Engine.Browser.Devices.Where(b => b.Approved).ToArray();
+        BrowserDevice[] phones = app.Engine.Browser.Browsers.Where(b => b.Approved).ToArray();
         if (target == null || (!peers.Any(p => p.Fingerprint == target) && !phones.Any(b => "web:" + b.Handle == target)))
             target = app.SelectedPeerKey is string key && peers.Any(p => p.Fingerprint == key) ? key : peers.FirstOrDefault(p => p.Online)?.Fingerprint;
         string summary = app.Selection.Count == 0 ? "Drop files here" : $"{app.Selection.Count} selected · {app.Selection.Sum(item => item.Files)} files · {Format.Bytes(app.Selection.Sum(item => item.Size))}";
@@ -984,7 +984,7 @@ internal sealed class SendPage : IPage
         recipient.Children.Clear();
         recipient.Children.Add(C.Heading("Send to"));
         // Approved phones and browsers are recipients too: the files appear only on that phone's page.
-        BrowserDevice[] phones = app.Engine.Browser.Running ? app.Engine.Browser.Devices.Where(device => device.Approved).ToArray() : [];
+        BrowserDevice[] phones = app.Engine.Browser.Running ? app.Engine.Browser.Browsers.Where(device => device.Approved).ToArray() : [];
         if (phones.Length > 0)
             recipient.Children.Add(C.Space(C.Text("Phones and browsers", 12, bold: true), 10));
         foreach (BrowserDevice device in phones)

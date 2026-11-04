@@ -483,7 +483,10 @@ public sealed partial class BrowserPortal : IDisposable
         {
             foreach (string old in sessions.Where(s => DateTime.UtcNow - s.Value.CreatedUtc >= TimeSpan.FromHours(12)).Select(s => s.Key).ToArray())
                 sessions.Remove(old);
-            string address = context.Connection.RemoteIpAddress!.ToString();
+            string address = context.Connection.RemoteIpAddress!.ToString(), label = Profiles.DeviceLabel(context.Request.Headers.UserAgent.ToString());
+            // The same browser starting again (a closed tab, another page address, a lost cookie) ends its own copies that no open page has used for 2 minutes.
+            foreach (Session stale in sessions.Values.Where(s => s.Address == address && s.Device == label && DateTime.UtcNow - s.LastSeenUtc > TimeSpan.FromMinutes(2)).ToArray())
+                End(stale);
             // One address cannot fill the table and lock out other phones: it replaces its own oldest session instead.
             Session[] own = sessions.Values.Where(s => s.Address == address).OrderBy(s => s.LastSeenUtc).ToArray();
             if (own.Length >= 4)
@@ -492,7 +495,7 @@ public sealed partial class BrowserPortal : IDisposable
             if (sessions.Count >= 64)
                 End(sessions.Values.OrderBy(s => s.Approved).ThenBy(s => s.LastSeenUtc).First());
             string trusted = TrustedHash(context);
-            session = new(RandomToken(), RandomToken(), address, DateTime.UtcNow, generation, Profiles.DeviceLabel(context.Request.Headers.UserAgent.ToString()))
+            session = new(RandomToken(), RandomToken(), address, DateTime.UtcNow, generation, label)
             {
                 Approved = approved || trusted.Length > 0,
                 TrustHash = trusted
@@ -520,6 +523,8 @@ public sealed partial class BrowserPortal : IDisposable
                 return sessions.Values.Where(s => s.Generation == generation && DateTime.UtcNow - s.CreatedUtc < TimeSpan.FromHours(12)).OrderByDescending(s => s.LastSeenUtc).Select(Device).ToArray();
         }
     }
+    /// <summary>Each browser once: sessions from the same address and browser (such as "iPad · Chrome") show as the approved, most recently seen one.</summary>
+    public BrowserDevice[] Browsers => [.. Devices.GroupBy(d => (d.Address, d.Device)).Select(group => group.OrderByDescending(d => d.Approved).First())];
     /// <summary>Lets a waiting browser open files, spaces and notes.</summary>
     public void Approve(string handle)
     {
@@ -587,22 +592,25 @@ public sealed partial class BrowserPortal : IDisposable
             blocked.Remove(address);
         Changed?.Invoke();
     }
-    /// <summary>Ends one browser's session and cancels its pending uploads and downloads; the page must connect again.</summary>
+    /// <summary>Ends a browser's sessions (every copy from the same address and browser) and cancels their pending uploads and downloads; the page must connect again.</summary>
     public void Disconnect(string handle)
     {
-        Session? removed;
+        Session[] removed;
         lock (gate)
         {
-            removed = sessions.Values.FirstOrDefault(s => s.Handle == handle);
-            if (removed == null)
+            if (sessions.Values.FirstOrDefault(s => s.Handle == handle) is not Session chosen)
                 return;
-            removed.Cancellation.Cancel();
-            sessions.Remove(removed.Id);
-            busySessions.Remove(removed.Id);
-            foreach (string file in files.Values.Where(f => f.Recipient == handle).Select(f => f.Id).ToArray())
-                files.Remove(file);
+            removed = [.. sessions.Values.Where(s => s.Address == chosen.Address && s.Device == chosen.Device)];
+            foreach (Session session in removed)
+            {
+                session.Cancellation.Cancel();
+                sessions.Remove(session.Id);
+                busySessions.Remove(session.Id);
+                foreach (string file in files.Values.Where(f => f.Recipient == session.Handle).Select(f => f.Id).ToArray())
+                    files.Remove(file);
+            }
         }
-        foreach (Offer offer in offers.Values.Where(o => o.Session == removed.Id))
+        foreach (Offer offer in offers.Values.Where(o => removed.Any(s => s.Id == o.Session)))
         {
             offer.Cancellation.Cancel();
             offer.Job.Cancel();

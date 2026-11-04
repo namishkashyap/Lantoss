@@ -48,5 +48,8 @@ internal static partial class Program
             await ConnectBrowser(extra);
         }
         Check(portal.Devices.Length == 4, "One address cannot fill the browser session table; it replaces its own oldest sessions");
+        Check(portal.Browsers.Length == 1, "Sessions from the same address and browser show as one device");
+        portal.Disconnect(portal.Browsers[0].Handle);
+        Check(portal.Devices.Length == 0, "Disconnecting a browser ends every copy of its session");
     }
 }

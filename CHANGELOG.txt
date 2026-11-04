@@ -1,3 +1,10 @@
+2026-11-04 - hopo 2.5.3: each phone browser shows once
+
+A phone or tablet that opened the page again (a new tab, another address for
+the page, a lost cookie) was shown again on Home, so one iPad could appear in
+three places. Home, Send to and Devices now show each browser once, old copies
+are cleared, and Disconnect ends every copy.
+
 2026-11-04 - hopo 2.5.2: remove a chosen file before sending
 
 On the phone and browser page, each chosen file now has a x button to remove
