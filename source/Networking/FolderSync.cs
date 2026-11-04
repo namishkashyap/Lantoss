@@ -151,83 +151,98 @@ public sealed partial class TransferEngine
             LocalGuard();
             link = Sync.GetLink(id) ?? throw new OperationCanceledException("This sync link was removed.");
             SetSyncStatus(link, "Checking file changes…", true);
-            Dictionary<string, ManifestEntry> left = local.Entries.ToDictionary(entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase);
-            Dictionary<string, ManifestEntry> right = remote.Entries.ToDictionary(entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase);
+            // Names match regardless of case and of how accents are encoded (a Mac sends "café" decomposed); each side keeps its own spelling.
+            Dictionary<string, ManifestEntry> left = local.Entries.DistinctBy(entry => entry.RelativePath, SyncFiles.PathComparer.Instance).ToDictionary(entry => entry.RelativePath, SyncFiles.PathComparer.Instance);
+            Dictionary<string, ManifestEntry> right = remote.Entries.DistinctBy(entry => entry.RelativePath, SyncFiles.PathComparer.Instance).ToDictionary(entry => entry.RelativePath, SyncFiles.PathComparer.Instance);
             // The last agreed content hash distinguishes a one-sided edit from simultaneous edits.
             // Missing paths are restored from the surviving side; deletions intentionally do not propagate.
-            Dictionary<string, string> baseline = new(link.Baseline, StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> baseline = new(SyncFiles.PathComparer.Instance);
+            foreach (KeyValuePair<string, string> pair in link.Baseline)
+                baseline.TryAdd(pair.Key, pair.Value);
             foreach (string old in baseline.Keys.Where(path => !left.ContainsKey(path) && !right.ContainsKey(path)).ToArray())
                 baseline.Remove(old);
             int changed = 0, conflicts = 0;
-            foreach (string path in left.Keys.Concat(right.Keys).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(path => path.Count(c => c == '/')).ThenBy(path => path, StringComparer.OrdinalIgnoreCase))
+            List<string> failed = [];
+            foreach (string key in left.Keys.Concat(right.Keys).Distinct(SyncFiles.PathComparer.Instance).OrderBy(path => path.Count(c => c == '/')).ThenBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
                 LocalGuard();
-                left.TryGetValue(path, out ManifestEntry? l);
-                right.TryGetValue(path, out ManifestEntry? r);
-                if (l?.Directory == true || r?.Directory == true)
+                left.TryGetValue(key, out ManifestEntry? l);
+                right.TryGetValue(key, out ManifestEntry? r);
+                // Local work uses this PC's spelling of the name, requests use the other PC's.
+                string path = l?.RelativePath ?? key, remotePath = r?.RelativePath ?? path;
+                try
                 {
-                    if (l != null && r != null && l.Directory != r.Directory)
-                        throw new IOException("A file and folder have the same name: " + path + ". Rename one to continue.");
-                    if (l == null)
-                        SyncFiles.MakeDirectory(link.Folder, path);
-                    if (r == null)
+                    if (l?.Directory == true || r?.Directory == true)
                     {
-                        WireMessage made = await SpaceRequestAsync(peer, new()
+                        if (l != null && r != null && l.Directory != r.Directory)
+                            throw new IOException("A file and folder have the same name: " + path + ". Rename one to continue.");
+                        if (l == null)
+                            SyncFiles.MakeDirectory(link.Folder, path);
+                        if (r == null)
                         {
-                            Kind = "sync-mkdir",
-                            SpaceId = link.SpaceId,
-                            SyncId = link.Id,
-                            RelativePath = path
-                        }, work.Token);
-                        Wire.Require(made, "complete");
+                            WireMessage made = await SpaceRequestAsync(peer, new()
+                            {
+                                Kind = "sync-mkdir",
+                                SpaceId = link.SpaceId,
+                                SyncId = link.Id,
+                                RelativePath = path
+                            }, work.Token);
+                            Wire.Require(made, "complete");
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                if (l?.Sha256 == r?.Sha256)
-                {
-                    if (l != null)
+                    if (l?.Sha256 == r?.Sha256)
+                    {
+                        if (l != null)
+                            baseline[path] = l.Sha256;
+                        continue;
+                    }
+                    baseline.TryGetValue(path, out string? previous);
+                    if (l == null || (previous != null && l.Sha256 == previous))
+                    {
+                        await FetchSpaceFileAsync(peer, link.SpaceId, remotePath, link.Folder, path, l?.Sha256 ?? "", r!.Sha256, work.Token, link.Id);
+                        baseline[path] = r.Sha256;
+                        changed++;
+                        continue;
+                    }
+                    if (r == null || (previous != null && r.Sha256 == previous))
+                    {
+                        await PushSyncFileAsync(peer, link, l, remotePath, r?.Sha256 ?? "", work.Token);
                         baseline[path] = l.Sha256;
-                    continue;
-                }
-                baseline.TryGetValue(path, out string? previous);
-                if (l == null || (previous != null && l.Sha256 == previous))
-                {
-                    await FetchSpaceFileAsync(peer, link.SpaceId, path, link.Folder, path, l?.Sha256 ?? "", r!.Sha256, work.Token, link.Id);
-                    baseline[path] = r.Sha256;
-                    changed++;
-                    continue;
-                }
-                if (r == null || (previous != null && r.Sha256 == previous))
-                {
-                    await PushSyncFileAsync(peer, link, l, path, r?.Sha256 ?? "", work.Token);
+                        changed++;
+                        continue;
+                    }
+                    // Initial same-name differences and simultaneous edits preserve both bytes.
+                    string conflict = SyncFiles.ConflictPath(path, r.Sha256);
+                    string conflictLocal = SyncFiles.PathIn(link.Folder, conflict);
+                    string existingConflict = await SyncFiles.HashAsync(conflictLocal, work.Token);
+                    if (existingConflict.Length > 0 && existingConflict != r.Sha256)
+                        throw new IOException("A conflict-copy name is already in use. Rename it to continue: " + conflict);
+                    if (existingConflict.Length == 0)
+                        await FetchSpaceFileAsync(peer, link.SpaceId, remotePath, link.Folder, conflict, "", r.Sha256, work.Token, link.Id);
+                    ManifestEntry copy = r with
+                    {
+                        RelativePath = conflict,
+                        SourcePath = conflictLocal,
+                        SourceModifiedUtc = File.GetLastWriteTimeUtc(conflictLocal)
+                    };
+                    string existingRemoteConflict = right.GetValueOrDefault(conflict)?.Sha256 ?? "";
+                    if (existingRemoteConflict.Length > 0 && existingRemoteConflict != r.Sha256)
+                        throw new IOException("A remote conflict-copy name is already in use: " + conflict);
+                    if (existingRemoteConflict.Length == 0)
+                        await PushSyncFileAsync(peer, link, copy, conflict, "", work.Token);
+                    await PushSyncFileAsync(peer, link, l, remotePath, r.Sha256, work.Token);
                     baseline[path] = l.Sha256;
+                    baseline[conflict] = r.Sha256;
                     changed++;
-                    continue;
+                    conflicts++;
                 }
-                // Initial same-name differences and simultaneous edits preserve both bytes.
-                string conflict = SyncFiles.ConflictPath(path, r.Sha256);
-                string conflictLocal = SyncFiles.PathIn(link.Folder, conflict);
-                string existingConflict = await SyncFiles.HashAsync(conflictLocal, work.Token);
-                if (existingConflict.Length > 0 && existingConflict != r.Sha256)
-                    throw new IOException("A conflict-copy name is already in use. Rename it to continue: " + conflict);
-                if (existingConflict.Length == 0)
-                    await FetchSpaceFileAsync(peer, link.SpaceId, path, link.Folder, conflict, "", r.Sha256, work.Token, link.Id);
-                ManifestEntry copy = r with
+                // One local file that cannot be synced is named in the status; the rest of the folder still syncs. Refusals from the other PC (such as revoked
+                // permission) and repeated failures still stop the pass.
+                catch (Exception error) when (error is (IOException and not ProtocolException) or InvalidDataException && failed.Count < 5 && !work.IsCancellationRequested)
                 {
-                    RelativePath = conflict,
-                    SourcePath = conflictLocal,
-                    SourceModifiedUtc = File.GetLastWriteTimeUtc(conflictLocal)
-                };
-                string existingRemoteConflict = right.GetValueOrDefault(conflict)?.Sha256 ?? "";
-                if (existingRemoteConflict.Length > 0 && existingRemoteConflict != r.Sha256)
-                    throw new IOException("A remote conflict-copy name is already in use: " + conflict);
-                if (existingRemoteConflict.Length == 0)
-                    await PushSyncFileAsync(peer, link, copy, conflict, "", work.Token);
-                await PushSyncFileAsync(peer, link, l, path, r.Sha256, work.Token);
-                baseline[path] = l.Sha256;
-                baseline[conflict] = r.Sha256;
-                changed++;
-                conflicts++;
+                    failed.Add(Path.GetFileName(path) + " (" + HumanError(error).TrimEnd('.') + ")");
+                }
             }
             LocalGuard();
             if (changed > 0 || link.LastSuccessUtc == null || baseline.Count != link.Baseline.Count || baseline.Any(pair => link.Baseline.GetValueOrDefault(pair.Key) != pair.Value))
@@ -236,11 +251,13 @@ public sealed partial class TransferEngine
                     Baseline = baseline,
                     LastSuccessUtc = DateTime.UtcNow
                 });
-            if (changed == 0 && response.SnapshotRevision.Length == 32)
+            if (changed == 0 && failed.Count == 0 && response.SnapshotRevision.Length == 32)
                 reconciled[id] = (local.Id, response.SnapshotRevision);
             else
                 reconciled.TryRemove(id, out _);
-            SetSyncStatus(link, conflicts > 0 ? $"Up to date · {conflicts} conflict copies preserved on both PCs." : changed > 0 ? $"Up to date · {changed} files updated." : "Up to date · watching for changes.");
+            string[] skipped = [.. failed, .. spaceScanner.Skipped(link.Folder)];
+            string notSynced = skipped.Length == 0 ? "" : $" Not synced: {string.Join(", ", skipped.Take(3))}{(skipped.Length > 3 ? $" and {skipped.Length - 3} more" : "")}.";
+            SetSyncStatus(link, (conflicts > 0 ? $"Up to date · {conflicts} conflict copies preserved on both PCs." : changed > 0 ? $"Up to date · {changed} files updated." : "Up to date · watching for changes.") + notSynced);
         }
         catch (Exception error)
         {

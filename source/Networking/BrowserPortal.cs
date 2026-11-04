@@ -896,7 +896,7 @@ public sealed partial class BrowserPortal : IDisposable
                 {
                     await Json(context, new
                     {
-                        error = error is OperationCanceledException ? "The transfer stopped or was declined. Try again when the PC is ready." : PublicError(error)
+                        error = error is OperationCanceledException ? "The transfer stopped or was declined. Try again when the PC is ready." : error is JsonException ? "The request could not be read. Reload the page and try again." : PublicError(error)
                     });
                 }
                 catch (Exception nested) when (nested is IOException or OperationCanceledException) { }

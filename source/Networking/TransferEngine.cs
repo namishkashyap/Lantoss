@@ -17,7 +17,7 @@ public sealed partial class TransferEngine : IDisposable
     private readonly Identity identity;
     private readonly bool allowLoopback;
     private readonly bool automaticSync;
-    private readonly SemaphoreSlim connections = new(16, 16), sending = new(2, 2), receiving = new(2, 2), pairing = new(1, 1);
+    private readonly SemaphoreSlim connections = new(32, 32), sending = new(2, 2), receiving = new(2, 2), pairing = new(1, 1);
     private readonly ConcurrentDictionary<TcpClient, string> sockets = new();
     private readonly ConcurrentDictionary<string, Peer> nearby = new();
     private readonly ConcurrentDictionary<long, Task> workers = new();
@@ -238,11 +238,16 @@ public sealed partial class TransferEngine : IDisposable
             Status?.Invoke("Phone/browser sharing could not start: " + error.Message);
         }
     }
+    private DateTime lastPeersRefresh;
     internal void Observe(Peer peer)
     {
         if (peer.Fingerprint == Fingerprint || store.Blocked(peer.Fingerprint))
             return;
         if (peer.Fingerprint.Length != 64 || !peer.Fingerprint.All(char.IsAsciiHexDigit) || !IPAddress.TryParse(peer.Address, out IPAddress? source) || !receiveNetworks.Any(network => network.Contains(source)) || peer.Port is < 1 or > 65535)
+            return;
+        // One address announces at most four devices, so a single host cannot push real PCs off the nearby list.
+        nearby.TryGetValue(peer.Fingerprint, out Peer? known);
+        if (known == null && !(allowLoopback && IPAddress.IsLoopback(source)) && nearby.Values.Count(p => p.Address == peer.Address && p.Online) >= 4)
             return;
         // Stale announcements leave the list, so spoofed ones cannot keep real new PCs out.
         if (nearby.Count >= 128 && !nearby.ContainsKey(peer.Fingerprint))
@@ -254,7 +259,13 @@ public sealed partial class TransferEngine : IDisposable
         }
         nearby[peer.Fingerprint] = peer;
         AutoConnectPeer(peer);
-        PeersChanged?.Invoke();
+        // Repeated announcements of an unchanged device refresh the pages at most every 2 seconds.
+        bool changed = known == null || known.Name != peer.Name || known.Address != peer.Address || known.Port != peer.Port || !known.Online;
+        if (changed || DateTime.UtcNow - lastPeersRefresh >= TimeSpan.FromSeconds(2))
+        {
+            lastPeersRefresh = DateTime.UtcNow;
+            PeersChanged?.Invoke();
+        }
         Peer? trusted = store.Trusted(peer.Fingerprint);
         if (trusted != null)
             ProbeInBackground(trusted with
@@ -276,11 +287,8 @@ public sealed partial class TransferEngine : IDisposable
                 Name = store.Preferences.DeviceName
             }, timeout.Token);
             Wire.Require(await Wire.ReadAsync(channel.Stream, timeout.Token), "pong");
-            if (store.Trusted(peer.Fingerprint) != null)
-                store.UpsertPeer(peer with
-                {
-                    LastSeenUtc = DateTime.UtcNow
-                });
+            // Only where and when it was seen are updated, so a slow reply cannot undo Stop trusting, a rename or a block made meanwhile.
+            store.TouchPeer(peer.Fingerprint, peer.Address, peer.Port, peer.BrowserUrl);
             PeersChanged?.Invoke();
         }
         catch (Exception error) when (error is IOException or SocketException or AuthenticationException or OperationCanceledException) { }
@@ -364,7 +372,9 @@ public sealed partial class TransferEngine : IDisposable
         string name = MetadataStore.ValidateName(challenge.Name);
         if (direct && !challenge.Direct)
             throw new ProtocolException("Update Lantoss on both PCs for direct connection.");
-        bool accepted = direct && !challenge.Confirm || await compare(new(name, channel.Fingerprint, comparison, false), timeout.Token);
+        // The other PC cannot waive this PC's own approval: with "Ask before a new PC connects" on, the code is always shown here.
+        bool silent = direct && !challenge.Confirm && !store.Preferences.ApproveNewDevices;
+        bool accepted = silent || await compare(new(name, channel.Fingerprint, comparison, false), timeout.Token);
         await Wire.WriteAsync(channel.Stream, new()
         {
             Kind = "pair-decision",
@@ -382,7 +392,7 @@ public sealed partial class TransferEngine : IDisposable
             Port = port,
             SupportsQuickPair = expectedKey != null,
             SupportsDirectConnect = direct,
-            KeyVerified = !direct || challenge.Confirm,
+            KeyVerified = !silent,
             Paired = true
         };
         store.UpsertPeer(peer);
@@ -579,7 +589,8 @@ public sealed partial class TransferEngine : IDisposable
             {
                 while (nearbyPairAttempts.TryPeek(out DateTime earlier) && DateTime.UtcNow - earlier >= TimeSpan.FromMinutes(1))
                     nearbyPairAttempts.Dequeue();
-                if (nearbyPairAttempts.Count >= 5)
+                // Each address also has its own limit of 5 below, so one device cannot use up pairing for everyone.
+                if (nearbyPairAttempts.Count >= 20)
                     throw new ProtocolException("Too many nearby connection requests. Wait one minute and try again.");
                 nearbyPairAttempts.Enqueue(DateTime.UtcNow);
             }

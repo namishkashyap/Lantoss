@@ -3,12 +3,12 @@
   <!-- One per-user MSI per app: -d App=Users builds hopo Users (hopoUsers.exe), -d App=Admin builds hopo Admin (hopoAdmin.exe). -->
   <?if $(var.App) = "Admin" ?>
   <?define AppName = "hopo Admin" ?><?define AppExe = "hopoAdmin.exe" ?><?define AppFolder = "hopo Admin" ?><?define AppUpgrade = "5B7E2C91-4D3A-4F8E-A1C6-7D9E0B2F3A84" ?>
-  <?define AppKey = "Software\Lantoss\AdminInstallation" ?><?define RunName = "hopo Admin" ?>
+  <?define AppKey = "Software\Lantoss\AdminInstallation" ?><?define RunName = "hopo Admin" ?><?define DesktopKey = "Software\Lantoss\AdminDesktop" ?><?define ShellName = "hopoAdmin" ?>
   <?define GuidApp = "8C4F1E2A-6B3D-4A7C-9E5F-1D2B3C4A5E60" ?><?define GuidRegister = "3E9A7C1B-5D2F-4B8E-A6C4-2F1E0D9B8A71" ?><?define GuidDocs = "B2D4F6A8-1C3E-4D5F-8A9B-7C6D5E4F3A21" ?>
-  <?define GuidMenu = "E1F2A3B4-C5D6-4E7F-8A9B-0C1D2E3F4A52" ?><?define GuidDesktop = "F6E5D4C3-B2A1-4F0E-9D8C-7B6A5F4E3D13" ?><?define GuidRun = "A9B8C7D6-E5F4-4A3B-8C2D-1E0F9A8B7C64" ?><?define GuidShell = "C3D2E1F0-A9B8-4C7D-9E6F-5A4B3C2D1E05" ?>
+  <?define GuidMenu = "E1F2A3B4-C5D6-4E7F-8A9B-0C1D2E3F4A52" ?><?define GuidDesktop = "F6E5D4C3-B2A1-4F0E-9D8C-7B6A5F4E3D13" ?><?define GuidRun = "A9B8C7D6-E5F4-4A3B-8C2D-1E0F9A8B7C64" ?><?define GuidShell = "23A6A1ED-4F89-4918-AD34-E3B2AB4645E6" ?>
   <?else ?>
   <?define AppName = "hopo Users" ?><?define AppExe = "hopoUsers.exe" ?><?define AppFolder = "hopo" ?><?define AppUpgrade = "C9C1C9EF-9399-4CAB-A89E-D84BE5C41067" ?>
-  <?define AppKey = "Software\Lantoss\Installation" ?><?define RunName = "Lantoss" ?>
+  <?define AppKey = "Software\Lantoss\Installation" ?><?define RunName = "Lantoss" ?><?define DesktopKey = "Software\Lantoss\Desktop" ?><?define ShellName = "Lantoss" ?>
   <?define GuidApp = "20A4372C-84B0-4264-AB42-70866890481A" ?><?define GuidRegister = "90DC53A7-0BA0-4BE8-995E-ACB730AC84E3" ?><?define GuidDocs = "FE36FDA2-3E97-47B0-A422-C1AE72C8F420" ?>
   <?define GuidMenu = "A011CD1B-FF04-4D11-A596-BE6A2B5FA9FA" ?><?define GuidDesktop = "071DB026-15EB-4CB9-85C9-AB57E552ED20" ?><?define GuidRun = "0F5E83A3-638E-4BC1-919D-B304E378420B" ?><?define GuidShell = "B83E5C0A-C82D-44CC-8508-990CD5326ABD" ?>
   <?endif ?>
@@ -27,8 +27,8 @@
           <Component Id="Application" Guid="$(var.GuidApp)">
             <File Id="AppExe" Source="$(var.ReleaseDir)\app\$(var.AppExe)" />
             <RegistryValue Root="HKCU" Key="$(var.AppKey)" Name="Path" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes" />
-            <!-- The app may create/remove these entries later through Settings. Uninstall owns cleanup. -->
-            <RemoveRegistryKey Root="HKCU" Key="Software\Lantoss\Desktop" Action="removeOnUninstall" />
+            <!-- The app may create/remove these entries later through Settings. Uninstall owns cleanup; each app has its own keys, so removing one leaves the other working. -->
+            <RemoveRegistryKey Root="HKCU" Key="$(var.DesktopKey)" Action="removeOnUninstall" />
             <RemoveRegistryKey Root="HKCU" Key="$(var.AppKey)" Action="removeOnUninstall" />
           </Component>
           <!-- Only removes the Windows 11 menu package that hopo 2.3 and earlier registered; 2.4 uses the classic right-click entry. -->
@@ -75,9 +75,9 @@
         <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="$(var.RunName)" Value="&quot;[#AppExe]&quot; --background" Type="string" KeyPath="yes" />
       </Component>
       <Component Id="ExplorerSharing" Guid="$(var.GuidShell)">
-        <RemoveRegistryKey Root="HKCU" Key="Software\Classes\*\shell\Lantoss" Action="removeOnUninstall" />
-        <RemoveRegistryKey Root="HKCU" Key="Software\Classes\Directory\shell\Lantoss" Action="removeOnUninstall" />
-        <RegistryValue Root="HKCU" Key="Software\Lantoss\Desktop" Name="ExplorerEnabled" Value="1" Type="integer" KeyPath="yes" />
+        <RemoveRegistryKey Root="HKCU" Key="Software\Classes\*\shell\$(var.ShellName)" Action="removeOnUninstall" />
+        <RemoveRegistryKey Root="HKCU" Key="Software\Classes\Directory\shell\$(var.ShellName)" Action="removeOnUninstall" />
+        <RegistryValue Root="HKCU" Key="$(var.DesktopKey)" Name="ExplorerEnabled" Value="1" Type="integer" KeyPath="yes" />
       </Component>
     </DirectoryRef>
     <Feature Id="Core" Title="$(var.AppName)" Description="File transfer, shared folders, sync and the local browser server. Required." Level="1" AllowAbsent="no" ConfigurableDirectory="INSTALLFOLDER">

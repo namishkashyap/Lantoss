@@ -106,16 +106,10 @@ public static class FileCatalog
             if (total > 2 * MaxFileBytes)
                 throw new InvalidDataException("This transfer exceeds the 2 TB safety limit.");
         }
+        // Each entry's direct parent must be a listed folder; that parent is checked in turn, so the whole chain is covered in linear time.
         foreach (string path in seen.Keys)
-        {
-            string parent = path;
-            while (parent.Contains('/'))
-            {
-                parent = parent[..parent.LastIndexOf('/')];
-                if (!seen.TryGetValue(parent, out bool isDirectory) || !isDirectory)
-                    throw new InvalidDataException("A transfer parent folder is missing or conflicts with a file.");
-            }
-        }
+            if (path.LastIndexOf('/') is int slash and > 0 && (!seen.TryGetValue(path[..slash], out bool isDirectory) || !isDirectory))
+                throw new InvalidDataException("A transfer parent folder is missing or conflicts with a file.");
     }
     public static void ValidateRelative(string path)
     {
@@ -126,7 +120,9 @@ public static class FileCatalog
     }
     public static void ValidateSegment(string name)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Length > 180 || name != name.Trim() || name.EndsWith('.') || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.Any(Hidden) || name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase))
+        if (name is { Length: > 180 })
+            throw new InvalidDataException($"This file name is too long ({name.Length} characters, the limit is 180). Rename it and try again: " + new string(name.Where(c => !Hidden(c)).Take(60).ToArray()) + "…");
+        if (string.IsNullOrWhiteSpace(name) || name != name.Trim() || name.EndsWith('.') || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.Any(Hidden) || name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Unsupported filename (hidden, control or reserved characters): " + new string(name.Where(c => !Hidden(c)).ToArray()));
         string stem = name.Split('.')[0].TrimEnd(' ').ToUpperInvariant();
         string[] reserved = ["CON", "PRN", "AUX", "NUL", "CLOCK$", "CONIN$", "CONOUT$"];

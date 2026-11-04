@@ -165,6 +165,8 @@ internal sealed class Shell : IDisposable
             CreateTray();
         Motion.Setup(preview);
         ApplyTheme(store.Preferences.Theme);
+        if (Engine.Sync.RecoveryNotice != null)
+            Tell(Engine.Sync.RecoveryNotice);
         if (store.RecoveryNotice != null)
             Tell(store.RecoveryNotice);
     }

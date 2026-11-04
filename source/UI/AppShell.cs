@@ -217,10 +217,14 @@ internal sealed class AppShell : IDisposable
                 catch (Exception error) { ApplyTheme(Store.Preferences.Theme); Error(error); }
         };
         UpdateStatus();
-        // Every launch starts in user mode; hopo Admin (--admin) asks for the PIN once the window is up. Previews render the admin view.
+        // Every launch starts in user mode; hopo Admin (hopoAdmin.exe) opens in admin mode. Previews render the admin view.
         SetMode(AdminApp || preview, false);
+        Version? version = Assembly.GetEntryAssembly()?.GetName().Version;
+        Find<TextBlock>("VersionText").Text = "No account. No cloud. · hopo" + (version == null ? "" : $" {version.Major}.{version.Minor}.{version.Build}");
         if (!preview)
             Window.Title = AdminApp ? "hopo Admin" : "hopo Users";
+        if (Engine.Sync.RecoveryNotice != null)
+            Tell(Engine.Sync.RecoveryNotice);
         if (store.RecoveryNotice != null)
             Tell(store.RecoveryNotice);
     }
@@ -243,8 +247,14 @@ internal sealed class AppShell : IDisposable
             Kind = "activate"
         } : request);
     }
-    /// <summary>"hopo Admin" is its own executable (hopoAdmin.exe); <c>--admin</c> runs hopoUsers.exe as the admin app for development.</summary>
-    public static bool AdminApp { get; } = string.Equals(Assembly.GetEntryAssembly()?.GetName().Name, "hopoAdmin", StringComparison.OrdinalIgnoreCase) || Environment.GetCommandLineArgs().Contains("--admin");
+    /// <summary>"hopo Admin" is its own executable (hopoAdmin.exe); <c>--admin</c> runs hopoUsers.exe as the admin app only in Debug builds.</summary>
+    public static bool AdminApp { get; } = string.Equals(Assembly.GetEntryAssembly()?.GetName().Name, "hopoAdmin", StringComparison.OrdinalIgnoreCase) || DevelopmentAdmin;
+#if DEBUG
+    private static bool DevelopmentAdmin => Environment.GetCommandLineArgs().Contains("--admin");
+#else
+    // Which installer a person has decides the app; a release hopoUsers.exe never becomes hopo Admin through a switch.
+    private static bool DevelopmentAdmin => false;
+#endif
     private void HandOver(bool toAdmin)
     {
         int running = Engine.Transfers.Records.Count(record => !record.Terminal);
@@ -612,6 +622,14 @@ internal sealed class AppShell : IDisposable
         Motion.Glass(Window.Resources, dark, ((SolidColorBrush)Window.Resources["GlassBorder"]).Color);
         Find<System.Windows.Shapes.Ellipse>("GlowTop").Fill = Glow(Appearance.Palette(dark)["GlowA"], dark ? 0.52 : 0.42);
         Find<System.Windows.Shapes.Ellipse>("GlowBottom").Fill = Glow(Appearance.Palette(dark)["GlowB"], dark ? 0.4 : 0.36);
+        // A Windows contrast theme wins over the app's palette: every surface, text and accent uses the system's chosen colours, and the glows go.
+        if (SystemParameters.HighContrast)
+        {
+            foreach ((string name, Brush brush) in new (string, Brush)[] { ("Background", SystemColors.WindowBrush), ("Surface", SystemColors.WindowBrush), ("Sidebar", SystemColors.WindowBrush), ("Glass", SystemColors.WindowBrush), ("Menu", SystemColors.WindowBrush), ("GlassHover", SystemColors.HighlightBrush), ("Text", SystemColors.WindowTextBrush), ("Muted", SystemColors.WindowTextBrush), ("Border", SystemColors.WindowTextBrush), ("GlassBorder", SystemColors.WindowTextBrush), ("Ring", SystemColors.WindowTextBrush), ("Primary", SystemColors.HighlightBrush), ("PrimarySoft", SystemColors.WindowBrush), ("Accent", SystemColors.HighlightBrush), ("AccentHover", SystemColors.HighlightBrush), ("OnAccent", SystemColors.HighlightTextBrush), ("Success", SystemColors.WindowTextBrush), ("SuccessSoft", SystemColors.WindowBrush), ("Danger", SystemColors.WindowTextBrush), ("DangerSoft", SystemColors.WindowBrush), ("Phone", SystemColors.HighlightBrush), ("PhoneSoft", SystemColors.WindowBrush), ("Mint", SystemColors.HighlightBrush), ("Scrim", SystemColors.WindowBrush) })
+                Window.Resources[name] = brush;
+            Find<System.Windows.Shapes.Ellipse>("GlowTop").Fill = Brushes.Transparent;
+            Find<System.Windows.Shapes.Ellipse>("GlowBottom").Fill = Brushes.Transparent;
+        }
         Find<ComboBox>("AppearanceSelector").SelectedItem = mode;
         Find<TextBlock>("AppearanceStatus").Text = mode == "System" ? "Following Windows · " + EffectiveTheme : EffectiveTheme + " appearance";
     }
@@ -628,8 +646,9 @@ internal sealed class AppShell : IDisposable
     }
     private void SystemThemeChanged(object sender, UserPreferenceChangedEventArgs e)
     {
-        if (Store.Preferences.Theme == "System")
-            Ui(() => ApplyTheme("System"));
+        // Turning a contrast theme on or off also arrives here, whatever appearance is chosen.
+        if (Store.Preferences.Theme == "System" || e.Category is UserPreferenceCategory.Accessibility or UserPreferenceCategory.Color)
+            Ui(() => ApplyTheme(Store.Preferences.Theme));
     }
     public void Render(string path, int width, int height)
     {

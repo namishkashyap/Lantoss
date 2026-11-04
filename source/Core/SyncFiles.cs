@@ -7,6 +7,13 @@ namespace Lantoss.Core;
 /// </summary>
 public static class SyncFiles
 {
+    /// <summary>Sync paths match regardless of case and of Unicode composition, so a Mac's decomposed "café" and a Windows "café" are the same file.</summary>
+    public sealed class PathComparer : IEqualityComparer<string>
+    {
+        public static readonly PathComparer Instance = new();
+        public bool Equals(string? x, string? y) => string.Equals(x?.Normalize(), y?.Normalize(), StringComparison.OrdinalIgnoreCase);
+        public int GetHashCode(string value) => StringComparer.OrdinalIgnoreCase.GetHashCode(value.Normalize());
+    }
     public static async Task<string> HashAsync(string file, CancellationToken token)
     {
         FileCatalog.CheckSafePath(file);
@@ -64,11 +71,16 @@ public static class SyncFiles
         }
         else
             File.Move(temporary, target, false);
+        // Synced files carry the same "from another computer" mark as received files, so SmartScreen and Protected View still apply.
+        FileCatalog.MarkReceived(target);
     }
     public static string ConflictPath(string relative, string remoteHash)
     {
         string folder = relative.Contains('/') ? relative[..relative.LastIndexOf('/')] + "/" : "";
         string name = Path.GetFileNameWithoutExtension(relative);
+        // ".gitignore" has no name before its extension; a copy named " (conflict ...).gitignore" would start with a space and be refused.
+        if (name.Length == 0)
+            name = Path.GetExtension(relative).TrimStart('.');
         string extension = Path.GetExtension(relative);
         if (extension.Length > 40)
             extension = extension[..40];

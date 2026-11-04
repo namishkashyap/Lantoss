@@ -129,7 +129,7 @@ internal sealed class SettingsPage : IPage
             C.AsyncButton("Connection diagnostics", app.Dialogs.DiagnosticsAsync));
         TextBlock key = C.Text(app.Engine.Fingerprint, 11, "Muted");
         key.FontFamily = new FontFamily("monospace");
-        StackPanel security = C.Stack(C.Heading("Security & access"), C.Space(approve, 4), C.Space(protection, 4), C.Space(browser, 4), C.Space(https, 2), C.Space(C.Text("Phones show a one-time certificate warning; accept it once.", 11, "Muted"), 14),
+        StackPanel security = C.Stack(C.Heading("Security & access"), C.Space(approve, 2), C.Space(C.Text("When off, any device on this Wi-Fi can connect without a code and open folders shared with all PCs.", 11, "Muted"), 8), C.Space(protection, 4), C.Space(browser, 4), C.Space(https, 2), C.Space(C.Text("Phones show a one-time certificate warning; accept it once.", 11, "Muted"), 14),
             C.Space(C.Text("Code protection is off by default. Open Phone & browser to view the current code when it is on. Codes expire after five minutes and one use, and both screens confirm a matching code.", 12, "Muted"), 16),
             C.Space(C.Note(saved.BrowserHttps ? "Native TLS · browser HTTPS" : "Native TLS · browser HTTP", saved.BrowserHttps ? "Computer-to-computer transfers use TLS and saved public keys. The phone page uses HTTPS with this computer's own certificate." : "Computer-to-computer transfers use TLS and saved public keys. The phone page uses local HTTP; an access code controls access without encrypting that browser link."), 18),
             C.Space(C.Text("This device's public-key fingerprint", 12, bold: true), 9), C.Space(key, 13), C.Small("Copy fingerprint", () => app.CopyAsync(app.Engine.Fingerprint, "Fingerprint copied.")));

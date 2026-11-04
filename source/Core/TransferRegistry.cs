@@ -172,6 +172,9 @@ public sealed class TransferRegistry
             string key = record.Id + record.Direction;
             if (jobs.TryGetValue(key, out TransferJob? active) && !active.Snapshot.Terminal)
                 throw new InvalidDataException("This transfer is already active.");
+            // A transfer ID chosen by another device must not overwrite someone else's record.
+            if (history.TryGetValue(key, out TransferRecord? previous) && previous.PeerFingerprint != record.PeerFingerprint)
+                throw new InvalidDataException("This transfer ID is already in use.");
             TransferJob job = new(record);
             jobs[key] = job;
             history[key] = record;
@@ -185,7 +188,11 @@ public sealed class TransferRegistry
     {
         lock (gate)
         {
-            history[record.Id + record.Direction] = record;
+            // A finished record keeps only the file rows the pages show, so declined or large requests cannot fill memory or the saved history.
+            history[record.Id + record.Direction] = record.Terminal && record.Files.Count > MetadataStore.HistoryFiles ? record with
+            {
+                Files = record.Files.Take(MetadataStore.HistoryFiles).ToList()
+            } : record;
             // Finished jobs leave memory; only the bounded history keeps their record.
             if (record.Terminal)
                 jobs.Remove(record.Id + record.Direction);

@@ -27,18 +27,43 @@ public sealed class SyncStore
                 throw new InvalidDataException("Sync settings are too large.");
             return JsonSerializer.Deserialize<Document>(File.ReadAllBytes(path), MetadataStore.Json) ?? throw new InvalidDataException("Sync settings are empty.");
         }
-        try
+        Document Checked(string path)
         {
-            data = File.Exists(filename) ? Read(filename) : new();
+            Document doc = Read(path);
+            if (doc.Version > 1)
+                throw new NotSupportedException("These sync settings were saved by a newer hopo. Update hopo to use them.");
+            if (doc is not { Version: 1, Links: not null, Grants: not null } || doc.Links.Count > 16 || doc.Grants.Count > 64 || doc.Links.Any(link => link is not { Id: not null, Folder: not null, Baseline: not null }) || doc.Grants.Any(grant => grant is null))
+                throw new InvalidDataException("Unsupported sync settings.");
+            return doc;
         }
-        catch (Exception error) when (error is IOException or JsonException)
+        // Damaged sync settings switch sync off for that data only; they never stop the app. The damaged file is kept aside.
+        data = new();
+        foreach (string path in new[] { filename, filename + ".bak" })
         {
-            if (!File.Exists(filename + ".bak"))
-                throw new InvalidDataException("Sync settings cannot be read. Preserve sync-state.json for recovery.", error);
-            data = Read(filename + ".bak");
+            try
+            {
+                if (!File.Exists(path))
+                    continue;
+                data = Checked(path);
+                if (path != filename)
+                    RecoveryNotice = "Sync settings were damaged and were restored from the previous saved copy.";
+                return;
+            }
+            catch (Exception error) when (error is IOException or JsonException or InvalidDataException or NullReferenceException)
+            {
+                RecoveryNotice = "Sync settings were damaged, so sync links start empty. The damaged file was kept as sync-state.json.damaged.";
+                if (path == filename)
+                    try
+                    {
+                        File.Copy(filename, filename + ".damaged", true);
+                    }
+                    catch (Exception copy) when (copy is IOException or UnauthorizedAccessException) { }
+            }
         }
-        if (data.Version != 1 || data.Links.Count > 16 || data.Grants.Count > 64)
-            throw new InvalidDataException("Unsupported sync settings. Keep the saved settings for recovery.");
+    }
+    public string? RecoveryNotice
+    {
+        get; private set;
     }
     public SyncLink[] Links
     {

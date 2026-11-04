@@ -1,4 +1,5 @@
 using System.Text;
+using System.Windows.Automation;
 using Microsoft.Win32;
 
 namespace Lantoss.UI;
@@ -66,6 +67,9 @@ internal sealed class DevicesPage : IPage
             }
             if (peer.Blocked)
                 actions.Children.Add(C.Small("Unblock", () => { app.Store.ForgetPeer(peer.Fingerprint, false); Refresh(); }));
+            // Screen readers hear which device each button acts on, for example "Block Dad's PC".
+            foreach (Button action in actions.Children.OfType<Button>())
+                AutomationProperties.SetName(action, AutomationProperties.GetName(action) + " " + peer.Name);
             DockPanel name = C.Person(peer.Name, null, peer.Online ? "Online · " + peer.Address : "Offline", 44, peer.Online ? "Success" : "Muted");
             Expander connectionDetails = new()
             {
@@ -93,6 +97,8 @@ internal sealed class DevicesPage : IPage
             Button always = C.Small("Always allow", () => app.Engine.Browser.Trust(browser.Handle));
             always.Margin = new(0, 0, 8, 0);
             StackPanel actions = browser.Trusted ? C.Inline(disconnect, block) : browser.Approved ? C.Inline(always, disconnect, block) : C.Inline(C.Small("Allow", () => app.Engine.Browser.Approve(browser.Handle)), block);
+            foreach (Button action in actions.Children.OfType<Button>())
+                AutomationProperties.SetName(action, AutomationProperties.GetName(action) + " " + browser.Label);
             Border state = C.Badge(browser.Trusted ? "Trusted" : browser.Approved ? "Allowed" : "Waiting for Allow", browser.Approved ? "Success" : "Danger", browser.Approved ? "SuccessSoft" : "DangerSoft");
             state.HorizontalAlignment = HorizontalAlignment.Left;
             StackPanel details = C.Stack(C.Space(C.Person(browser.Label, browser.Picture, browser.Address + " · connected " + browser.ConnectedUtc.ToLocalTime().ToString("HH:mm") + " · " + seen, 44), 12), C.Space(state, 10),

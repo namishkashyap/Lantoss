@@ -48,7 +48,7 @@ public sealed partial class TransferEngine
     {
         Preferences preferences = store.Preferences;
         // With Approve new devices on, nothing new is dialled automatically; already paired PCs reconnect through probes.
-        if (!Running || preferences.ApproveNewDevices || !preferences.AutoConnect || !preferences.Discoverable || preferences.RequireConnectionCode || peer.RequiresCode || !peer.SupportsDirectConnect || store.Trusted(peer.Fingerprint) != null || store.Blocked(peer.Fingerprint) || nextConnect.GetValueOrDefault(peer.Fingerprint) > DateTime.UtcNow || !connecting.TryAdd(peer.Fingerprint, 0))
+        if (!Running || preferences.ApproveNewDevices || !preferences.AutoConnect || !preferences.Discoverable || preferences.RequireConnectionCode || peer.RequiresCode || !peer.SupportsDirectConnect || store.Trusted(peer.Fingerprint) != null || store.Blocked(peer.Fingerprint) || nextConnect.GetValueOrDefault(peer.Fingerprint) > DateTime.UtcNow || connecting.Count >= 3 || !connecting.TryAdd(peer.Fingerprint, 0))
             return;
         RunWorker(async () =>
         {
@@ -59,7 +59,14 @@ public sealed partial class TransferEngine
                 await ConnectDirectAsync(peer, token: timeout.Token);
                 Status?.Invoke("Connected automatically to " + peer.Name + ". Shared folders are available inside the app.");
             }
-            catch (Exception error) { nextConnect[peer.Fingerprint] = DateTime.UtcNow.AddMinutes(1); Diagnostic?.Invoke(error); }
+            catch (Exception error)
+            {
+                // Old retry times are pruned, so a stream of made-up devices cannot grow this list without limit.
+                foreach (KeyValuePair<string, DateTime> old in nextConnect.Where(pair => pair.Value < DateTime.UtcNow).ToArray())
+                    nextConnect.TryRemove(old);
+                nextConnect[peer.Fingerprint] = DateTime.UtcNow.AddMinutes(1);
+                Diagnostic?.Invoke(error);
+            }
             finally { connecting.TryRemove(peer.Fingerprint, out _); }
         });
     }
