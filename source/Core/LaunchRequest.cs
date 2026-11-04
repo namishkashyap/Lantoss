@@ -21,7 +21,7 @@ public sealed record LaunchRequest(string Kind, string[] Paths, string? PeerKey 
             else if (args[i] is not ("--background" or "--admin"))
                 throw new InvalidDataException("Unknown launch option: " + args[i]);
         }
-        // --admin opens (or switches the running window to) admin mode after the PIN.
+        // --admin opens (or switches the running window to) admin mode when the running app is hopo Admin; a release hopo Users ignores it.
         return new LaunchRequest(paths.Count > 0 ? "share" : background ? "background" : admin ? "admin" : "activate", paths.ToArray(), key).Checked();
     }
     public LaunchRequest Checked()

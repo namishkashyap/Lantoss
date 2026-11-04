@@ -62,6 +62,9 @@ public sealed class PrivateFirewallPlan
           return $true
         }
         """;
+    /// <summary>Uninstall checks, without elevation, whether this program has its own rules before asking Windows to remove them.</summary>
+    public string PresenceScript => Header + "\nif(@(Get-NetFirewallRule -PolicyStore PersistentStore -Name ($flowPrefix+'-TCP'),($flowPrefix+'-UDP') -ErrorAction SilentlyContinue).Count -gt 0){'PRESENT'}else{'ABSENT'}\n";
+    public string RemovalScript => Header + "\nRemove-NetFirewallRule -PolicyStore PersistentStore -Name ($flowPrefix+'-TCP'),($flowPrefix+'-UDP') -ErrorAction SilentlyContinue\n'REMOVED'\n";
     public string InspectionScript => Header + Functions + "\nif((Test-FlowRules) -and @(Get-FlowBlocks 'ActiveStore').Count -eq 0){'READY'}else{'NEEDS_SETUP'}\n";
     public string SetupScript => Header + Functions + "\n" + """
         foreach($protocol in @('TCP','UDP')) {

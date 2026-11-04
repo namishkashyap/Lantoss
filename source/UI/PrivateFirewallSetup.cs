@@ -39,6 +39,22 @@ internal sealed class PrivateFirewallSetup(AppShell app)
         }
         return start;
     }
+    /// <summary>Uninstall removes this app's own Private-network rules. Windows asks once; if the prompt is declined the rules stay.</summary>
+    public static void RemoveRules(string program)
+    {
+        try
+        {
+            PrivateFirewallPlan plan = new(program, [48585]);
+            using Process check = Process.Start(Command(plan.PresenceScript, false)) ?? throw new IOException("Windows could not check hopo's firewall rules.");
+            string text = check.StandardOutput.ReadToEnd();
+            check.WaitForExit(20000);
+            if (!text.Contains("PRESENT", StringComparison.Ordinal))
+                return;
+            using Process remove = Process.Start(Command(plan.RemovalScript, true)) ?? throw new IOException("Windows could not start the firewall helper.");
+            remove.WaitForExit(60000);
+        }
+        catch (Exception error) when (error is IOException or InvalidDataException or InvalidOperationException or System.ComponentModel.Win32Exception) { }
+    }
     private static async Task<bool?> InspectAsync(PrivateFirewallPlan plan)
     {
         using Process check = Process.Start(Command(plan.InspectionScript, false)) ?? throw new IOException("Windows could not check hopo's firewall rules.");

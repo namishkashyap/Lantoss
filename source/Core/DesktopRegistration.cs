@@ -11,6 +11,11 @@ public static class DesktopRegistration
     public static readonly string[] AppNames = ["hopoUsers.exe", "hopoAdmin.exe"];
     public static bool IsApp(string executable) => AppNames.Contains(Path.GetFileName(executable), StringComparer.OrdinalIgnoreCase);
     public static readonly string[] MenuKeys = [@"Software\Classes\*\shell\Lantoss", @"Software\Classes\Directory\shell\Lantoss"];
+    // Each app keeps its own Explorer menu, settings and sign-in entry, so removing one app leaves the other working. hopo Users keeps the original names.
+    public static bool IsAdmin(string executable) => Path.GetFileName(executable).Equals("hopoAdmin.exe", StringComparison.OrdinalIgnoreCase);
+    public static string SettingsKeyFor(string executable) => IsAdmin(executable) ? @"Software\Lantoss\AdminDesktop" : SettingsKey;
+    public static string[] MenuKeysFor(string executable) => IsAdmin(executable) ? [@"Software\Classes\*\shell\hopoAdmin", @"Software\Classes\Directory\shell\hopoAdmin"] : MenuKeys;
+    public static string RunValueFor(string executable) => IsAdmin(executable) ? "hopo Admin" : "Lantoss";
 
     public static string Executable(string executable)
     {
@@ -26,9 +31,9 @@ public static class DesktopRegistration
         Peer[] targets = peers.Where(peer => peer.Paired && !peer.Blocked && peer.Fingerprint.Length == 64 && peer.Fingerprint.All(Uri.IsHexDigit))
             .DistinctBy(peer => peer.Fingerprint, StringComparer.OrdinalIgnoreCase).OrderBy(peer => peer.Name, StringComparer.OrdinalIgnoreCase).Take(32).ToArray();
         List<RegistryText> plan = [];
-        foreach (string root in MenuKeys)
+        foreach (string root in MenuKeysFor(app))
         {
-            plan.Add(new(root, "MUIVerb", "Share with hopo"));
+            plan.Add(new(root, "MUIVerb", IsAdmin(app) ? "Share with hopo Admin" : "Share with hopo"));
             plan.Add(new(root, "SubCommands", ""));
             plan.Add(new(root, "Icon", '"' + app + "\",0"));
             Add("00.choose", "Choose a PC…", null);

@@ -25,13 +25,24 @@ public sealed class Identity : IDisposable
     public static Identity Ephemeral()
     {
         using RSA key = RSA.Create(3072);
+        return new(SelfSigned(key));
+    }
+    private static X509Certificate2 SelfSigned(RSA key)
+    {
         CertificateRequest request = new("CN=Lantoss local device", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
         OidCollection usages = [new Oid("1.3.6.1.5.5.7.3.1"), new Oid("1.3.6.1.5.5.7.3.2")];
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(usages, false));
-        return new(request.CreateSelfSigned(DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddYears(5)));
+        return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddYears(5));
     }
+    /// <summary>Paired PCs pin the key, not the certificate, so a certificate near its end is reissued for the same key and every pairing keeps working.</summary>
+    public static X509Certificate2 Renew(X509Certificate2 certificate)
+    {
+        using RSA key = certificate.GetRSAPrivateKey() ?? throw new InvalidDataException("This device's key is unavailable.");
+        return SelfSigned(key);
+    }
+    private static bool Ending(X509Certificate2 certificate) => certificate.NotAfter.ToUniversalTime() < DateTime.UtcNow.AddDays(60);
     [SupportedOSPlatform("windows")]
     public static Identity Windows(MetadataStore store)
     {
@@ -40,10 +51,16 @@ public sealed class Identity : IDisposable
         if (!string.IsNullOrEmpty(store.Thumbprint))
         {
             X509Certificate2? existing = certificates.Certificates.Find(X509FindType.FindByThumbprint, store.Thumbprint, false)
-                .FirstOrDefault(c => c.HasPrivateKey && c.NotAfter.ToUniversalTime() > DateTime.UtcNow.AddDays(1));
+                .FirstOrDefault(c => c.HasPrivateKey);
             if (existing == null)
-                throw new InvalidDataException("This device's Windows certificate is missing or expired. Restore it or use a new data directory and pair the devices again.");
-            return new(existing);
+                throw new InvalidDataException("This device's Windows certificate is missing. Restore it or use a new data directory and pair the devices again.");
+            if (!Ending(existing))
+                return new(existing);
+            X509Certificate2 renewed = Renew(existing);
+            renewed.FriendlyName = "Lantoss local device identity";
+            certificates.Add(renewed);
+            store.SetCertificate(renewed.Thumbprint);
+            return new(renewed);
         }
         using Identity ephemeral = Ephemeral();
         byte[] pfx = ephemeral.Certificate.Export(X509ContentType.Pkcs12, "");
@@ -67,26 +84,33 @@ public sealed class Identity : IDisposable
         if (File.Exists(path))
         {
             X509Certificate2 existing = X509CertificateLoader.LoadPkcs12FromFile(path, "", flags);
-            if (!existing.HasPrivateKey || existing.NotAfter.ToUniversalTime() <= DateTime.UtcNow.AddDays(1) || (!string.IsNullOrEmpty(store.Thumbprint) && existing.Thumbprint != store.Thumbprint))
-                throw new InvalidDataException("This device's key file changed or expired. Restore it or use a new data directory and pair the devices again.");
-            return new(existing);
+            if (!existing.HasPrivateKey || (!string.IsNullOrEmpty(store.Thumbprint) && existing.Thumbprint != store.Thumbprint))
+                throw new InvalidDataException("This device's key file changed. Restore it or use a new data directory and pair the devices again.");
+            if (!Ending(existing))
+                return new(existing);
+            using X509Certificate2 renewed = Renew(existing);
+            return Save(renewed);
         }
         if (!string.IsNullOrEmpty(store.Thumbprint))
             throw new InvalidDataException("This device's key file is missing. Restore it or use a new data directory and pair the devices again.");
         using Identity ephemeral = Ephemeral();
-        byte[] pfx = ephemeral.Certificate.Export(X509ContentType.Pkcs12, "");
-        try
+        return Save(ephemeral.Certificate);
+        Identity Save(X509Certificate2 certificate)
         {
-            // CreateNew after deleting a leftover: UnixCreateMode only applies to a newly created file.
-            File.Delete(path + ".tmp");
-            using (FileStream file = new(path + ".tmp", new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }))
-                file.Write(pfx);
-            File.Move(path + ".tmp", path, true);
-            X509Certificate2 persistent = X509CertificateLoader.LoadPkcs12(pfx, "", flags);
-            store.SetCertificate(persistent.Thumbprint);
-            return new(persistent);
+            byte[] pfx = certificate.Export(X509ContentType.Pkcs12, "");
+            try
+            {
+                // CreateNew after deleting a leftover: UnixCreateMode only applies to a newly created file.
+                File.Delete(path + ".tmp");
+                using (FileStream file = new(path + ".tmp", new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }))
+                    file.Write(pfx);
+                File.Move(path + ".tmp", path, true);
+                X509Certificate2 persistent = X509CertificateLoader.LoadPkcs12(pfx, "", flags);
+                store.SetCertificate(persistent.Thumbprint);
+                return new(persistent);
+            }
+            finally { CryptographicOperations.ZeroMemory(pfx); }
         }
-        finally { CryptographicOperations.ZeroMemory(pfx); }
     }
     public static string KeyFingerprint(X509Certificate certificate)
     {

@@ -53,7 +53,8 @@ $run /bin/rm -rf "$dest"
 $run /usr/bin/ditto "$src" "$dest"
 $run /bin/chmod 755 "$dest/Contents/MacOS/hopo"
 $run /usr/bin/xattr -dr com.apple.quarantine "$dest" 2>/dev/null || true
-echo "Checking the hopo seal"
+# An ad-hoc seal only shows that the app is complete and unchanged since it was last signed; anyone who changes the app can sign it again.
+echo "Checking the hopo seal (this confirms the download is complete; it does not prove who built it)"
 if ! /usr/bin/codesign --verify --strict --deep "$dest" 2>/dev/null; then
     echo >&2
     echo "WARNING: the seal on hopo.app does not match its contents." >&2
@@ -75,4 +76,5 @@ fi
 
 echo
 echo "hopo is installed. Open it from Launchpad or the Applications folder."
+echo "To confirm the download came from the hopo release, compare the zip's SHA-256 with the checksum on the release page (shasum -a 256 <zip>)."
 echo "When macOS asks whether hopo may find devices on your local network, choose Allow."

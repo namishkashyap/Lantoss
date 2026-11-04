@@ -295,9 +295,17 @@ internal sealed class HomePage : IPage
     {
         devices.Children.Clear();
         // Only devices on the network right now; offline PCs are listed under Past connections. Users see paired PCs only.
-        Peer[] peers = app.Engine.Peers.Where(p => p.Online && !p.Blocked && (app.Admin || p.Paired) && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).OrderBy(p => p.Name).Take(8).ToArray();
-        BrowserDevice[] browsers = app.Engine.Browser.Browsers.Where(b => b.Approved && b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).Take(6).ToArray();
+        Peer[] allPeers = app.Engine.Peers.Where(p => p.Online && !p.Blocked && (app.Admin || p.Paired) && p.Name.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).OrderBy(p => p.Name).ToArray(), peers = allPeers.Take(8).ToArray();
+        BrowserDevice[] allBrowsers = app.Engine.Browser.Browsers.Where(b => b.Approved && b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase)).ToArray(), browsers = allBrowsers.Take(6).ToArray();
         int count = peers.Length + browsers.Length, index = 0;
+        // The rings hold 8 PCs and 6 phones; the rest are counted, not silently left out.
+        int more = allPeers.Length + allBrowsers.Length - count;
+        if (more > 0)
+        {
+            Button rest = C.Small($"+{more} more", () => app.Navigate(app.Admin ? "Devices" : "Send"));
+            AutomationProperties.SetName(rest, $"{more} more devices are connected. Show all devices.");
+            Place(devices, rest, Middle - 45, Middle + 150);
+        }
         foreach (Peer peer in peers)
             Device(index++, count, peer.Name, peer.Online ? "Mint" : "Muted", peer.Name + (peer.Online ? ", on Wi‑Fi" : ", offline"), peer.Online ? "Online" : "Offline", peer.Online, "Wi‑Fi · " + peer.Address, peer.TrustLabel, peer.Paired ? C.Small("Send files", () => Open("send", peer.Fingerprint)) : C.Small("Connect", () => app.Dialogs.Pair(peer)), peer.Paired ? C.Small("Text", () => Open("text", peer.Fingerprint)) : null);
         foreach (BrowserDevice browser in browsers)

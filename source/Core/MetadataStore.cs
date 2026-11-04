@@ -31,6 +31,10 @@ public sealed class MetadataStore
                 file.Write(bytes);
                 file.Flush(true);
             }
+            // A read-only main or backup file would otherwise stop every save, and with it startup.
+            foreach (string existing in new[] { filename, filename + ".bak" })
+                if (File.Exists(existing) && File.GetAttributes(existing).HasFlag(FileAttributes.ReadOnly))
+                    File.SetAttributes(existing, File.GetAttributes(existing) & ~FileAttributes.ReadOnly);
             if (File.Exists(filename))
                 File.Replace(temp, filename, filename + ".bak");
             else
@@ -72,6 +76,7 @@ public sealed class MetadataStore
         {
             data = Load(filename);
         }
+        catch (IOException error) when (Locked(error)) { throw new IOException("metadata.json is in use by another program. Close that program and start hopo again; nothing was changed.", error); }
         catch (Exception error) when (error is IOException or JsonException or InvalidDataException)
         {
             try
@@ -102,25 +107,50 @@ public sealed class MetadataStore
     }
     private static Document Load(string path)
     {
+        // A missing main file next to a saved copy is recovered from that copy, never replaced by a new identity.
         if (!File.Exists(path))
-            return new();
+            return !path.EndsWith(".bak", StringComparison.Ordinal) && File.Exists(path + ".bak") ? throw new FileNotFoundException("metadata.json is missing.") : new();
         if (new FileInfo(path).Length > 32 * 1024 * 1024)
             throw new InvalidDataException("The metadata file exceeds the supported size.");
-        Document doc = JsonSerializer.Deserialize<Document>(File.ReadAllBytes(path), Json) ?? throw new InvalidDataException("Metadata is empty.");
+        Document doc = JsonSerializer.Deserialize<Document>(ReadAll(path), Json) ?? throw new InvalidDataException("Metadata is empty.");
         if (doc.Version != 1)
             throw new InvalidDataException("This metadata version requires a newer Lantoss app.");
         // A tampered or damaged file must not smuggle in records the app would refuse to save.
         doc.Peers = (doc.Peers ?? []).Where(p => p is { Fingerprint.Length: 64, Name: not null, Address: not null } && p.Fingerprint.All(char.IsAsciiHexDigit) && Valid(p.Name)).DistinctBy(p => p.Fingerprint).TakeLast(256).ToList();
         doc.Spaces = (doc.Spaces ?? []).Where(s => s is { Name: not null, Folder: not null } && Guid.TryParseExact(s.Id, "N", out _) && Enum.IsDefined(s.Access) && Valid(s.Name) && Path.IsPathFullyQualified(s.Folder)).DistinctBy(s => s.Id).Take(32).ToList();
-        doc.History = (doc.History ?? []).Where(h => h != null).Take(300).ToList();
+        doc.History = (doc.History ?? []).Where(h => h is { Id: not null, Direction: not null }).Select(h => h with { PeerName = h.PeerName ?? "Unknown device", PeerFingerprint = h.PeerFingerprint ?? "", Title = h.Title ?? "Files", Files = h.Files ?? [], Sources = h.Sources ?? [], CurrentFile = h.CurrentFile ?? "", Error = h.Error ?? "", Destination = h.Destination ?? "", PeerAddress = h.PeerAddress ?? "", SpaceId = h.SpaceId ?? "", Transport = h.Transport ?? "" }).DistinctBy(h => h.Id + h.Direction).Take(300).ToList();
         doc.Preferences ??= new();
         // Keep only well-formed trust entries, newest 64.
         doc.Preferences = doc.Preferences with
         {
             TrustedBrowsers = (doc.Preferences.TrustedBrowsers ?? []).Where(t => t is { TokenHash.Length: 64, Label: not null } && t.TokenHash.All(char.IsAsciiHexDigit) && t.Label.Length <= 200).OrderByDescending(t => t.AddedUtc).Take(64).ToArray()
         };
-        if (!Valid(doc.Preferences.DeviceName ?? "") || doc.Preferences.Theme is not ("Light" or "Dark" or "System") || string.IsNullOrEmpty(doc.Preferences.ReceiveFolder) || !Path.IsPathFullyQualified(doc.Preferences.ReceiveFolder))
-            doc.Preferences = new();
+        // A bad field falls back on its own; the rest of the saved settings are kept.
+        Preferences defaults = new(), loaded = doc.Preferences;
+        if (!Valid(loaded.DeviceName ?? ""))
+            loaded = loaded with
+            {
+                DeviceName = defaults.DeviceName
+            };
+        if (loaded.Theme is not ("Light" or "Dark" or "System"))
+            loaded = loaded with
+            {
+                Theme = defaults.Theme
+            };
+        if (string.IsNullOrEmpty(loaded.ReceiveFolder) || !Path.IsPathFullyQualified(loaded.ReceiveFolder))
+            loaded = loaded with
+            {
+                ReceiveFolder = defaults.ReceiveFolder
+            };
+        try
+        {
+            loaded = loaded with
+            {
+                LocalName = Profiles.AddressName(loaded.LocalName)
+            };
+        }
+        catch (InvalidDataException) { loaded = loaded with { LocalName = defaults.LocalName }; }
+        doc.Preferences = loaded;
         return doc;
         static bool Valid(string name)
         {
@@ -130,6 +160,19 @@ public sealed class MetadataStore
                 return true;
             }
             catch (InvalidDataException) { return false; }
+        }
+    }
+    private static bool Locked(Exception error) => error is IOException { HResult: unchecked((int)0x80070020) or unchecked((int)0x80070021) };
+    /// <summary>Another program (often a virus scanner) may hold the file for a moment; wait for it rather than treating it as damaged.</summary>
+    private static byte[] ReadAll(string path)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return File.ReadAllBytes(path);
+            }
+            catch (IOException error) when (Locked(error) && attempt < 25) { Thread.Sleep(200); }
         }
     }
     /// <summary>On macOS and Linux the data folder is 0700 and its files 0600, so other local users cannot read history, keys or shared text.</summary>
@@ -211,7 +254,7 @@ public sealed class MetadataStore
     public void SetPreferences(Preferences preferences)
     {
         string name = ValidateName(preferences.DeviceName);
-        FileCatalog.CheckSafeDirectory(preferences.ReceiveFolder);
+        CheckReceiveFolder(preferences.ReceiveFolder);
         if (preferences.Theme is not ("Light" or "Dark" or "System"))
             throw new InvalidDataException("Choose Light, Dark, or System theme.");
         lock (gate)
@@ -222,6 +265,23 @@ public sealed class MetadataStore
                 ReceiveFolder = Path.GetFullPath(preferences.ReceiveFolder)
             };
         Save();
+    }
+    /// <summary>Refuses receive folders that would only fail when a file arrives: a missing or network drive, a drive root, a system folder or a very long path.</summary>
+    public static void CheckReceiveFolder(string folder)
+    {
+        string full = Path.GetFullPath(folder), root = Path.GetPathRoot(full) ?? "";
+        FileCatalog.CheckSafeDirectory(full);
+        if (full.Length > 200)
+            throw new InvalidDataException("Choose a receive folder with a shorter path, up to 200 characters.");
+        if (root.Length == 0 || !Directory.Exists(root))
+            throw new InvalidDataException("That drive is not available. Connect it or choose another receive folder.");
+        if (string.Equals(full.TrimEnd(Path.DirectorySeparatorChar), root.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Choose a folder on the drive, not the whole drive.");
+        if (OperatingSystem.IsWindows() && new DriveInfo(root).DriveType == DriveType.Network)
+            throw new InvalidDataException("Use a local drive. Mapped network drives are not supported as the receive folder.");
+        foreach (Environment.SpecialFolder system in new[] { Environment.SpecialFolder.Windows, Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86 })
+            if (Environment.GetFolderPath(system) is { Length: > 0 } blocked && (full + Path.DirectorySeparatorChar).StartsWith(blocked.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Choose a receive folder outside Windows and Program Files.");
     }
     public static string ValidateName(string name)
     {
@@ -260,6 +320,24 @@ public sealed class MetadataStore
         }
         Save();
     }
+    /// <summary>Records that a paired PC answered, changing nothing the user controls.</summary>
+    public void TouchPeer(string fingerprint, string address, int port, string browserUrl)
+    {
+        lock (gate)
+        {
+            int at = data.Peers.FindIndex(p => p.Fingerprint == fingerprint && p.Paired && !p.Blocked);
+            if (at < 0)
+                return;
+            data.Peers[at] = data.Peers[at] with
+            {
+                Address = address,
+                Port = port,
+                BrowserUrl = browserUrl,
+                LastSeenUtc = DateTime.UtcNow
+            };
+        }
+        Save();
+    }
     public void ForgetPeer(string fingerprint, bool block)
     {
         lock (gate)
@@ -277,24 +355,47 @@ public sealed class MetadataStore
     }
     public void SetHistory(IEnumerable<TransferRecord> records)
     {
+        // Sizing happens before the lock, so UI reads never wait for it. Newest records are kept first, each with at most
+        // 200 file rows, until the history budget is used; the saved file therefore always stays far below the load limit.
+        List<TransferRecord> kept = [];
+        long budget = 12L * 1024 * 1024;
+        foreach (TransferRecord record in records.OrderByDescending(r => r.CreatedUtc).Take(300))
+        {
+            TransferRecord slim = record.Files.Count > HistoryFiles ? record with
+            {
+                Files = record.Files.Take(HistoryFiles).ToList()
+            } : record;
+            long size = JsonSerializer.SerializeToUtf8Bytes(slim, Json).LongLength;
+            if (size > budget / 8)
+                size = JsonSerializer.SerializeToUtf8Bytes(slim = slim with
+                {
+                    Files = [],
+                    Sources = []
+                }, Json).LongLength;
+            if ((budget -= size) < 0)
+                break;
+            kept.Add(slim);
+        }
         lock (gate)
-            data.History = records.OrderByDescending(r => r.CreatedUtc).Take(300).ToList();
+            data.History = kept;
         Save();
     }
+    /// <summary>File rows kept per history record; the pages show at most 200 and the counts stay exact.</summary>
+    public const int HistoryFiles = 200;
     private void Save()
     {
         lock (writeGate)
         {
-            byte[] bytes;
+            Document snapshot;
             lock (gate)
-            {
-                bytes = JsonSerializer.SerializeToUtf8Bytes(data, Json);
-                while (bytes.Length > 16 * 1024 * 1024 && data.History.Count > 1)
+                snapshot = data with
                 {
-                    data.History.RemoveAt(data.History.Count - 1);
-                    bytes = JsonSerializer.SerializeToUtf8Bytes(data, Json);
-                }
-            }
+                    Peers = [.. data.Peers],
+                    History = [.. data.History],
+                    Spaces = [.. data.Spaces]
+                };
+            // Serialising outside the state lock keeps the UI responsive while a large history is written.
+            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, Json);
             // Disk flushes never hold the lock used by UI/state readers.
             FileCatalog.CheckSafeDirectory(Root);
             writer.Write(filename, bytes);

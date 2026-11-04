@@ -11,13 +11,18 @@ internal sealed class WindowsIntegration
     private string signature = "\0";
     public static void RemoveUserIntegration()
     {
-        ExplorerPackage.Remove();
-        // Installer cleanup must not open metadata, create an identity or start a server.
+        string app = Environment.ProcessPath ?? "";
+        // The legacy Windows 11 menu package belonged to hopo Users (Lantoss); hopo Admin's uninstall leaves it alone.
+        if (!DesktopRegistration.IsAdmin(app))
+            ExplorerPackage.Remove();
+        // Installer cleanup must not open metadata, create an identity or start a server. Only this app's own entries are removed.
         using (RegistryKey? run = Registry.CurrentUser.OpenSubKey(DesktopRegistration.RunKey, true))
-            run?.DeleteValue("Lantoss", false);
-        foreach (string key in DesktopRegistration.MenuKeys)
+            run?.DeleteValue(DesktopRegistration.RunValueFor(app), false);
+        foreach (string key in DesktopRegistration.MenuKeysFor(app))
             Registry.CurrentUser.DeleteSubKeyTree(key, false);
-        Registry.CurrentUser.DeleteSubKeyTree(DesktopRegistration.SettingsKey, false);
+        Registry.CurrentUser.DeleteSubKeyTree(DesktopRegistration.SettingsKeyFor(app), false);
+        if (DesktopRegistration.IsApp(app))
+            PrivateFirewallSetup.RemoveRules(app);
         NotifyExplorer();
     }
     public bool LaunchAtSignIn
@@ -25,22 +30,22 @@ internal sealed class WindowsIntegration
         get
         {
             using RegistryKey? run = Registry.CurrentUser.OpenSubKey(DesktopRegistration.RunKey);
-            return string.Equals(run?.GetValue("Lantoss") as string, DesktopRegistration.StartupCommand(executable), StringComparison.OrdinalIgnoreCase);
+            return string.Equals(run?.GetValue(DesktopRegistration.RunValueFor(executable)) as string, DesktopRegistration.StartupCommand(executable), StringComparison.OrdinalIgnoreCase);
         }
         set
         {
             using RegistryKey run = Registry.CurrentUser.CreateSubKey(DesktopRegistration.RunKey);
             if (value)
-                run.SetValue("Lantoss", DesktopRegistration.StartupCommand(executable));
+                run.SetValue(DesktopRegistration.RunValueFor(executable), DesktopRegistration.StartupCommand(executable));
             else
-                run.DeleteValue("Lantoss", false);
+                run.DeleteValue(DesktopRegistration.RunValueFor(executable), false);
         }
     }
     public bool ShellEnabled
     {
         get
         {
-            using RegistryKey? settings = Registry.CurrentUser.OpenSubKey(DesktopRegistration.SettingsKey);
+            using RegistryKey? settings = Registry.CurrentUser.OpenSubKey(DesktopRegistration.SettingsKeyFor(executable));
             return settings?.GetValue("ExplorerEnabled") is int enabled && enabled == 1;
         }
     }
@@ -53,14 +58,14 @@ internal sealed class WindowsIntegration
             else if (!enabled && ExplorerPackage.InstalledHere)
                 ExplorerPackage.Remove();
         }
-        using (RegistryKey settings = Registry.CurrentUser.CreateSubKey(DesktopRegistration.SettingsKey))
+        using (RegistryKey settings = Registry.CurrentUser.CreateSubKey(DesktopRegistration.SettingsKeyFor(executable)))
             settings.SetValue("ExplorerEnabled", enabled ? 1 : 0, RegistryValueKind.DWord);
         signature = "\0";
         if (enabled)
             Refresh(peers);
         else
         {
-            foreach (string key in DesktopRegistration.MenuKeys)
+            foreach (string key in DesktopRegistration.MenuKeysFor(executable))
                 Registry.CurrentUser.DeleteSubKeyTree(key, false);
             NotifyExplorer();
         }
@@ -77,7 +82,7 @@ internal sealed class WindowsIntegration
             string nextTargets = string.Join('\n', targets.Select(peer => peer.Fingerprint + "|" + peer.Name));
             if (signature == nextTargets)
                 return;
-            foreach (string root in DesktopRegistration.MenuKeys)
+            foreach (string root in DesktopRegistration.MenuKeysFor(executable))
                 Registry.CurrentUser.DeleteSubKeyTree(root, false);
             Registry.CurrentUser.DeleteSubKeyTree(DesktopRegistration.SettingsKey + @"\Peers", false);
             foreach (Peer peer in targets)
@@ -95,7 +100,7 @@ internal sealed class WindowsIntegration
             return;
         // Remove stale PC verbs after Unpair/Block, then rewrite the small owned subtree.
         // The fallback Choose a PC item is always present, even before first pairing.
-        foreach (string root in DesktopRegistration.MenuKeys)
+        foreach (string root in DesktopRegistration.MenuKeysFor(executable))
             Registry.CurrentUser.DeleteSubKeyTree(root, false);
         foreach (RegistryText item in plan)
         {

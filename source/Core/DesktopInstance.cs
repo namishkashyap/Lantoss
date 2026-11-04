@@ -10,7 +10,8 @@ namespace Lantoss.Core;
 public sealed class DesktopInstance : IDisposable
 {
     public const int MaxMessageBytes = 98304;
-    public static string Key(string dataRoot) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(dataRoot).ToUpperInvariant())))[..20];
+    // A trailing separator does not make a second data folder, so both spellings share one instance.
+    public static string Key(string dataRoot) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.TrimEndingDirectorySeparator(Path.GetFullPath(dataRoot)).ToUpperInvariant())))[..20];
     // The Windows session ID keeps another signed-in user from pre-creating this name and blocking the hand-off.
     public static string PipeName(string dataRoot) => "Lantoss-" + System.Diagnostics.Process.GetCurrentProcess().SessionId + "-" + Key(dataRoot);
     private readonly CancellationTokenSource stopped = new();

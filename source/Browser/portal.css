@@ -96,7 +96,7 @@ main.layout{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:3
 .panel{animation:hopo-in .45s cubic-bezier(.22,1,.36,1) both}
 @keyframes hopo-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 #notice:empty{display:none}
-#notice{padding:12px 16px;border-radius:14px;background:var(--mint-soft);border:1px solid var(--mint-border);font-size:13px}
+#notice{padding:12px 16px;border-radius:14px;background:var(--mint-soft);border:1px solid var(--mint-border);font-size:13px;overflow-wrap:anywhere}
 #notice.error{color:var(--danger);background:var(--danger-soft);border-color:var(--danger)}
 
 /* Tabs; on a phone they become the bottom bar. */
@@ -136,6 +136,10 @@ progress::-moz-progress-bar{border-radius:6px;background:repeating-linear-gradie
 .file-name{font-size:14px;overflow-wrap:anywhere}
 .file-meta{grid-column:2;font-size:12px;color:var(--muted)}
 .file-row>.b,.file-row>a,.file-row>button{grid-column:3;grid-row:1/span 2}
+/* Chosen files: long names end with an ellipsis, a long list scrolls in its own box, refused files say why. */
+#selection{max-height:min(55vh,440px);overflow-y:auto;overscroll-behavior:contain}#selection .file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-row.refused .file-meta{color:var(--danger);white-space:normal}.file-row.refused::before{border-color:var(--danger)}
+#selection-head{flex-wrap:wrap;row-gap:8px}#selection-summary{white-space:nowrap}#selection-head .row-actions{flex-wrap:nowrap}
 .note-content{grid-column:2;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
 .note-row .actions{grid-column:3;grid-row:1/span 2;display:flex;gap:6px}
 .space-card{width:100%;text-align:left;cursor:pointer;color:var(--text);background:var(--well);border:1px solid var(--tile-border);margin-bottom:8px}

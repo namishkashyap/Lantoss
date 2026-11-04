@@ -90,7 +90,7 @@ public sealed class LanDiscovery : IDisposable
         {
             while (udp != null && !lifetime.IsCancellationRequested)
             {
-                UdpReceiveResult packet = await udp.ReceiveAsync(lifetime.Token);
+                UdpReceiveResult packet = await LanDiscovery.ReceiveAsync(udp, lifetime.Token);
                 NetworkAdapter? adapter = adapters.FirstOrDefault(item => item.Contains(packet.RemoteEndPoint.Address));
                 if (adapter == null || packet.RemoteEndPoint.Port != discoveryPort || packet.Buffer.Length > 4096)
                     continue;
@@ -113,6 +113,18 @@ public sealed class LanDiscovery : IDisposable
             }
         }
         catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException or SocketException) { }
+    }
+    /// <summary>Windows reports an ICMP "port unreachable" for an earlier reply as an error on the next receive. That must not end a listener, or one closed port stops it for good.</summary>
+    internal static async Task<UdpReceiveResult> ReceiveAsync(UdpClient udp, CancellationToken token)
+    {
+        while (true)
+        {
+            try
+            {
+                return await udp.ReceiveAsync(token);
+            }
+            catch (SocketException error) when (error.SocketErrorCode is SocketError.ConnectionReset or SocketError.ConnectionRefused or SocketError.NetworkReset or SocketError.MessageSize) { }
+        }
     }
     public void Dispose()
     {

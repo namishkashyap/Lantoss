@@ -151,7 +151,8 @@ public static class ManagedTls
         public async Task HandshakeAsync(Action begin, Func<bool> complete, CancellationToken token)
         {
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            // A socket that has not finished the handshake holds a scarce slot, so it gets only a short time.
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
             using CancellationTokenRegistration abort = timeout.Token.Register(socket.Dispose);
             try
             {

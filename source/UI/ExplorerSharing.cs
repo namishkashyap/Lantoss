@@ -6,7 +6,8 @@ namespace Lantoss.UI;
 internal sealed class ExplorerSharing(AppShell app)
 {
     private readonly Queue<LaunchRequest> requests = new();
-    private readonly DispatcherTimer debounce = new() { Interval = TimeSpan.FromMilliseconds(700) };
+    // Explorer starts one process per selected item and each takes a moment to start, so the batch waits 2 s after the last one arrives.
+    private readonly DispatcherTimer debounce = new() { Interval = TimeSpan.FromSeconds(2) };
     private bool working;
     public void Accept(LaunchRequest request)
     {

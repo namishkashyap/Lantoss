@@ -69,7 +69,7 @@ static std::wstring Executable() {
     if (!count || count >= 32768) return {};
     std::wstring result(path, count);
     auto slash = result.find_last_of(L"\\/");
-    return slash == std::wstring::npos ? L"" : result.substr(0, slash + 1) + L"Lantoss.exe";
+    return slash == std::wstring::npos ? L"" : result.substr(0, slash + 1) + L"hopoUsers.exe";
 #endif
 }
 static HRESULT Selection(IShellItemArray* items, std::vector<std::wstring>& paths) {

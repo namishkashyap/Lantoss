@@ -33,14 +33,29 @@ public sealed class SharedNotes
                 throw new InvalidDataException("The shared notes store is too large.");
             return JsonSerializer.Deserialize<SharedNote[]>(File.ReadAllBytes(path), MetadataStore.Json) ?? [];
         }
-        try
+        // Damaged notes never stop the app: the previous copy is used, or the list starts empty with the damaged file kept aside.
+        foreach (string path in new[] { filename, filename + ".bak" })
         {
-            if (File.Exists(filename))
-                notes = Read(filename);
+            try
+            {
+                if (!File.Exists(path))
+                    continue;
+                SharedNote[] read = Read(path);
+                if (read.Length > 100 || read.Any(note => note == null || !Guid.TryParseExact(note.Id, "N", out _) || note.Content == null || note.Content.Length > MaxCharacters || note.Sender == null || note.Sender.Length > 80))
+                    throw new InvalidDataException("Invalid shared notes.");
+                notes = read;
+                return;
+            }
+            catch (Exception error) when (error is IOException or JsonException or InvalidDataException)
+            {
+                if (path == filename)
+                    try
+                    {
+                        File.Copy(filename, filename + ".damaged", true);
+                    }
+                    catch (Exception copy) when (copy is IOException or UnauthorizedAccessException) { }
+            }
         }
-        catch (Exception error) when (error is IOException or JsonException) { if (!File.Exists(filename + ".bak")) throw; notes = Read(filename + ".bak"); }
-        if (notes.Length > 100 || notes.Any(note => note == null || !Guid.TryParseExact(note.Id, "N", out _) || note.Content == null || note.Content.Length > MaxCharacters || note.Sender == null || note.Sender.Length > 80))
-            throw new InvalidDataException("Invalid shared notes. Preserve the store for recovery.");
     }
     public NoteSnapshot Snapshot(string? knownRevision = null)
     {
@@ -51,6 +66,9 @@ public sealed class SharedNotes
     {
         if (string.IsNullOrWhiteSpace(content) || content.Length > MaxCharacters || Encoding.UTF8.GetByteCount(content) > 64000 || content.Contains('\0'))
             throw new InvalidDataException("Enter text or a link, up to 16,000 characters / 64 KB.");
+        // Text-direction overrides and isolates can disguise what a note says, for example making "exe.txt" read as "txt.exe".
+        if (content.Any(c => c is (>= '‪' and <= '‮') or (>= '⁦' and <= '⁩')))
+            throw new InvalidDataException("Notes cannot contain text-direction override characters.");
         return content.Trim();
     }
     /// <summary>Notes written on this PC (local) are never pushed out by notes from other devices.</summary>

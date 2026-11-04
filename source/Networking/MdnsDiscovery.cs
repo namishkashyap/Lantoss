@@ -88,7 +88,7 @@ public sealed class MdnsDiscovery : IDisposable
         {
             while (!lifetime.IsCancellationRequested && udp != null)
             {
-                UdpReceiveResult packet = await udp.ReceiveAsync(lifetime.Token);
+                UdpReceiveResult packet = await LanDiscovery.ReceiveAsync(udp, lifetime.Token);
                 if (packet.Buffer.Length is < 12 or > 4096 || packet.RemoteEndPoint.Port != 5353 || !adapter.Contains(packet.RemoteEndPoint.Address))
                     continue;
                 try

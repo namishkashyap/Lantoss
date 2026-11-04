@@ -118,7 +118,7 @@ internal sealed class TransferRow
         speed.Text = record.SpeedText + (record.TimeLeft.Length > 0 ? " · " + record.TimeLeft : "");
         error.Text = record.Error;
         error.IsVisible = record.Error.Length > 0;
-        details.Content = $"File details ({record.Files.Count})";
+        details.Content = $"File details ({Math.Max(record.FileCount, record.Files.Count)})";
         if (fileDetails.IsVisible)
             UpdateFiles();
         if (lastTerminal != record.Terminal)
@@ -141,7 +141,7 @@ internal sealed class TransferRow
         fileDetails.Children.Clear();
         foreach (TransferFile file in record.Files.Take(200))
             fileDetails.Children.Add(C.Space(C.Text($"{file.RelativePath}\n{file.Status} · {Format.Bytes(file.Bytes)} / {Format.Bytes(file.Size)}", 11, "Muted"), 10));
-        if (record.Files.Count > 200)
+        if (Math.Max(record.FileCount, record.Files.Count) > 200)
             fileDetails.Children.Add(C.Text("Showing the first 200 file details. The current file is shown above.", 11, "Muted"));
     }
 }

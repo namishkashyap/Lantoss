@@ -29,3 +29,4 @@ checked, what is still unverified, and how to roll it back.
 | 2026-11-04 | [hopo 2.5.1 release](2026-11-04-hopo-2.5.1-release.md) |
 | 2026-11-04 | [hopo 2.5.2, remove chosen files before sending](2026-11-04-hopo-2.5.2-remove-chosen-files.md) |
 | 2026-11-04 | [hopo 2.5.3, one entry per phone browser](2026-11-04-hopo-2.5.3-one-entry-per-browser.md) |
+| 2026-11-05 | [hopo 2.5.4, fixes from the break test](2026-11-05-hopo-2.5.4-break-test-fixes.md) |

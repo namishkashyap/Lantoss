@@ -17,6 +17,7 @@ public sealed class SyncScanner(Func<DateTime>? utcNow = null) : IDisposable
         public Dictionary<string, Cached> Files = new(StringComparer.OrdinalIgnoreCase);
         public FileSystemWatcher? Watcher;
         public Manifest? Snapshot;
+        public string[] Skipped = [];
         public DateTime LastScan, Used = DateTime.UtcNow, WatchRetry;
         public long Version, EventSequence, ScannedVersion = -1;
         public int Pins, AllDirty, RestartWatcher;
@@ -102,6 +103,12 @@ public sealed class SyncScanner(Func<DateTime>? utcNow = null) : IDisposable
             }
         }
     }
+    /// <summary>Entries the last scan of this folder left out, with the reason, so the status can name them.</summary>
+    public string[] Skipped(string root)
+    {
+        lock (gate)
+            return roots.TryGetValue(Path.GetFullPath(root), out RootState? state) ? state.Skipped : [];
+    }
     public async Task<Manifest> ScanAsync(string root, CancellationToken token, bool force = false)
     {
         token.ThrowIfCancellationRequested();
@@ -141,7 +148,9 @@ public sealed class SyncScanner(Func<DateTime>? utcNow = null) : IDisposable
             List<ManifestEntry> entries = [];
             Dictionary<string, Cached> next = new(StringComparer.OrdinalIgnoreCase);
             int auditBudget = 1;
+            List<string> skipped = [];
             await Walk(root, "", 0);
+            state.Skipped = [.. skipped];
             Manifest? previous = state.Snapshot;
             bool identical = previous != null && previous.Entries.Count == entries.Count && previous.Entries.Zip(entries).All(pair => pair.First == pair.Second);
             Manifest snapshot = identical ? previous! : new()
@@ -156,21 +165,58 @@ public sealed class SyncScanner(Func<DateTime>? utcNow = null) : IDisposable
             state.ScannedVersion = version;
             return snapshot;
 
+            // One unsupported, locked or linked entry is skipped and reported; it never stops the rest of the folder from syncing.
+            void Skip(string path, string reason, bool retry = false)
+            {
+                if (skipped.Count < 50)
+                    skipped.Add(Path.GetFileName(path) + " (" + reason + ")");
+                if (retry)
+                    state.Dirty[path] = Interlocked.Read(ref state.Version);
+            }
             async Task Walk(string folder, string relative, int depth)
             {
                 if (depth > 128)
-                    throw new IOException("This sync folder has too many nested folders.");
-                foreach (string path in Directory.EnumerateFileSystemEntries(folder))
+                {
+                    Skip(folder, "too deeply nested");
+                    return;
+                }
+                string[] children;
+                try
+                {
+                    children = Directory.GetFileSystemEntries(folder);
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException && depth > 0)
+                {
+                    Skip(folder, "cannot be opened");
+                    return;
+                }
+                foreach (string path in children)
                 {
                     token.ThrowIfCancellationRequested();
                     string name = Path.GetFileName(path);
-                    // Shell-control files and names with hidden characters are never offered to peers.
-                    if (name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase) || name.Any(FileCatalog.Hidden) || (FileCatalog.ShellControl(name) && File.Exists(path)))
+                    // Shell-control files, Office lock files and thumbnail caches are never offered to peers.
+                    if (name.StartsWith(".flowshare-", StringComparison.OrdinalIgnoreCase) || (FileCatalog.ShellControl(name) && File.Exists(path)) || name.StartsWith("~$", StringComparison.Ordinal) || name.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase))
                         continue;
-                    FileCatalog.ValidateSegment(name);
-                    FileCatalog.CheckSafePath(path);
+                    if (name.Any(FileCatalog.Hidden))
+                    {
+                        Skip(path, "hidden characters in the name");
+                        continue;
+                    }
+                    try
+                    {
+                        FileCatalog.ValidateSegment(name);
+                        FileCatalog.CheckSafePath(path);
+                    }
+                    catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException)
+                    {
+                        Skip(path, error.Message.TrimEnd('.'));
+                        continue;
+                    }
                     if (entries.Count >= FileCatalog.MaxEntries)
-                        throw new IOException("A sync folder supports up to 10,000 files and folders.");
+                    {
+                        Skip(path, "the folder has more than 10,000 files and folders");
+                        return;
+                    }
                     string child = relative.Length == 0 ? name : relative + "/" + name;
                     if (Directory.Exists(path))
                     {
@@ -186,7 +232,10 @@ public sealed class SyncScanner(Func<DateTime>? utcNow = null) : IDisposable
                     long size = info.Length;
                     DateTime modified = info.LastWriteTimeUtc;
                     if (size > FileCatalog.MaxFileBytes)
-                        throw new IOException("A sync file exceeds the 1 TiB safety ceiling.");
+                    {
+                        Skip(path, "larger than 1 TiB");
+                        continue;
+                    }
                     state.Files.TryGetValue(path, out Cached? cached);
                     bool audit = cached != null && Now - cached.Checked > TimeSpan.FromMinutes(30) && auditBudget > 0;
                     if (force || cached == null || cached.Length != size || cached.Modified != modified || audit)
@@ -202,10 +251,18 @@ public sealed class SyncScanner(Func<DateTime>? utcNow = null) : IDisposable
                             Interlocked.Increment(ref hashes);
                             Interlocked.Add(ref hashedBytes, size);
                         }
+                        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                        {
+                            Skip(path, "in use by another program; will retry", true);
+                            continue;
+                        }
                         finally { hashSlot.Release(); }
                         info.Refresh();
                         if (!info.Exists || info.Length != size || info.LastWriteTimeUtc != modified)
-                            throw new IOException("A file is still being edited. Sync will retry.");
+                        {
+                            Skip(path, "still being edited; will retry", true);
+                            continue;
+                        }
                         cached = new(size, modified, Now, hash);
                     }
                     next[path] = cached!;

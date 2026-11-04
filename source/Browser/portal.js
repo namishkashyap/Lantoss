@@ -43,7 +43,19 @@ const bytes = size => { const units = ['B','KB','MB','GB']; let at = 0; while (s
 function notice(message, error = false) { $('notice').textContent = message; $('notice').className = error ? 'error' : ''; }
 const rateText = speed => speed > 0 ? `${bytes(speed)}/s` : 'Measuring…';
 const timeText = seconds => seconds < 60 ? `${Math.max(1, Math.ceil(seconds))}s` : `${Math.floor(seconds / 60)}m ${Math.ceil(seconds % 60)}s`;
-const validSelection = () => selected.length > 0 && selected.length <= 100 && selected.every(file => file.size <= 2147483648) && selected.reduce((sum, file) => sum + file.size, 0) <= 10737418240;
+// Names are shown without hidden formatting characters, so a right-to-left override cannot disguise "gpj.exe" as ".jpg" or flip a message.
+const shown = name => name.replace(/(?![‌‍])[\p{Cc}\p{Cf}]/gu, '');
+// The PC refuses these names, so they are flagged as soon as they are chosen instead of failing the whole send.
+function problem(file) {
+  const name = file.name;
+  if (name.length > 180) return 'Name is too long (over 180 characters). Rename it first.';
+  if (/[\p{Cc}<>:"/\\|?*]|(?![‌‍])\p{Cf}/u.test(name)) return 'Name has hidden or reserved characters. Rename it first.';
+  if (name !== name.trim() || name.endsWith('.') || name.toLowerCase().startsWith('.flowshare-')) return 'Name ends with a dot or space. Rename it first.';
+  if (/^(con|prn|aux|nul|clock\$|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³])$/i.test(name.split('.')[0].trimEnd())) return 'Windows reserves this name. Rename it first.';
+  if (file.size > 2147483648) return 'Larger than 2 GiB.';
+  return '';
+}
+const validSelection = () => selected.length > 0 && selected.length <= 100 && selected.every(file => !problem(file)) && selected.reduce((sum, file) => sum + file.size, 0) <= 10737418240;
 function updateTarget() {
   const readOnly = activeSpace && !activeSpace.canUpload;
   $('files').disabled = busy || !!readOnly;
@@ -288,18 +300,20 @@ $('files').addEventListener('change', () => {
 });
 function selectionChanged() {
   showSelection();
-  const invalid = selected.length > 100 || selected.some(file => file.size > 2147483648) || selected.reduce((sum, file) => sum + file.size, 0) > 10737418240;
+  const refused = selected.filter(file => problem(file));
+  const invalid = selected.length > 100 || selected.reduce((sum, file) => sum + file.size, 0) > 10737418240;
   updateTarget();
-  notice(invalid ? 'Choose up to 100 files, 2 GiB each, and 10 GiB total.' : '', invalid);
+  notice(refused.length ? `${refused.length === 1 ? '1 file can' : refused.length + ' files can'}'t be sent: ${shown(refused[0].name).slice(0, 60)}${shown(refused[0].name).length > 60 ? '…' : ''}. ${problem(refused[0])} Remove it with ×.` : invalid ? `Choose up to 100 files and 10 GiB total. Remove ${selected.length > 100 ? selected.length - 100 + ' files' : 'some files'} with ×.` : '', refused.length > 0 || invalid);
 }
 // Chosen files replace the picker with a list, its total, Add more and Clear. Each row has × to remove that file.
 function showSelection() {
   $('selection').replaceChildren();
   selected.forEach((file, index) => {
-    const row = document.createElement('li'); row.className = photo(file.name) ? 'file-row photo' : 'file-row';
+    const issue = problem(file);
+    const row = document.createElement('li'); row.className = (photo(file.name) ? 'file-row photo' : 'file-row') + (issue ? ' refused' : '');
     const details = document.createElement('div');
-    const name = document.createElement('div'); name.className = 'file-name'; name.textContent = file.name;
-    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = `${fileKind(file.name)} · ${bytes(file.size)}`;
+    const name = document.createElement('div'); name.className = 'file-name'; name.textContent = name.title = shown(file.name);
+    const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = issue ? `Can't send · ${issue}` : `${fileKind(file.name)} · ${bytes(file.size)}`;
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'b q sm remove'; remove.textContent = '×'; remove.disabled = busy; remove.setAttribute('aria-label', 'Remove ' + file.name);
     remove.addEventListener('click', () => { if (busy) return; selected.splice(index, 1); selectionChanged(); });
     details.append(name, meta); row.append(details, remove); $('selection').append(row);
@@ -324,7 +338,8 @@ function upload(file, index, before, total) {
       $('transfer-speed').textContent = `${rateText(speed)}${speed > 0 && amount < total ? ' · ~' + timeText((total - amount) / speed) + ' left' : amount >= total ? ' · waiting for the PC to finish saving' : ''}`;
     };
     xhr.onload = () => { let result = {}; try { result = JSON.parse(xhr.responseText); } catch {} if (xhr.status >= 200 && xhr.status < 300) resolve(result); else reject(new Error(result.error || 'The upload stopped. Check your PC and try again.')); };
-    xhr.onerror = () => reject(new Error('Connection lost. Keep both devices on the same Wi-Fi.'));
+    // A file that was moved, deleted or never downloaded (an iCloud photo) fails before any byte is sent; that is not a Wi-Fi problem.
+    xhr.onerror = () => file.slice(0, 1).arrayBuffer().then(() => reject(new Error('Connection lost. Keep both devices on the same Wi-Fi.')), () => reject(new Error(`${shown(file.name)} could not be read on this device. If it is in iCloud or was moved, open it once, then choose it again.`)));
     xhr.onabort = () => reject(new Error('Upload cancelled. Files already saved on the PC are kept.'));
     xhr.send(file);
   });

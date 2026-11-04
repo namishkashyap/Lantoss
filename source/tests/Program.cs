@@ -89,6 +89,7 @@ internal static partial class Program
         await LocalAddressCasesAsync();
         await Version20CasesAsync();
         await Version201CasesAsync();
+        await Version254CasesAsync();
         await NoteCasesAsync();
         await EfficientSyncCasesAsync();
         await FirewallCasesAsync();
@@ -360,7 +361,7 @@ internal static partial class Program
             await sender.PairNearbyAsync(ratePeer, (_, _) => Task.FromResult(true));
         }
         catch (ProtocolException error) { rejection = error.Message; }
-        Check(prompts == 5 && rejection.Contains("Too many nearby", StringComparison.Ordinal), "Nearby approval prompts have a global five-per-minute limit");
+        Check(prompts == 5 && rejection.Contains("Too many pairing attempts", StringComparison.Ordinal), "Nearby approval prompts are limited to five per minute from one address, so one device cannot block pairing for everyone");
         using CancellationTokenSource shutdown = new(TimeSpan.FromSeconds(10));
         await sender.ShutdownAsync(shutdown.Token);
         await receiver.ShutdownAsync(shutdown.Token);

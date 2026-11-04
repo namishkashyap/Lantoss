@@ -108,7 +108,7 @@ public sealed class LocalNameService : IDisposable
         {
             while (!lifetime.IsCancellationRequested && udp != null)
             {
-                UdpReceiveResult received = await udp.ReceiveAsync(lifetime.Token);
+                UdpReceiveResult received = await LanDiscovery.ReceiveAsync(udp, lifetime.Token);
                 if (!adapter.Contains(received.RemoteEndPoint.Address))
                     continue;
                 try

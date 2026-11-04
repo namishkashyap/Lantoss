@@ -97,7 +97,7 @@ public sealed record Peer
     public DateTime LastSeenUtc { get; init; } = DateTime.UtcNow;
     [JsonIgnore] public string DisplayName => Name;
     [JsonIgnore] public string Endpoint => $"{Address}:{Port}";
-    [JsonIgnore] public bool Online => DateTime.UtcNow - LastSeenUtc < TimeSpan.FromSeconds(75);
+    [JsonIgnore] public bool Online => (DateTime.UtcNow - LastSeenUtc).Duration() < TimeSpan.FromSeconds(75);
     [JsonIgnore] public string TrustLabel => Blocked ? "Blocked" : Paired ? KeyVerified ? "Paired · key verified" : "Connected · saved key" : "Nearby · not verified";
     public override string ToString() => Name;
 }
