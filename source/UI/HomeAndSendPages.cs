@@ -727,7 +727,45 @@ internal sealed class HomePage : IPage
         send.HorizontalAlignment = HorizontalAlignment.Stretch;
         send.HorizontalContentAlignment = HorizontalAlignment.Center;
         send.IsEnabled = app.Selection.Count > 0 && target != null;
-        return Sheet("Send files", Well(summary, choose), Picks("Send to", peers.Select(p => (p.Fingerprint, p.Name, (string?)(p.Online ? "Mint" : "Muted"))).Concat(phones.Select(b => ("web:" + b.Handle, b.Label, (string?)"Phone"))), key => key == target, key => { target = key; Open("send", animate: false); }), send);
+        // Each chosen file or folder is listed with × to remove just that one.
+        StackPanel chosen = new();
+        foreach (SelectionItem item in app.Selection.ToArray())
+        {
+            Button remove = new()
+            {
+                Width = 32,
+                Height = 32,
+                Padding = new(0),
+                Background = Brushes.Transparent,
+                BorderBrush = Brushes.Transparent,
+                Content = C.Icon("close", 12, "Muted")
+            };
+            AutomationProperties.SetName(remove, "Remove " + item.Name);
+            remove.Click += (_, _) => { app.Selection.Remove(item); Open("send", animate: false); };
+            TextBlock name = C.Text(item.Name, 13), size = C.Text(item.Folders > 0 ? $"{item.Files} files · {Format.Bytes(item.Size)}" : Format.Bytes(item.Size), 11, "Muted");
+            name.TextTrimming = TextTrimming.CharacterEllipsis;
+            name.TextWrapping = TextWrapping.NoWrap;
+            name.VerticalAlignment = size.VerticalAlignment = VerticalAlignment.Center;
+            size.Margin = new(10, 0, 4, 0);
+            DockPanel row = new()
+            {
+                Margin = new(0, 0, 0, 2)
+            };
+            DockPanel.SetDock(remove, Dock.Right);
+            DockPanel.SetDock(size, Dock.Right);
+            row.Children.Add(remove);
+            row.Children.Add(size);
+            row.Children.Add(name);
+            chosen.Children.Add(row);
+        }
+        ScrollViewer list = new()
+        {
+            Content = chosen,
+            MaxHeight = 170,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Visibility = app.Selection.Count > 0 ? Visibility.Visible : Visibility.Collapsed
+        };
+        return Sheet("Send files", Well(summary, choose), list, Picks("Send to", peers.Select(p => (p.Fingerprint, p.Name, (string?)(p.Online ? "Mint" : "Muted"))).Concat(phones.Select(b => ("web:" + b.Handle, b.Label, (string?)"Phone"))), key => key == target, key => { target = key; Open("send", animate: false); }), send);
     }
     private async void ChooseFiles()
     {
