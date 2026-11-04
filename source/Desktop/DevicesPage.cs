@@ -65,7 +65,7 @@ internal sealed class DevicesPage : IPage
                 C.Space(C.Text(peer.Endpoint + " · public key " + Format.ShortKey(peer.Fingerprint), 11, "Muted"), 0, 12));
             list.Children.Add(C.Space(C.Card(details), 14));
         }
-        BrowserDevice[] browsers = app.Engine.Browser.Devices.Where(b => b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || b.Address.Contains(app.Search, StringComparison.Ordinal)).ToArray();
+        BrowserDevice[] browsers = app.Engine.Browser.Browsers.Where(b => b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || b.Address.Contains(app.Search, StringComparison.Ordinal)).ToArray();
         list.Children.Add(C.Space(C.Heading("Through the browser", C.Inline(C.Badge(browsers.Length + " active", browsers.Length > 0 ? "Phone" : "Muted", browsers.Length > 0 ? "Phone/14" : "Text/6"), C.Small("Phone & browser settings", () => app.Navigate("Phone & browser")))), 12, 14));
         if (browsers.Length == 0)
             list.Children.Add(C.Space(C.Text("No phone or browser is connected. Open Phone & browser to share the page link or QR code.", 12, "Muted"), 14));

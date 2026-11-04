@@ -247,7 +247,7 @@ internal sealed class HomePage : IPage
         activity.Content = speed > 0 ? C.Small($"{speed / 1048576:0.0} MB/s transferring · View", () => app.Navigate("Transfers")) : null;
         fillSheet?.Invoke();
         List<Spot> spots = [.. app.Engine.Peers.Where(p => !p.Blocked && (p.Paired || p.Online)).OrderByDescending(p => p.Paired).ThenByDescending(p => p.Online).ThenBy(p => p.Name).Take(8).Select(p => new Spot(p.Fingerprint, p.Name, Pc(p), p, null)),
-            .. app.Engine.Browser.Devices.Take(6).Select(b => new Spot("browser:" + b.Handle, b.Label, "Phone", null, b))];
+            .. app.Engine.Browser.Browsers.Take(6).Select(b => new Spot("browser:" + b.Handle, b.Label, "Phone", null, b))];
         // Transfers refresh Home many times a second; the devices are rebuilt only when they change, so hover cards and beats carry on.
         string signature = string.Join("|", spots.Select(s => $"{s.Key}/{s.Name}/{s.Color}/{s.Peer?.Paired}/{s.Peer?.Address}/{s.Browser?.Approved}/{s.Browser?.Address}/{s.Browser?.ConnectedUtc.Ticks}"));
         if (signature == deviceSignature)
@@ -497,7 +497,7 @@ internal sealed class HomePage : IPage
         ((Border)area.Children[1]).Padding = new(16);
         return area;
     }
-    private Target[] Targets() => [.. app.Engine.Peers.Where(p => p.Paired && !p.Blocked).Select(p => new Target(p.Name, Pc(p), p, null)), .. app.Engine.Browser.Devices.Where(d => d.Approved && app.Engine.Browser.Running).Select(d => new Target(d.Label, "Phone", null, d))];
+    private Target[] Targets() => [.. app.Engine.Peers.Where(p => p.Paired && !p.Blocked).Select(p => new Target(p.Name, Pc(p), p, null)), .. app.Engine.Browser.Browsers.Where(d => d.Approved && app.Engine.Browser.Running).Select(d => new Target(d.Label, "Phone", null, d))];
     private Target? Chosen(Target[] targets) => targets.FirstOrDefault(t => t.Browser != null && t.Browser.Handle == app.SelectedBrowserHandle) ?? targets.FirstOrDefault(t => t.Peer != null && t.Peer.Fingerprint == app.SelectedPeerKey) ?? targets.FirstOrDefault();
     private StackPanel SendSheet()
     {
@@ -729,7 +729,7 @@ internal sealed class SendPage : IPage
         recipient.Children.Clear();
         recipient.Children.Add(C.Heading("Send to"));
         Recipient[] targets = [.. app.Engine.Peers.Where(p => p.Paired && !p.Blocked).Select(p => new Recipient(p.Name, p.Online ? "Online · LAN" : "Offline", p.Online ? "Mint" : "Muted", p, null)),
-            .. app.Engine.Browser.Devices.Where(d => d.Approved && app.Engine.Browser.Running).Select(d => new Recipient(d.Label, "Phone / browser · " + d.Address, "Phone", null, d))];
+            .. app.Engine.Browser.Browsers.Where(d => d.Approved && app.Engine.Browser.Running).Select(d => new Recipient(d.Label, "Phone / browser · " + d.Address, "Phone", null, d))];
         if (targets.Length == 0)
         {
             recipient.Children.Add(C.Space(C.Text("Connect another computer once, then it will be remembered for future transfers.", 12, "Muted"), 18));

@@ -80,7 +80,7 @@ internal sealed class DevicesPage : IPage
             StackPanel details = C.Stack(C.Space(name, 12), C.Space(trust, 10), C.Space(C.Text(availability, 12, "Muted"), 16), actions, connectionDetails);
             list.Children.Add(C.Space(C.Card(details), 14));
         }
-        BrowserDevice[] browsers = app.Engine.Browser.Devices.Where(b => b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || b.Address.Contains(app.Search, StringComparison.Ordinal)).ToArray();
+        BrowserDevice[] browsers = app.Engine.Browser.Browsers.Where(b => b.Label.Contains(app.Search, StringComparison.OrdinalIgnoreCase) || b.Address.Contains(app.Search, StringComparison.Ordinal)).ToArray();
         list.Children.Add(C.Space(C.Heading("Connected through the web", C.Badge(browsers.Length + " active", browsers.Length > 0 ? "Success" : "Muted", browsers.Length > 0 ? "SuccessSoft" : "Background")), 12, 14));
         if (browsers.Length == 0)
             list.Children.Add(C.Space(C.Text("No phone or browser is connected. Open Phone & browser to share the page link or QR code.", 12, "Muted"), 14));
