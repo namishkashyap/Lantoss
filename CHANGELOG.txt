@@ -1,3 +1,10 @@
+2026-11-04 - hopo 2.5.2: remove a chosen file before sending
+
+On the phone and browser page, each chosen file now has a x button to remove
+just that file, and Add more adds to the list instead of replacing it. The
+Home Send files panel in the app lists the chosen files and folders, each
+with a x button.
+
 2026-11-04 - hopo 2.5.1: rounder Home glow, brighter rings, faster menu
 
 The glow around This PC on Home is now a true circle. The wavy rings are

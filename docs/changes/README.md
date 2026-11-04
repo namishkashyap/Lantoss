@@ -27,3 +27,4 @@ checked, what is still unverified, and how to roll it back.
 | 2026-11-03 | [hopo 2.5.0, phone and browser page from the design](2026-11-03-hopo-2.5.0-web-design.md) |
 | 2026-11-04 | [Home rings, glow and menu animation](2026-11-04-home-rings-menu-motion.md) |
 | 2026-11-04 | [hopo 2.5.1 release](2026-11-04-hopo-2.5.1-release.md) |
+| 2026-11-04 | [hopo 2.5.2, remove chosen files before sending](2026-11-04-hopo-2.5.2-remove-chosen-files.md) |

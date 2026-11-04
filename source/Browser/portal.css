@@ -49,6 +49,7 @@ strong,.strong{font-weight:600}
 .q{border-color:transparent;background:transparent;color:var(--muted)}
 .sm{height:36px;padding:0 12px;font-size:12px;border-radius:10px}
 .q.sm:has(.i:only-child){width:36px;padding:0}
+.b.remove{width:36px;padding:0;font-size:20px;font-weight:400;line-height:1}.b.remove:hover{color:var(--text)}
 .center{align-self:center}
 .row-actions{display:flex;gap:8px;flex-wrap:wrap}
 .row-actions .grow{flex:1}
@@ -226,7 +227,7 @@ h1.sm-only{display:block!important;font-size:22px;margin-top:4px}
 .tab .long{display:none}
 .tab .cnt{position:absolute;top:5px;left:calc(50% + 6px);min-width:16px;height:16px;font-size:10px}
 .b{height:48px;font-size:14px;border-radius:14px}
-.b.sm{height:40px;font-size:13px;border-radius:12px}
+.b.sm{height:40px;font-size:13px;border-radius:12px}.b.remove{width:44px;height:44px;font-size:24px}
 .q.sm:has(.i:only-child){width:40px}
 .in,input.in{font-size:16px}
 input.in{height:48px}

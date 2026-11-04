@@ -48,6 +48,7 @@ function updateTarget() {
   const readOnly = activeSpace && !activeSpace.canUpload;
   $('files').disabled = busy || !!readOnly;
   $('spaces-refresh').disabled = busy; $('selection-clear').disabled = busy;
+  for (const row of $('selection').children) row.children[row.children.length - 1].disabled = busy;
   $('send').disabled = busy || !!readOnly || !validSelection();
   $('send-title').textContent = activeSpace ? `Upload to ${activeSpace.name}` : 'Send to your PC'; $('send-title').hidden = !activeSpace;
   $('upload-hint').textContent = readOnly ? 'This space is read only. Use PC inbox instead to send files.' : activeSpace ? `Destination: ${activeFolder || 'space root'}. Approve the batch on the PC.` : 'Pick files or photos. Approve the request on your PC.';
@@ -279,26 +280,34 @@ function startTransferPolling() {
 }
 $('files').addEventListener('change', () => {
   if (busy) return;
-  selected = Array.from($('files').files);
+  // Add more adds to the list; the same file picked again is not added twice.
+  const same = (a, b) => a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+  for (const file of Array.from($('files').files)) if (!selected.some(chosen => same(chosen, file))) selected.push(file);
+  $('files').value = '';
+  selectionChanged();
+});
+function selectionChanged() {
   showSelection();
   const invalid = selected.length > 100 || selected.some(file => file.size > 2147483648) || selected.reduce((sum, file) => sum + file.size, 0) > 10737418240;
   updateTarget();
   notice(invalid ? 'Choose up to 100 files, 2 GiB each, and 10 GiB total.' : '', invalid);
-});
-// Chosen files replace the picker with a list, its total, Add more and Clear.
+}
+// Chosen files replace the picker with a list, its total, Add more and Clear. Each row has × to remove that file.
 function showSelection() {
   $('selection').replaceChildren();
-  for (const file of selected.slice(0, 100)) {
+  selected.forEach((file, index) => {
     const row = document.createElement('li'); row.className = photo(file.name) ? 'file-row photo' : 'file-row';
     const details = document.createElement('div');
     const name = document.createElement('div'); name.className = 'file-name'; name.textContent = file.name;
     const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = `${fileKind(file.name)} · ${bytes(file.size)}`;
-    details.append(name, meta); row.append(details); $('selection').append(row);
-  }
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'b q sm remove'; remove.textContent = '×'; remove.disabled = busy; remove.setAttribute('aria-label', 'Remove ' + file.name);
+    remove.addEventListener('click', () => { if (busy) return; selected.splice(index, 1); selectionChanged(); });
+    details.append(name, meta); row.append(details, remove); $('selection').append(row);
+  });
   $('picker').hidden = selected.length > 0; $('selection-head').hidden = !selected.length;
   $('selection-summary').textContent = `${selected.length} ${selected.length === 1 ? 'file' : 'files'} · ${bytes(selected.reduce((sum, file) => sum + file.size, 0))}`;
 }
-$('selection-clear').addEventListener('click', () => { if (busy) return; selected = []; $('files').value = ''; showSelection(); updateTarget(); notice(''); });
+$('selection-clear').addEventListener('click', () => { if (busy) return; selected = []; $('files').value = ''; selectionChanged(); });
 function upload(file, index, before, total) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest(); activeUpload = xhr;
